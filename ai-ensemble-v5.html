@@ -1,0 +1,1401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI - Ensemble</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #121212;
+            --bg-tertiary: #1a1a1a;
+            --text-primary: #f5f5f5;
+            --text-secondary: #c0c0c0;
+            --text-tertiary: #888888;
+            --accent: #d97706;
+            --accent-light: #f59e0b;
+            --accent-dark: #b45309;
+            --error: #dc2626;
+            --warning: #f59e0b;
+            --success: #10b981;
+            --border: #2a2a2a;
+            --input-bg: #121212;
+            --input-border: #2a2a2a;
+        }
+
+        [data-theme="light"] {
+            --bg-primary: #fafaf9;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #f5f5f4;
+            --text-primary: #0d0d0d;
+            --text-secondary: #525252;
+            --text-tertiary: #888888;
+            --accent: #d97706;
+            --accent-light: #f59e0b;
+            --accent-dark: #b45309;
+            --error: #dc2626;
+            --warning: #f59e0b;
+            --success: #10b981;
+            --border: #e7e5e4;
+            --input-bg: #ffffff;
+            --input-border: #e7e5e4;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Georgia', serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+
+        .header {
+            text-align: center;
+            margin-bottom: 50px;
+            padding-bottom: 30px;
+            border-bottom: 1px solid var(--border);
+            position: relative;
+        }
+
+        .header h1 {
+            font-size: 48px;
+            font-weight: 300;
+            letter-spacing: 2px;
+            margin-bottom: 20px;
+        }
+
+        .theme-toggle {
+            position: absolute;
+            top: 0;
+            right: 0;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 8px 14px;
+            border-radius: 0;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+
+        .theme-toggle:hover { border-color: var(--accent); color: var(--accent); }
+
+        .tabs {
+            display: flex;
+            gap: 30px;
+            margin-bottom: 40px;
+            border-bottom: 1px solid var(--border);
+            justify-content: center;
+        }
+
+        .tab-button {
+            padding: 12px 0;
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+
+        .tab-button:hover { color: var(--text-primary); }
+        .tab-button.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        .form-section { margin-bottom: 40px; }
+        .form-section h2 { font-size: 18px; font-weight: 500; margin-bottom: 25px; color: var(--text-primary); letter-spacing: 0.5px; }
+
+        .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 25px; margin-bottom: 25px; }
+        .form-group { display: flex; flex-direction: column; }
+
+        label {
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        input[type="text"], input[type="password"], input[type="number"], select, textarea {
+            padding: 12px;
+            background: var(--input-bg);
+            border: 1px solid var(--input-border);
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 14px;
+            border-radius: 0;
+            transition: all 0.3s;
+        }
+
+        input::placeholder, textarea::placeholder { color: var(--text-tertiary); }
+        input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+
+        textarea { resize: vertical; min-height: 100px; font-size: 13px; line-height: 1.6; }
+
+        button {
+            padding: 12px 24px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            border-radius: 0;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            letter-spacing: 0.5px;
+        }
+
+        button:hover:not(:disabled) { background: var(--bg-tertiary); }
+
+        .btn-primary { background: var(--accent); color: white; border-color: var(--accent); padding: 14px 32px; width: 100%; }
+        .btn-primary:hover:not(:disabled) { background: var(--accent-light); border-color: var(--accent-light); }
+        .btn-primary:disabled { background: var(--text-tertiary); opacity: 0.5; cursor: not-allowed; }
+
+        .btn-secondary { background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border); }
+        .btn-success { background: var(--success); color: white; border-color: var(--success); }
+        .btn-danger { background: var(--error); color: white; border-color: var(--error); }
+
+        .status-message {
+            padding: 14px 16px;
+            border-left: 3px solid;
+            margin-bottom: 20px;
+            font-size: 13px;
+        }
+
+        .status-info { background: rgba(31, 41, 55, 0.5); border-left-color: var(--accent); color: var(--text-secondary); }
+        .status-success { background: rgba(16, 185, 129, 0.1); border-left-color: var(--success); color: var(--text-secondary); }
+        .status-error { background: rgba(220, 38, 38, 0.1); border-left-color: var(--error); color: var(--error); }
+
+        .model-selection { background: var(--bg-secondary); border: 1px solid var(--border); padding: 20px; margin-bottom: 30px; }
+        .model-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-bottom: 15px; }
+
+        .model-checkbox {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            border: 1px solid var(--border);
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .model-checkbox:hover { border-color: var(--accent); background: var(--bg-tertiary); }
+        .model-checkbox input { margin-right: 10px; cursor: pointer; accent-color: var(--accent); }
+
+        .history-list { background: var(--bg-secondary); border: 1px solid var(--border); max-height: 400px; overflow-y: auto; }
+        .history-item { display: block; padding: 16px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.3s; text-decoration: none; color: inherit; }
+        .history-item:hover { background: var(--bg-tertiary); }
+        .history-item-title { font-weight: 500; color: var(--text-primary); margin-bottom: 6px; font-size: 14px; }
+        .history-item-meta { font-size: 12px; color: var(--text-tertiary); }
+
+        .discussion-section { display: none; }
+        .discussion-section.active { display: block; }
+
+        .discussion-controls { display: flex; gap: 12px; margin-bottom: 30px; flex-wrap: wrap; }
+        .discussion-controls button { flex: 1; min-width: 140px; }
+
+        .round-status {
+            background: var(--bg-secondary);
+            border-left: 3px solid var(--accent);
+            padding: 16px;
+            margin-bottom: 30px;
+        }
+
+        .round-status-title { font-weight: 600; color: var(--accent); margin-bottom: 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .round-status-info { font-size: 13px; color: var(--text-secondary); line-height: 1.8; font-family: monospace; }
+        .status-error-box { background: rgba(220, 38, 38, 0.1); border: 1px solid var(--error); padding: 12px; margin-top: 12px; color: var(--error); font-size: 12px; font-family: monospace; max-height: 200px; overflow-y: auto; }
+
+        .progress-container { margin-bottom: 30px; }
+        .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 13px; color: var(--text-secondary); }
+        .progress-bar { height: 3px; background: var(--bg-tertiary); margin-bottom: 15px; overflow: hidden; }
+        .progress-fill { height: 100%; background: var(--accent); width: 0%; transition: width 0.3s; }
+
+        .round-timeline { margin-bottom: 30px; }
+        .round-header {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            padding: 16px;
+            border: 1px solid var(--border);
+            margin-bottom: 1px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 500;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .round-header:hover { background: var(--bg-tertiary); }
+        .round-toggle { display: inline-block; transition: transform 0.3s; }
+        .round-header.active .round-toggle { transform: rotate(180deg); }
+
+        .round-content { display: none; padding: 20px; background: var(--bg-secondary); border: 1px solid var(--border); border-top: none; margin-bottom: 15px; }
+        .round-content.active { display: block; }
+
+        .models-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 20px; }
+
+        .model-card {
+            border: 1px solid var(--border);
+            padding: 16px;
+            background: var(--bg-tertiary);
+            transition: all 0.3s;
+        }
+
+        .model-card.complete { border-color: var(--success); }
+        .model-card.incomplete { border-color: var(--warning); }
+        .model-card.error { border-color: var(--error); }
+        .model-card.connecting { border-color: var(--accent); }
+
+        .model-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .model-name { font-weight: 500; font-size: 13px; color: var(--text-primary); }
+        .model-badge { display: inline-block; padding: 4px 10px; font-size: 11px; font-weight: 600; background: var(--bg-secondary); color: var(--text-secondary); }
+
+        .badge-complete { color: var(--success); }
+        .badge-incomplete { color: var(--warning); }
+        .badge-error { color: var(--error); }
+        .badge-connecting { color: var(--accent); animation: pulse 1.5s infinite; }
+
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+        .model-response {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            padding: 12px;
+            min-height: 100px;
+            max-height: 400px;
+            overflow-y: auto;
+            resize: vertical;
+            font-size: 13px;
+            line-height: 1.7;
+            color: var(--text-secondary);
+            white-space: normal;
+            word-wrap: break-word;
+        }
+
+        .model-response h1, .model-response h2, .model-response h3, .model-response h4 {
+            color: var(--text-primary);
+            margin: 12px 0 6px;
+            font-weight: 500;
+        }
+        .model-response h1 { font-size: 16px; }
+        .model-response h2 { font-size: 15px; }
+        .model-response h3 { font-size: 14px; }
+        .model-response strong { color: var(--text-primary); font-weight: 600; }
+        .model-response ul, .model-response ol { padding-left: 20px; margin: 6px 0; }
+        .model-response li { margin: 3px 0; }
+        .model-response a { color: var(--accent); text-decoration: underline; }
+        .model-response a:hover { color: var(--accent-light); }
+        .model-response code { background: var(--bg-primary); padding: 1px 5px; font-size: 12px; border-radius: 2px; }
+        .model-response pre { background: var(--bg-primary); padding: 12px; overflow-x: auto; margin: 8px 0; }
+        .model-response pre code { background: none; padding: 0; }
+        .model-response hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
+        .model-response p { margin: 6px 0; }
+        .model-response blockquote { border-left: 3px solid var(--accent); padding-left: 12px; margin: 8px 0; color: var(--text-tertiary); }
+        .model-response table { border-collapse: collapse; margin: 8px 0; width: 100%; }
+        .model-response td, .model-response th { border: 1px solid var(--border); padding: 6px 10px; text-align: left; font-size: 12px; }
+        .model-response th { background: var(--bg-tertiary); color: var(--text-primary); font-weight: 500; }
+
+        .consensus-section { background: var(--bg-secondary); border: 1px solid var(--accent); padding: 20px; margin-bottom: 30px; display: none; }
+        .consensus-section.active { display: block; }
+        .consensus-section h2 { font-size: 16px; font-weight: 500; margin-bottom: 16px; color: var(--accent); }
+        .consensus-text { background: var(--bg-tertiary); border: 1px solid var(--border); padding: 16px; min-height: 150px; max-height: 500px; overflow-y: auto; resize: vertical; font-size: 14px; line-height: 1.8; margin-bottom: 16px; white-space: normal; word-wrap: break-word; color: var(--text-secondary); }
+        .consensus-text h1, .consensus-text h2, .consensus-text h3 { color: var(--text-primary); margin: 16px 0 8px; font-weight: 500; }
+        .consensus-text h1 { font-size: 20px; }
+        .consensus-text h2 { font-size: 18px; }
+        .consensus-text h3 { font-size: 16px; }
+        .consensus-text strong { color: var(--text-primary); font-weight: 600; }
+        .consensus-text ul, .consensus-text ol { padding-left: 24px; margin: 8px 0; }
+        .consensus-text li { margin: 4px 0; }
+        .consensus-text p { margin: 8px 0; }
+        .consensus-text a { color: var(--accent); text-decoration: underline; }
+
+        .export-section { background: var(--bg-secondary); border: 1px solid var(--border); padding: 20px; display: none; margin-top: 30px; }
+        .export-section.active { display: block; }
+        .export-section h3 { font-size: 16px; font-weight: 500; margin-bottom: 16px; color: var(--text-primary); }
+        .export-buttons { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+
+        .footer { padding: 40px 0; border-top: 1px solid var(--border); text-align: center; font-size: 12px; color: var(--text-tertiary); margin-top: 60px; }
+
+        @media (max-width: 768px) {
+            .form-row { grid-template-columns: 1fr; }
+            .models-grid { grid-template-columns: 1fr; }
+            .discussion-controls { flex-direction: column; }
+            .header h1 { font-size: 32px; }
+            .tabs { flex-direction: column; gap: 0; align-items: center; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <button class="theme-toggle" onclick="toggleTheme()">☀️ Light Mode</button>
+            <h1>AI - Ensemble</h1>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-button active" onclick="switchTab('new')">New Discussion</button>
+            <button class="tab-button" onclick="switchTab('history')">History</button>
+            <button class="tab-button" onclick="switchTab('resume')">Resume</button>
+        </div>
+
+        <div class="tab-content active" id="tab-new">
+            <div id="setupSection">
+                <div class="form-section">
+                    <h2>API Configuration</h2>
+                    <div id="statusMsg" class="status-message" style="display:none;"></div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="endpoint">API Endpoint</label>
+                            <input type="text" id="endpoint" placeholder="https://api.openrouter.ai/v1" value="https://api.openrouter.ai/v1">
+                        </div>
+                        <div class="form-group">
+                            <label for="apiKey">API Key</label>
+                            <input type="password" id="apiKey" placeholder="sk-...">
+                        </div>
+                    </div>
+                    <div style="margin-bottom: 25px;">
+                        <button class="btn-primary" onclick="discoverModels()">Discover Models</button>
+                    </div>
+                </div>
+
+                <div class="model-selection" id="modelSelection" style="display:none;">
+                    <h3 style="margin-bottom: 15px; font-size: 14px;">Select Models (2-5)</h3>
+                    <div class="model-grid" id="modelGrid"></div>
+                </div>
+
+                <div id="questionSection" style="display:none;">
+                    <div class="form-section">
+                        <h2>Your Question & Settings</h2>
+                        
+                        <div class="form-row">
+                            <div class="form-group" style="grid-column: 1 / -1;">
+                                <label for="question">Question</label>
+                                <textarea id="question" placeholder="E.g., What are the top 5 earphones to buy in Berlin?"></textarea>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group" style="grid-column: 1 / -1;">
+                                <label for="instructions">Instructions for Final Summary (Optional)</label>
+                                <textarea id="instructions" placeholder="E.g., Format as bullet points..."></textarea>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="rounds">Number of Rounds</label>
+                                <select id="rounds">
+                                    <option value="2">2 Rounds</option>
+                                    <option value="3" selected>3 Rounds</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="timeout">Response Timeout (sec)</label>
+                                <input type="number" id="timeout" value="120" min="10" max="300">
+                            </div>
+                            <div class="form-group">
+                                <label for="consensusModel">Consensus Model</label>
+                                <select id="consensusModel"></select>
+                            </div>
+                        </div>
+
+                        <button class="btn-primary" onclick="startDiscussion()">Start Discussion</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="tab-history">
+            <div class="form-section">
+                <h2>Previous Discussions</h2>
+                <div class="history-list" id="historyList">
+                    <div style="padding: 20px; text-align: center; color: var(--text-tertiary);">No discussions yet</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="tab-resume">
+            <div class="form-section">
+                <h2>Resume Discussion</h2>
+                <div class="history-list" id="resumeList">
+                    <div style="padding: 20px; text-align: center; color: var(--text-tertiary);">No incomplete discussions</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="discussion-section" id="discussionSection">
+            <div class="round-status" id="roundStatus" style="display:none;">
+                <div class="round-status-title">Round Status</div>
+                <div class="round-status-info" id="roundStatusInfo"></div>
+                <div class="status-error-box" id="errorBox" style="display:none;"></div>
+            </div>
+
+            <div id="questionDisplay" style="display:none; background: var(--bg-secondary); border: 1px solid var(--border); padding: 16px; margin-bottom: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="font-size: 13px; font-weight: 500; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Question</div>
+                        <div id="questionDisplayText" style="font-size: 14px; color: var(--text-primary); line-height: 1.6; white-space: pre-wrap; word-wrap: break-word;"></div>
+                        <div id="instructionsDisplay" style="display:none; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border);">
+                            <div style="font-size: 13px; font-weight: 500; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Instructions</div>
+                            <div id="instructionsDisplayText" style="font-size: 13px; color: var(--text-tertiary); line-height: 1.6; white-space: pre-wrap; word-wrap: break-word;"></div>
+                        </div>
+                    </div>
+                    <button class="btn-secondary" onclick="copyQuestion()" style="flex-shrink: 0; padding: 8px 14px; font-size: 12px;">Copy Query</button>
+                </div>
+            </div>
+
+            <div class="discussion-controls">
+                <button class="btn-danger" onclick="stopDiscussion()">Stop & Summarize</button>
+            </div>
+
+            <div class="progress-container">
+                <div class="progress-header">
+                    <span id="roundLabel">Round 1 of 3</span>
+                    <span id="progressText">Starting...</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+            </div>
+
+            <div class="round-timeline" id="roundTimeline"></div>
+
+            <div class="consensus-section" id="consensusSection">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                    <h2 style="margin:0;">Ensemble Consensus</h2>
+                    <button class="btn-secondary" onclick="closeConsensus()" style="padding: 6px 14px; font-size: 12px;">Close</button>
+                </div>
+                <div class="consensus-text" id="consensusText"></div>
+            </div>
+
+            <div class="export-section" id="exportSection">
+                <h3>Export Discussion</h3>
+                <div class="export-buttons">
+                    <button class="btn-secondary" onclick="exportMarkdown()">Markdown</button>
+                    <button class="btn-secondary" onclick="exportJSON()">JSON</button>
+                    <button class="btn-secondary" onclick="copyToClipboard()">Copy</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>State preserved • Query history with timestamps • Smart round progression</p>
+        <p style="margin-top: 8px; opacity: 0.7;">Built for thoughtful conversations with multiple AI models.</p>
+    </div>
+
+    <script>
+        let availableModels = [];
+        let selectedModels = [];
+        let discussionRunning = false;
+        let currentRoundNum = 0;
+        let totalRounds = 0;
+        let discussionId = null;
+        let queryHistory = [];
+        let roundErrors = {};
+        let storedEndpoint = '';
+        let storedApiKey = '';
+        let storedTimeout = 120;
+        let consensusAbortController = null;
+        let stateRestored = false;
+        
+        let discussionData = {
+            id: null,
+            timestamp: null,
+            question: '',
+            instructions: '',
+            models: [],
+            rounds: {},
+            consensus: '',
+            endpoint: '',
+            consensusModel: '',
+            timeout: 120,
+            status: 'new',
+            totalRounds: 0
+        };
+
+        window.addEventListener('load', () => {
+            loadTheme();
+            loadHistory();
+            loadState();
+            handleHash();
+        });
+        window.addEventListener('hashchange', handleHash);
+
+        function handleHash() {
+            if (stateRestored && window.location.hash) return;
+            const hash = window.location.hash.replace(/^#/, '');
+            if (!hash || hash === 'new') {
+                switchTab('new');
+            } else if (hash === 'history') {
+                switchTab('history');
+            } else if (hash === 'resume') {
+                switchTab('resume');
+            } else if (hash) {
+                const discussion = queryHistory.find(h => h.id === hash);
+                if (discussion) {
+                    if (discussion.status === 'in_progress') {
+                        resumeDiscussion(hash);
+                    } else {
+                        loadDiscussion(hash);
+                    }
+                }
+            }
+        }
+
+        function log(msg) {
+            console.log(`[AI Ensemble] ${msg}`);
+        }
+
+        function toggleTheme() {
+            const html = document.documentElement;
+            const newTheme = (html.getAttribute('data-theme') || 'dark') === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            document.querySelector('.theme-toggle').textContent = newTheme === 'dark' ? '☀️ Light Mode' : '🌙 Dark Mode';
+        }
+
+        function loadTheme() {
+            const saved = localStorage.getItem('theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', saved);
+            document.querySelector('.theme-toggle').textContent = saved === 'dark' ? '☀️ Light Mode' : '🌙 Dark Mode';
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-button').forEach(el => el.classList.remove('active'));
+            document.getElementById(`tab-${tab}`).classList.add('active');
+            document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add('active');
+
+            if (tab === 'new') {
+                document.getElementById('question').value = '';
+                document.getElementById('instructions').value = '';
+                if (document.getElementById('discussionSection').classList.contains('active')) {
+                    document.getElementById('setupSection').style.display = 'block';
+                }
+                window.location.hash = '#new';
+            } else if (tab === 'history') {
+                window.location.hash = '#history';
+            } else if (tab === 'resume') {
+                window.location.hash = '#resume';
+            }
+        }
+
+        function loadState() {
+            const saved = localStorage.getItem('councilState');
+            if (saved) {
+                try {
+                    const state = JSON.parse(saved);
+                    discussionData = state;
+                    document.getElementById('endpoint').value = state.endpoint || '';
+                    document.getElementById('apiKey').value = state.apiKey || '';
+                    storedEndpoint = state.endpoint || '';
+                    storedApiKey = state.apiKey || '';
+                    storedTimeout = state.timeout || 120;
+                    selectedModels = state.models || [];
+                    totalRounds = state.totalRounds || 0;
+
+                    if (state.status === 'in_progress' && state.id) {
+                        stateRestored = true;
+                        discussionRunning = true;
+                        currentRoundNum = Object.keys(state.rounds).length || 1;
+                        document.getElementById('setupSection').style.display = 'none';
+                        document.getElementById('discussionSection').classList.add('active');
+                        document.getElementById('questionDisplayText').textContent = state.question || '';
+                        const instDisplay = document.getElementById('instructionsDisplay');
+                        if (state.instructions) {
+                            document.getElementById('instructionsDisplayText').textContent = state.instructions;
+                            instDisplay.style.display = 'block';
+                        } else {
+                            instDisplay.style.display = 'none';
+                        }
+                        document.getElementById('questionDisplay').style.display = 'block';
+                        renderRoundTimeline(totalRounds);
+                        for (let i = 1; i <= currentRoundNum; i++) {
+                            renderRound(i);
+                        }
+                        if (state.consensus) {
+                            document.getElementById('consensusSection').classList.add('active');
+                            document.getElementById('consensusText').innerHTML = marked.parse(state.consensus);
+                            document.getElementById('exportSection').classList.add('active');
+                        }
+                    }
+                } catch (e) {
+                    log('Could not restore state');
+                }
+            }
+        }
+
+        function saveState() {
+            const state = { ...discussionData, apiKey: storedApiKey };
+            localStorage.setItem('councilState', JSON.stringify(state));
+
+            if (discussionData.id) {
+                const existingIdx = queryHistory.findIndex(h => h.id === discussionData.id);
+                const entry = { ...discussionData, apiKey: storedApiKey };
+                if (existingIdx >= 0) {
+                    queryHistory[existingIdx] = entry;
+                } else {
+                    queryHistory.unshift(entry);
+                }
+                saveHistory();
+            }
+        }
+
+        function loadHistory() {
+            const saved = localStorage.getItem('councilHistory');
+            if (saved) {
+                try {
+                    queryHistory = JSON.parse(saved);
+                    renderHistory();
+                } catch (e) {
+                    log('Could not load history');
+                }
+            }
+        }
+
+        function saveHistory() {
+            localStorage.setItem('councilHistory', JSON.stringify(queryHistory));
+        }
+
+        function renderHistory() {
+            const historyList = document.getElementById('historyList');
+            const resumeList = document.getElementById('resumeList');
+
+            if (queryHistory.length === 0) {
+                historyList.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-tertiary);">No discussions yet</div>';
+                resumeList.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-tertiary);">No incomplete discussions</div>';
+                return;
+            }
+
+            const completed = queryHistory.filter(h => h.status === 'completed' || h.status === 'stopped');
+            const incomplete = queryHistory.filter(h => h.status === 'in_progress');
+
+            historyList.innerHTML = completed.map(h => `
+                <a href="#${h.id}" class="history-item" onclick="event.preventDefault();loadDiscussion('${h.id}')">
+                    <div class="history-item-title">${h.question.substring(0, 50)}${h.question.length > 50 ? '...' : ''}</div>
+                    <div style="font-size: 12px; color: var(--text-tertiary); margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${h.question}</div>
+                    <div class="history-item-meta">${new Date(h.timestamp).toLocaleDateString()} • ${h.models.length} models • ${Object.keys(h.rounds).length} rounds</div>
+                    <button class="btn-secondary" onclick="event.stopPropagation();copyHistoryQuery('${h.id}')" style="margin-top: 8px; padding: 4px 10px; font-size: 11px;">Copy Query</button>
+                </a>
+            `).join('') || '<div style="padding: 20px; text-align: center;">No completed discussions</div>';
+
+            resumeList.innerHTML = incomplete.map(h => `
+                <a href="#${h.id}" class="history-item" onclick="event.preventDefault();resumeDiscussion('${h.id}')">
+                    <div class="history-item-title">${h.question.substring(0, 50)}${h.question.length > 50 ? '...' : ''}</div>
+                    <div style="font-size: 12px; color: var(--text-tertiary); margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${h.question}</div>
+                    <div class="history-item-meta">Round ${Object.keys(h.rounds).length + 1}/${h.totalRounds}</div>
+                    <button class="btn-secondary" onclick="event.stopPropagation();copyHistoryQuery('${h.id}')" style="margin-top: 8px; padding: 4px 10px; font-size: 11px;">Copy Query</button>
+                </a>
+            `).join('') || '<div style="padding: 20px; text-align: center;">No incomplete discussions</div>';
+        }
+
+        async function discoverModels() {
+            const endpoint = document.getElementById('endpoint').value.trim();
+            const apiKey = document.getElementById('apiKey').value.trim();
+
+            if (!endpoint || !apiKey) {
+                showStatus('Please enter endpoint and API key', 'error');
+                return;
+            }
+
+            showStatus('Discovering models...', 'info');
+            log(`Discovering models from: ${endpoint}`);
+
+            try {
+                const response = await fetch(`${endpoint}/models`, {
+                    headers: { 'Authorization': `Bearer ${apiKey}` }
+                });
+
+                if (!response.ok) {
+                    const text = await response.text();
+                    log(`Models API Error ${response.status}: ${text.substring(0, 200)}`);
+                    throw new Error(`API Error: ${response.status}`);
+                }
+
+                const data = await response.json();
+                availableModels = (data.data || data.models || []).sort((a, b) => 
+                    (a.id || a.name).localeCompare(b.id || b.name)
+                );
+
+                if (availableModels.length === 0) throw new Error('No models found');
+
+                renderModelSelection();
+                document.getElementById('modelSelection').style.display = 'block';
+                document.getElementById('questionSection').style.display = 'block';
+
+                showStatus(`✓ Found ${availableModels.length} models`, 'success');
+                log(`Found models: ${availableModels.slice(0, 3).map(m => m.id || m.name).join(', ')}...`);
+            } catch (error) {
+                showStatus(`❌ ${error.message}`, 'error');
+                log(`Discovery failed: ${error.message}`);
+            }
+        }
+
+        function renderModelSelection() {
+            const grid = document.getElementById('modelGrid');
+            grid.innerHTML = '';
+            availableModels.forEach(model => {
+                const modelId = model.id || model.name;
+                const label = document.createElement('label');
+                label.className = 'model-checkbox';
+                label.innerHTML = `
+                    <input type="checkbox" value="${modelId}" onchange="updateSelectedModels()">
+                    ${modelId.split('/').pop()}
+                `;
+                grid.appendChild(label);
+            });
+
+            const consensusSelect = document.getElementById('consensusModel');
+            consensusSelect.innerHTML = '';
+            availableModels.forEach(model => {
+                const modelId = model.id || model.name;
+                const option = document.createElement('option');
+                option.value = modelId;
+                option.textContent = modelId.split('/').pop();
+                consensusSelect.appendChild(option);
+            });
+        }
+
+        function updateSelectedModels() {
+            selectedModels = Array.from(document.querySelectorAll('.model-checkbox input:checked')).map(cb => cb.value);
+        }
+
+        async function startDiscussion() {
+            const question = document.getElementById('question').value.trim();
+            const instructions = document.getElementById('instructions').value.trim();
+            totalRounds = parseInt(document.getElementById('rounds').value);
+            const endpoint = document.getElementById('endpoint').value.trim();
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const consensusModel = document.getElementById('consensusModel').value;
+            const timeout = parseInt(document.getElementById('timeout').value);
+
+            if (!question) { showStatus('Please enter a question', 'error'); return; }
+            if (selectedModels.length < 2 || selectedModels.length > 5) { showStatus('Select 2-5 models', 'error'); return; }
+
+            discussionId = 'disc_' + Date.now();
+            currentRoundNum = 1;
+            roundErrors = {};
+            discussionRunning = true;
+            stateRestored = false;
+            storedEndpoint = endpoint;
+            storedApiKey = apiKey;
+            storedTimeout = timeout;
+
+            document.getElementById('consensusSection').classList.remove('active');
+            document.getElementById('consensusText').textContent = '';
+            document.getElementById('exportSection').classList.remove('active');
+            document.getElementById('roundTimeline').innerHTML = '';
+
+            discussionData = {
+                id: discussionId,
+                timestamp: new Date().toISOString(),
+                question,
+                instructions,
+                models: [...selectedModels],
+                rounds: {},
+                consensus: '',
+                endpoint,
+                consensusModel,
+                timeout,
+                status: 'in_progress',
+                totalRounds
+            };
+
+            for (let i = 1; i <= totalRounds; i++) {
+                discussionData.rounds[i] = {};
+                selectedModels.forEach(model => {
+                    discussionData.rounds[i][model] = { text: '', status: 'waiting' };
+                });
+            }
+
+            saveState();
+            document.getElementById('setupSection').style.display = 'none';
+            document.getElementById('discussionSection').classList.add('active');
+            window.location.hash = discussionId;
+
+            document.getElementById('questionDisplayText').textContent = question;
+            const instDisplay = document.getElementById('instructionsDisplay');
+            if (instructions) {
+                document.getElementById('instructionsDisplayText').textContent = instructions;
+                instDisplay.style.display = 'block';
+            } else {
+                instDisplay.style.display = 'none';
+            }
+            document.getElementById('questionDisplay').style.display = 'block';
+
+            renderRoundTimeline(totalRounds);
+            
+            log(`Starting discussion with ${selectedModels.length} models, ${totalRounds} rounds, ${timeout}s timeout`);
+            await runRound(1, totalRounds, endpoint, apiKey, timeout);
+        }
+
+        function renderRoundTimeline(totalRoundsNum) {
+            const timeline = document.getElementById('roundTimeline');
+            timeline.innerHTML = '';
+
+            for (let i = 1; i <= totalRoundsNum; i++) {
+                const roundDiv = document.createElement('div');
+                roundDiv.innerHTML = `
+                    <div class="round-header" data-round="${i}" onclick="toggleRound(${i})">
+                        <span>Round ${i}${i === 1 ? ': Initial Positions' : ': Review & Discussion'}</span>
+                        <span class="round-toggle">▼</span>
+                    </div>
+                    <div class="round-content" id="roundContent${i}">
+                        <div class="models-grid" id="modelsRound${i}"></div>
+                    </div>
+                `;
+                timeline.appendChild(roundDiv);
+            }
+
+            document.querySelector('.round-header').classList.add('active');
+            document.getElementById('roundContent1').classList.add('active');
+        }
+
+        function toggleRound(roundNum) {
+            const header = document.querySelector(`.round-header[data-round="${roundNum}"]`);
+            const content = document.getElementById(`roundContent${roundNum}`);
+            if (header && content) {
+                header.classList.toggle('active');
+                content.classList.toggle('active');
+            }
+        }
+
+        async function runRound(roundNum, totalRoundsNum, endpoint, apiKey, timeout) {
+            document.getElementById('roundLabel').textContent = `Round ${roundNum} of ${totalRoundsNum}`;
+            document.getElementById('progressFill').style.width = (roundNum / totalRoundsNum * 100) + '%';
+
+            roundErrors[roundNum] = [];
+            showRoundStatus();
+
+            log(`===== Round ${roundNum} Started =====`);
+
+            for (const model of selectedModels) {
+                if (!discussionRunning) return;
+                await queryModel(model, roundNum, totalRoundsNum, endpoint, apiKey, timeout);
+            }
+
+            saveState();
+
+            if (roundNum < totalRoundsNum) {
+                showProceedButton(roundNum + 1, totalRoundsNum);
+            } else {
+                await generateConsensus(endpoint, apiKey, discussionData.consensusModel, timeout);
+                document.getElementById('consensusSection').classList.add('active');
+                document.getElementById('exportSection').classList.add('active');
+                discussionData.status = 'completed';
+                saveState();
+                renderHistory();
+                log('Discussion completed');
+            }
+        }
+
+        function showProceedButton(nextRound, totalRounds) {
+            const container = document.getElementById(`modelsRound${nextRound - 1}`).parentElement;
+            const existingBtn = container.querySelector('.next-round-button');
+            if (existingBtn) existingBtn.remove();
+
+            const btnDiv = document.createElement('div');
+            btnDiv.className = 'next-round-button';
+            btnDiv.style.cssText = 'text-align: center; padding: 16px; background: var(--bg-secondary); border: 1px solid var(--border); margin-top: 16px;';
+            btnDiv.innerHTML = `
+                <div style="margin-bottom: 12px; color: var(--accent); font-weight: 500; font-size: 13px;">
+                    ✓ Round ${nextRound - 1} Complete
+                </div>
+                <button class="btn-success proceed-btn" data-next-round="${nextRound}" style="width: 100%;">
+                    Proceed to Round ${nextRound}
+                </button>
+            `;
+            btnDiv.querySelector('.proceed-btn').addEventListener('click', () => {
+                proceedToNextRound(nextRound);
+            });
+            container.appendChild(btnDiv);
+        }
+
+        function proceedToNextRound(roundNum) {
+            currentRoundNum = roundNum;
+            document.querySelector('.next-round-button')?.remove();
+            runRound(roundNum, totalRounds, storedEndpoint, storedApiKey, storedTimeout);
+        }
+
+        function showRoundStatus() {
+            const statusDiv = document.getElementById('roundStatus');
+            const statusInfo = document.getElementById('roundStatusInfo');
+            statusDiv.style.display = 'block';
+
+            const complete = selectedModels.filter(m => discussionData.rounds[currentRoundNum]?.[m]?.status === 'complete').length;
+            const error = selectedModels.filter(m => discussionData.rounds[currentRoundNum]?.[m]?.status === 'error').length;
+            const timeout = selectedModels.filter(m => discussionData.rounds[currentRoundNum]?.[m]?.status === 'timeout').length;
+            const connecting = selectedModels.filter(m => discussionData.rounds[currentRoundNum]?.[m]?.status === 'connecting').length;
+
+            let text = `✓ ${complete}/${selectedModels.length} complete\n`;
+            if (connecting > 0) text += `🔗 ${connecting} connecting...\n`;
+            if (error > 0) text += `❌ ${error} errors\n`;
+            if (timeout > 0) text += `⏱️ ${timeout} timeouts\n`;
+
+            statusInfo.textContent = text.trim();
+
+            const errorBox = document.getElementById('errorBox');
+            if (roundErrors[currentRoundNum] && roundErrors[currentRoundNum].length > 0) {
+                errorBox.style.display = 'block';
+                errorBox.textContent = roundErrors[currentRoundNum].join('\n');
+            } else {
+                errorBox.style.display = 'none';
+            }
+        }
+
+        async function queryModel(modelId, roundNum, totalRounds, endpoint, apiKey, timeout) {
+            const modelsGrid = document.getElementById(`modelsRound${roundNum}`);
+            
+            let card = modelsGrid.querySelector(`[data-model="${modelId}"]`);
+            if (!card) {
+                card = document.createElement('div');
+                card.className = 'model-card connecting';
+                card.setAttribute('data-model', modelId);
+                card.innerHTML = `
+                    <div class="model-card-header">
+                        <div class="model-name">${modelId.split('/').pop()}</div>
+                        <div class="model-badge badge-connecting">🔗</div>
+                    </div>
+                    <div class="model-response">Connecting...</div>
+                `;
+                modelsGrid.appendChild(card);
+            }
+
+            discussionData.rounds[roundNum][modelId].status = 'connecting';
+
+            const responseElement = card.querySelector('.model-response');
+            const badgeElement = card.querySelector('.model-badge');
+
+            let userMessage = discussionData.question;
+            if (roundNum > 1) {
+                const contextParts = [`# Original Question\n"${discussionData.question}"\n`];
+                if (discussionData.instructions) {
+                    contextParts.push(`\n## Instructions\n${discussionData.instructions}\n`);
+                }
+                for (let r = 1; r < roundNum; r++) {
+                    contextParts.push(`\n## Round ${r} Responses\n`);
+                    selectedModels.forEach(m => {
+                        const response = discussionData.rounds[r]?.[m];
+                        if (response?.text) {
+                            contextParts.push(`### ${m}\n${response.text}\n`);
+                        } else {
+                            const status = response?.status || 'no response';
+                            contextParts.push(`### ${m}\n*[${status} - no response available]*\n`);
+                        }
+                    });
+                }
+                contextParts.push(`\n## Round ${roundNum} Instructions\nReview all previous responses above and provide your refined analysis building upon what has been discussed. Focus on areas where you can add value or offer a different perspective.\n`);
+                userMessage = contextParts.join('\n');
+            }
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => {
+                log(`Timeout: ${modelId} after ${timeout}s`);
+                controller.abort();
+            }, timeout * 1000);
+
+            try {
+                log(`Querying ${modelId}... (${userMessage.length} chars context)`);
+
+                const response = await fetch(`${endpoint}/chat/completions`, {
+                    method: 'POST',
+                    signal: controller.signal,
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model: modelId,
+                        messages: [
+                            { role: 'system', content: `You are ${modelId}. Provide a comprehensive, well-researched response.` },
+                            { role: 'user', content: userMessage }
+                        ],
+                        stream: true,
+                        temperature: 0.7,
+                        max_tokens: 1500
+                    })
+                });
+
+                log(`${modelId} response status: ${response.status}`);
+
+                if (!response.ok) {
+                    const text = await response.text();
+                    const error = `${response.status}: ${text.substring(0, 100)}`;
+                    log(`${modelId} API error: ${error}`);
+                    throw new Error(error);
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let fullText = '';
+                let streamedChunks = 0;
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n');
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ') && line.length > 7) {
+                            try {
+                                const json = JSON.parse(line.slice(6));
+                                const content = json.choices?.[0]?.delta?.content || '';
+                                if (content) {
+                                    fullText += content;
+                                    streamedChunks++;
+                                    responseElement.textContent = fullText;
+                                    responseElement.scrollTop = responseElement.scrollHeight;
+                                }
+                            } catch (e) {}
+                        }
+                    }
+                }
+
+                clearTimeout(timeoutId);
+
+                const endsProperly = /[.!?…"']\s*$/.test(fullText.trim());
+                const isLong = fullText.length >= 300;
+                const status = (endsProperly && isLong) || fullText.length >= 500 ? 'complete' : fullText.length >= 50 ? 'incomplete' : 'error';
+                if (status === 'incomplete') {
+                    log(`${modelId} may be truncated: ${fullText.length} chars, ends with: "${fullText.slice(-30)}"`);
+                }
+                discussionData.rounds[roundNum][modelId] = { text: fullText, status };
+                card.classList.remove('connecting');
+                card.classList.add(status);
+                badgeElement.className = `model-badge badge-${status}`;
+                badgeElement.textContent = status === 'complete' ? '✓' : '⚠️';
+                responseElement.innerHTML = marked.parse(fullText);
+
+                log(`${modelId} complete: ${fullText.length} chars, ${streamedChunks} chunks`);
+                saveState();
+                showRoundStatus();
+
+            } catch (error) {
+                clearTimeout(timeoutId);
+
+                const status = error.name === 'AbortError' ? 'timeout' : 'error';
+                const errorMsg = error.message;
+
+                discussionData.rounds[roundNum][modelId] = { text: '', status };
+                responseElement.textContent = `${status === 'timeout' ? '⏱️ Timeout' : '❌ Error'}: ${errorMsg}`;
+                card.classList.remove('connecting');
+                card.classList.add(status);
+                badgeElement.className = `model-badge badge-${status}`;
+                badgeElement.textContent = status === 'timeout' ? '⏱️' : '✗';
+
+                const errMsg = `${modelId}: ${errorMsg}`;
+                log(`${errMsg}`);
+                if (!roundErrors[roundNum]) roundErrors[roundNum] = [];
+                roundErrors[roundNum].push(errMsg);
+
+                saveState();
+                showRoundStatus();
+            }
+        }
+
+        async function generateConsensus(endpoint, apiKey, consensusModel, timeout) {
+            if (consensusAbortController) {
+                consensusAbortController.abort();
+            }
+            consensusAbortController = new AbortController();
+
+            document.getElementById('consensusText').textContent = 'Generating consensus...';
+
+            const allResponses = [];
+            Object.keys(discussionData.rounds).forEach(roundNum => {
+                selectedModels.forEach(model => {
+                    const response = discussionData.rounds[roundNum][model];
+                    if (response?.text) allResponses.push(`[R${roundNum} ${model}] ${response.text}`);
+                });
+            });
+
+            let prompt = `Synthesize consensus for: "${discussionData.question}"\n\nAll model responses:\n${allResponses.join('\n\n')}`;
+            if (discussionData.instructions) prompt += `\n\nFormat as: ${discussionData.instructions}`;
+
+            try {
+                const timeoutId = setTimeout(() => consensusAbortController.abort(), timeout * 1000);
+
+                const response = await fetch(`${endpoint}/chat/completions`, {
+                    method: 'POST',
+                    signal: consensusAbortController.signal,
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model: consensusModel,
+                        messages: [
+                            { role: 'system', content: 'Synthesize a balanced consensus from all perspectives.' },
+                            { role: 'user', content: prompt }
+                        ],
+                        stream: true,
+                        temperature: 0.7,
+                        max_tokens: 2000
+                    })
+                });
+
+                if (!response.ok) throw new Error(`API Error: ${response.status}`);
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let fullText = '';
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value);
+                    for (const line of chunk.split('\n')) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const json = JSON.parse(line.slice(6));
+                                const content = json.choices?.[0]?.delta?.content || '';
+                                if (content) {
+                                    fullText += content;
+                                    document.getElementById('consensusText').textContent = fullText;
+                                }
+                            } catch (e) {}
+                        }
+                    }
+                }
+
+                clearTimeout(timeoutId);
+                discussionData.consensus = fullText;
+                const endsProperly = /[.!?…"']\s*$/.test(fullText.trim());
+                const consensusHtml = marked.parse(fullText);
+                document.getElementById('consensusText').innerHTML = endsProperly ? consensusHtml : consensusHtml + '<div style="margin-top:12px;padding:8px;background:rgba(220,38,38,0.1);border:1px solid var(--error);color:var(--error);font-size:12px;">⚠ Consensus appears truncated — may be incomplete.</div>';
+                if (!endsProperly) log(`Consensus may be truncated: ${fullText.length} chars, ends with: "${fullText.slice(-30)}"`);
+                saveState();
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    document.getElementById('consensusText').textContent = discussionData.consensus || 'Consensus cancelled.';
+                } else {
+                    document.getElementById('consensusText').textContent = `Error: ${error.message}`;
+                }
+            } finally {
+                consensusAbortController = null;
+            }
+        }
+
+        function stopDiscussion() {
+            discussionRunning = false;
+            discussionData.status = 'stopped';
+            if (consensusAbortController) {
+                consensusAbortController.abort();
+            }
+            saveState();
+            renderHistory();
+            document.getElementById('consensusSection').classList.add('active');
+            document.getElementById('consensusText').textContent = 'Consensus skipped (stopped manually).';
+            document.getElementById('exportSection').classList.add('active');
+        }
+
+        function closeConsensus() {
+            if (consensusAbortController) {
+                consensusAbortController.abort();
+                consensusAbortController = null;
+            }
+            document.getElementById('consensusSection').classList.remove('active');
+        }
+
+        function copyQuestion() {
+            const question = document.getElementById('questionDisplayText').textContent;
+            const instructions = document.getElementById('instructionsDisplayText').textContent;
+            const text = instructions ? `${question}\n\nInstructions: ${instructions}` : question;
+            navigator.clipboard.writeText(text);
+            const btn = event.target;
+            const orig = btn.textContent;
+            btn.textContent = 'Copied!';
+            setTimeout(() => btn.textContent = orig, 1500);
+        }
+
+        function copyHistoryQuery(id) {
+            const discussion = queryHistory.find(h => h.id === id);
+            if (discussion) {
+                const text = discussion.instructions ? `${discussion.question}\n\nInstructions: ${discussion.instructions}` : discussion.question;
+                navigator.clipboard.writeText(text);
+            }
+        }
+
+        function exportMarkdown() {
+            let md = `# AI Ensemble\n**Date:** ${new Date(discussionData.timestamp).toLocaleString()}\n**Q:** ${discussionData.question}\n\n`;
+            Object.keys(discussionData.rounds).forEach(r => {
+                md += `## Round ${r}\n`;
+                selectedModels.forEach(m => {
+                    const resp = discussionData.rounds[r][m];
+                    md += `### ${m}\n${resp.text}\n\n`;
+                });
+            });
+            md += `## Consensus\n${discussionData.consensus}`;
+            const blob = new Blob([md], { type: 'text/markdown' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'ensemble.md';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function exportJSON() {
+            const json = JSON.stringify(discussionData, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'ensemble.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function copyToClipboard() {
+            navigator.clipboard.writeText(JSON.stringify(discussionData, null, 2));
+            showStatus('Copied!', 'success');
+        }
+
+        function showStatus(msg, type) {
+            const statusMsg = document.getElementById('statusMsg');
+            statusMsg.textContent = msg;
+            statusMsg.className = `status-message status-${type}`;
+            statusMsg.style.display = 'block';
+        }
+
+        function loadDiscussion(id) {
+            const discussion = queryHistory.find(h => h.id === id);
+            if (discussion) {
+                discussionRunning = false;
+                if (consensusAbortController) {
+                    consensusAbortController.abort();
+                    consensusAbortController = null;
+                }
+                discussionData = { ...discussion };
+                selectedModels = discussion.models || [];
+                storedEndpoint = discussion.endpoint || '';
+                storedApiKey = discussion.apiKey || '';
+                storedTimeout = discussion.timeout || 120;
+                window.location.hash = id;
+                document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+                document.getElementById('setupSection').style.display = 'none';
+                document.getElementById('discussionSection').classList.add('active');
+                document.getElementById('questionDisplayText').textContent = discussion.question || '';
+                const instDisplay = document.getElementById('instructionsDisplay');
+                if (discussion.instructions) {
+                    document.getElementById('instructionsDisplayText').textContent = discussion.instructions;
+                    instDisplay.style.display = 'block';
+                } else {
+                    instDisplay.style.display = 'none';
+                }
+                document.getElementById('questionDisplay').style.display = 'block';
+                document.getElementById('consensusSection').classList.remove('active');
+                document.getElementById('exportSection').classList.remove('active');
+                renderRoundTimeline(Object.keys(discussion.rounds).length);
+                for (let i = 1; i <= Object.keys(discussion.rounds).length; i++) {
+                    renderRound(i);
+                }
+                if (discussion.consensus) {
+                    document.getElementById('consensusSection').classList.add('active');
+                    const endsProperly = /[.!?…"']\s*$/.test(discussion.consensus.trim());
+                    const consensusHtml = marked.parse(discussion.consensus);
+                    document.getElementById('consensusText').innerHTML = endsProperly ? consensusHtml : consensusHtml + '<div style="margin-top:12px;padding:8px;background:rgba(220,38,38,0.1);border:1px solid var(--error);color:var(--error);font-size:12px;">⚠ Consensus appears truncated — may be incomplete.</div>';
+                    document.getElementById('exportSection').classList.add('active');
+                }
+            }
+        }
+
+        function renderRound(roundNum) {
+            const grid = document.getElementById(`modelsRound${roundNum}`);
+            selectedModels.forEach(model => {
+                if (!grid.querySelector(`[data-model="${model}"]`)) {
+                    const response = discussionData.rounds[roundNum]?.[model];
+                    const card = document.createElement('div');
+                    card.className = `model-card ${response?.status || 'waiting'}`;
+                    card.setAttribute('data-model', model);
+                    const badgeText = response?.status === 'complete' ? '✓' : 
+                        response?.status === 'incomplete' ? '⚠️' : 
+                        response?.status === 'error' ? '✗' : '⏳';
+                    card.innerHTML = `
+                        <div class="model-card-header">
+                            <div class="model-name">${model.split('/').pop()}</div>
+                            <div class="model-badge badge-${response?.status || 'waiting'}">${badgeText}</div>
+                        </div>
+                        <div class="model-response"></div>
+                    `;
+                    const respEl = card.querySelector('.model-response');
+                    if (response?.text) {
+                        respEl.innerHTML = marked.parse(response.text);
+                    } else {
+                        respEl.textContent = 'Waiting...';
+                    }
+                    grid.appendChild(card);
+                }
+            });
+        }
+
+        function resumeDiscussion(id) {
+            const discussion = queryHistory.find(h => h.id === id);
+            if (discussion) {
+                discussionRunning = false;
+                if (consensusAbortController) {
+                    consensusAbortController.abort();
+                    consensusAbortController = null;
+                }
+                discussionData = { ...discussion };
+                currentRoundNum = Object.keys(discussion.rounds).length;
+                totalRounds = discussion.totalRounds;
+                selectedModels = discussion.models;
+                storedEndpoint = discussion.endpoint || '';
+                storedApiKey = discussion.apiKey || '';
+                storedTimeout = discussion.timeout || 120;
+                discussionRunning = true;
+                window.location.hash = id;
+                
+                document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+                document.getElementById('setupSection').style.display = 'none';
+                document.getElementById('discussionSection').classList.add('active');
+                document.getElementById('questionDisplayText').textContent = discussion.question || '';
+                const instDisplay = document.getElementById('instructionsDisplay');
+                if (discussion.instructions) {
+                    document.getElementById('instructionsDisplayText').textContent = discussion.instructions;
+                    instDisplay.style.display = 'block';
+                } else {
+                    instDisplay.style.display = 'none';
+                }
+                document.getElementById('questionDisplay').style.display = 'block';
+                document.getElementById('consensusSection').classList.remove('active');
+                document.getElementById('exportSection').classList.remove('active');
+                renderRoundTimeline(totalRounds);
+                
+                for (let i = 1; i <= currentRoundNum; i++) {
+                    renderRound(i);
+                }
+            }
+        }
+    </script>
+</body>
+</html>
