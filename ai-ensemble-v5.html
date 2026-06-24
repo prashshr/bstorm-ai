@@ -427,6 +427,81 @@
             justify-content: flex-end;
         }
 
+        .model-stats {
+            display: flex;
+            gap: 12px;
+            margin-top: 6px;
+            padding: 6px 0 0 0;
+            font-size: 10px;
+            color: var(--text-tertiary);
+            font-family: monospace;
+            border-top: 1px solid var(--border);
+            flex-wrap: wrap;
+        }
+        .model-stats span { white-space: nowrap; }
+
+        /* ── Debug Panel ── */
+        .debug-toggle {
+            position: fixed;
+            bottom: 12px;
+            right: 12px;
+            z-index: 900;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            color: var(--text-tertiary);
+            padding: 6px 12px;
+            font-size: 11px;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.2s;
+            font-family: monospace;
+        }
+        .debug-toggle:hover { border-color: var(--accent); color: var(--accent); }
+        .debug-toggle.active { background: var(--accent); color: white; border-color: var(--accent); }
+        .debug-panel {
+            position: fixed;
+            bottom: 44px;
+            right: 12px;
+            width: 380px;
+            max-height: 300px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            z-index: 900;
+            display: none;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
+            font-family: monospace;
+            font-size: 11px;
+        }
+        .debug-panel.open { display: block; }
+        .debug-panel .debug-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg-tertiary);
+        }
+        .debug-panel .debug-header select {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 2px 6px;
+            font-size: 10px;
+            font-family: monospace;
+        }
+        .debug-panel .debug-entries {
+            padding: 4px 8px;
+            max-height: 240px;
+            overflow-y: auto;
+        }
+        .debug-panel .debug-clear {
+            cursor: pointer;
+            color: var(--text-tertiary);
+            font-size: 10px;
+            padding: 2px 6px;
+        }
+        .debug-panel .debug-clear:hover { color: var(--error); }
+
         /* ── Expanded / Fullscreen Model Response ── */
         .model-response.expanded { max-height: none; min-height: 200px; }
         .model-response.fullscreen {
@@ -694,6 +769,7 @@
                 <div class="progress-bar">
                     <div class="progress-fill" id="progressFill"></div>
                 </div>
+                <div id="progressStats" style="font-size:11px;color:var(--text-tertiary);font-family:monospace;margin-top:6px;text-align:right;"></div>
             </div>
 
             <div class="round-timeline" id="roundTimeline"></div>
@@ -719,6 +795,24 @@
                 <button class="btn-sleek btn-stop" onclick="stopDiscussion()">⏹️ Stop & Summarize</button>
             </div>
         </div>
+    </div>
+
+    <!-- Debug Panel -->
+    <button class="debug-toggle" onclick="toggleDebug()" id="debugToggleBtn">🐛 Debug</button>
+    <div class="debug-panel" id="debugPanel">
+        <div class="debug-header">
+            <span style="color:var(--text-secondary);font-weight:600;">Debug Log</span>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <select id="debugLevelFilter" onchange="renderDebugPanel()">
+                    <option value="all">All</option>
+                    <option value="error">Errors</option>
+                    <option value="warn">Warnings</option>
+                    <option value="info">Info</option>
+                </select>
+                <span class="debug-clear" onclick="debugLogs=[];renderDebugPanel();">Clear</span>
+            </div>
+        </div>
+        <div class="debug-entries"></div>
     </div>
 
     <div class="footer">
@@ -755,9 +849,23 @@
             timeout: 120,
             maxTokens: 6000,
             attachments: [],
+            stats: null,
             status: 'new',
             totalRounds: 0
         };
+
+        // Debug logging
+        let debugLogs = [];
+        const DEBUG = true;
+        let showDebug = false;
+
+        function debugLog(msg, level = 'info') {
+            const entry = { time: new Date().toLocaleTimeString(), msg, level };
+            debugLogs.push(entry);
+            if (debugLogs.length > 200) debugLogs.shift();
+            if (DEBUG) console.log(`[${level.toUpperCase()}] ${msg}`);
+            renderDebugPanel();
+        }
 
         let attachments = [];
 
@@ -792,7 +900,7 @@
         }
 
         function log(msg) {
-            console.log(`[AI Ensemble] ${msg}`);
+            debugLog(msg, 'info');
         }
 
         /* ── File Upload ── */
@@ -916,6 +1024,9 @@
                         renderRoundTimeline(totalRounds);
                         for (let i = 1; i <= currentRoundNum; i++) {
                             renderRound(i);
+                        }
+                        if (state.stats) {
+                            recalculateDiscussionStats();
                         }
                         if (state.consensus) {
                             document.getElementById('consensusSection').classList.add('active');
@@ -1394,6 +1505,9 @@
                 controller.abort();
             }, timeout * 1000);
 
+            // Mark start time for token stats
+            window['_qstart_' + modelId + '_' + roundNum] = Date.now();
+
             try {
                 log(`Querying ${modelId}... (${userMessage.length} chars context)`);
 
@@ -1469,6 +1583,23 @@
                 responseElement.innerHTML = marked.parse(fullText);
                 responseElement.classList.remove('expanded');
 
+                // Capture token stats
+                const startTime = window['_qstart_' + modelId + '_' + roundNum] || Date.now();
+                const now = Date.now();
+                const inputChars = userMessage.length;
+                const outputChars = fullText.length;
+                const inputTokens = Math.round(inputChars / 4);
+                const outputTokens = Math.round(outputChars / 4);
+                const stats = {
+                    inputChars, outputChars,
+                    inputTokens, outputTokens,
+                    maxTokens,
+                    contextPercent: maxTokens > 0 ? Math.round(outputTokens / maxTokens * 100) : 0,
+                    durationMs: now - startTime,
+                    charsPerSec: outputChars > 0 && (now - startTime) > 0 ? Math.round(outputChars / ((now - startTime) / 1000)) : 0
+                };
+                discussionData.rounds[roundNum][modelId].stats = stats;
+
                 // Expand/fullscreen actions
                 const safeId = modelId.replace(/[^a-zA-Z0-9]/g, '-');
                 const actionsDiv = document.getElementById(`actions-${safeId}`) || actionsEl;
@@ -1479,7 +1610,10 @@
                     `;
                 }
 
-                log(`${modelId} complete: ${fullText.length} chars, ${streamedChunks} chunks`);
+                renderModelStats(modelId, roundNum, stats);
+                recalculateDiscussionStats();
+
+                log(`${modelId} complete: ${outputTokens} tok out / ${inputTokens} tok in / ${stats.durationMs}ms`);
                 saveState();
                 showRoundStatus();
 
@@ -1496,12 +1630,15 @@
                 badgeElement.className = `model-badge badge-${status}`;
                 badgeElement.textContent = status === 'timeout' ? '⏱️' : '✗';
 
-                // Add retry / skip buttons on failure
+                // Add retry / skip buttons on failure (with null guard)
                 const safeId = modelId.replace(/[^a-zA-Z0-9]/g, '-');
-                actionsEl.innerHTML = `
-                    <button class="btn-sleek btn-retry" onclick="retryModel('${modelId}', ${roundNum}, ${totalRounds})">🔄 Retry</button>
-                    <button class="btn-sleek btn-skip" onclick="skipModel('${modelId}', ${roundNum})">⏭ Skip</button>
-                `;
+                const actEl = document.getElementById(`actions-${safeId}`) || actionsEl;
+                if (actEl) {
+                    actEl.innerHTML = `
+                        <button class="btn-sleek btn-retry" onclick="retryModel('${modelId}', ${roundNum}, ${totalRounds})">🔄 Retry</button>
+                        <button class="btn-sleek btn-skip" onclick="skipModel('${modelId}', ${roundNum})">⏭ Skip</button>
+                    `;
+                }
 
                 const errMsg = `${modelId}: ${errorMsg}`;
                 log(`${errMsg}`);
@@ -1644,6 +1781,106 @@
             }
         }
 
+        function toggleDebug() {
+            showDebug = !showDebug;
+            renderDebugPanel();
+        }
+
+        function renderDebugPanel() {
+            const panel = document.getElementById('debugPanel');
+            if (!panel) return;
+            if (!showDebug) { panel.style.display = 'none'; return; }
+            panel.style.display = 'block';
+            const filter = document.getElementById('debugLevelFilter')?.value || 'all';
+            const filtered = filter === 'all' ? debugLogs : debugLogs.filter(e => e.level === filter);
+            const container = panel.querySelector('.debug-entries');
+            if (container) {
+                container.innerHTML = filtered.map(e =>
+                    `<div style="font-size:11px;color:${e.level === 'error' ? 'var(--error)' : e.level === 'warn' ? 'var(--warning)' : 'var(--text-tertiary)'};padding:2px 0;border-bottom:1px solid var(--border);">[${e.time}] ${e.level}: ${e.msg}</div>`
+                ).join('') || '<div style="font-size:11px;color:var(--text-tertiary);padding:8px;">No logs</div>';
+                container.scrollTop = container.scrollHeight;
+            }
+        }
+
+        /* ── Token Stats ── */
+        function renderModelStats(modelId, roundNum, stats) {
+            if (!stats) return;
+            const safeId = modelId.replace(/[^a-zA-Z0-9]/g, '-');
+            const el = document.getElementById(`stats-${safeId}`);
+            if (!el) return;
+            el.innerHTML = `
+                <span>📥 ${stats.inputTokens.toLocaleString()} in</span>
+                <span>📤 ${stats.outputTokens.toLocaleString()} out</span>
+                <span>📊 ${stats.contextPercent}% ctx</span>
+                <span>⏱ ${(stats.durationMs/1000).toFixed(1)}s</span>
+                ${stats.charsPerSec > 0 ? `<span>⚡ ${stats.charsPerSec.toLocaleString()} ch/s</span>` : ''}
+            `;
+        }
+
+        function recalculateDiscussionStats() {
+            let totalInput = 0, totalOutput = 0, totalDur = 0, count = 0;
+            let peakContext = 0, peakModel = '', peakRound = 0;
+            Object.keys(discussionData.rounds || {}).forEach(r => {
+                const round = discussionData.rounds[r];
+                Object.keys(round || {}).forEach(m => {
+                    const s = round[m]?.stats;
+                    if (s) {
+                        totalInput += s.inputTokens || 0;
+                        totalOutput += s.outputTokens || 0;
+                        totalDur += s.durationMs || 0;
+                        count++;
+                        if (s.contextPercent > peakContext) {
+                            peakContext = s.contextPercent;
+                            peakModel = m;
+                            peakRound = r;
+                        }
+                    }
+                });
+            });
+            discussionData.stats = {
+                totalInputTokens: totalInput,
+                totalOutputTokens: totalOutput,
+                totalTokens: totalInput + totalOutput,
+                avgDurationMs: count > 0 ? Math.round(totalDur / count) : 0,
+                peakContext: { percent: peakContext, model: peakModel, round: peakRound },
+                modelCount: count
+            };
+            // Update round header stats
+            updateRoundHeaderStats();
+            // Update progress stats
+            updateProgressStats();
+        }
+
+        function updateRoundHeaderStats() {
+            Object.keys(discussionData.rounds || {}).forEach(r => {
+                const round = discussionData.rounds[r];
+                let rIn = 0, rOut = 0, rCount = 0;
+                Object.keys(round || {}).forEach(m => {
+                    const s = round[m]?.stats;
+                    if (s) { rIn += s.inputTokens || 0; rOut += s.outputTokens || 0; rCount++; }
+                });
+                const header = document.querySelector(`.round-header[data-round="${r}"]`);
+                if (header && rCount > 0) {
+                    const existing = header.querySelector('.round-stats');
+                    if (existing) existing.remove();
+                    const badge = document.createElement('span');
+                    badge.className = 'round-stats';
+                    badge.style.cssText = 'font-size:11px;color:var(--text-tertiary);margin-left:12px;';
+                    badge.textContent = `📊 ${rIn.toLocaleString()} ctx · ${rOut.toLocaleString()} out · ${rCount}m`;
+                    header.querySelector('span')?.after(badge);
+                }
+            });
+        }
+
+        function updateProgressStats() {
+            const s = discussionData.stats;
+            if (!s) return;
+            const el = document.getElementById('progressStats');
+            if (el) {
+                el.textContent = `📊 ${s.totalInputTokens.toLocaleString()} in · ${s.totalOutputTokens.toLocaleString()} out · ${s.totalTokens.toLocaleString()} total`;
+            }
+        }
+
         function stopDiscussion() {
             discussionRunning = false;
             discussionData.status = 'stopped';
@@ -1652,11 +1889,31 @@
             }
             document.getElementById('discussionSection').className = 'discussion-section active completed';
             document.getElementById('consensusSection').classList.add('active');
-            document.getElementById('consensusText').textContent = 'Consensus skipped (stopped manually).';
+
+            // Build a summary from what was collected so far
+            let summary = `# Discussion Stopped\n\n## Question\n${discussionData.question}\n\n## Completed Responses\n`;
+            Object.keys(discussionData.rounds || {}).forEach(r => {
+                summary += `\n### Round ${r}\n`;
+                (discussionData.models || []).forEach(m => {
+                    const resp = discussionData.rounds[r]?.[m];
+                    if (resp?.text && resp.text !== '[Skipped]') {
+                        summary += `**${m}**: ${resp.text.substring(0, 500)}${resp.text.length > 500 ? '…' : ''}\n\n`;
+                    } else if (resp?.status === 'skipped') {
+                        summary += `**${m}**: ⏭ *Skipped*\n\n`;
+                    } else {
+                        summary += `**${m}**: *No response*\n\n`;
+                    }
+                });
+            });
+            if (discussionData.stats) {
+                summary += `\n## Token Usage\n- Input: ${discussionData.stats.totalInputTokens.toLocaleString()} tokens\n- Output: ${discussionData.stats.totalOutputTokens.toLocaleString()} tokens\n- Total: ${discussionData.stats.totalTokens.toLocaleString()} tokens\n- Models responded: ${discussionData.stats.modelCount}`;
+            }
+            document.getElementById('consensusText').innerHTML = marked.parse(summary);
             document.getElementById('exportSection').classList.add('active');
             saveState();
             renderHistory();
             updateStatusDot();
+            debugLog('Discussion stopped and summarized', 'warn');
         }
 
         function closeConsensus() {
@@ -1757,6 +2014,7 @@
                 document.getElementById('consensusSection').classList.remove('active');
                 document.getElementById('exportSection').classList.remove('active');
                 renderRoundTimeline(Object.keys(discussion.rounds).length);
+                if (discussion.stats) recalculateDiscussionStats();
                 for (let i = 1; i <= Object.keys(discussion.rounds).length; i++) {
                     renderRound(i);
                 }
@@ -1780,17 +2038,33 @@
                     card.setAttribute('data-model', model);
                     const badgeText = response?.status === 'complete' ? '✓' : 
                         response?.status === 'incomplete' ? '⚠️' : 
-                        response?.status === 'error' ? '✗' : '⏳';
+                        response?.status === 'error' ? '✗' : 
+                        response?.status === 'timeout' ? '⏱️' :
+                        response?.status === 'skipped' ? '⏭' : '⏳';
+                    const safeId = model.replace(/[^a-zA-Z0-9]/g, '-');
                     card.innerHTML = `
                         <div class="model-card-header">
                             <div class="model-name">${model.split('/').pop()}</div>
                             <div class="model-badge badge-${response?.status || 'waiting'}">${badgeText}</div>
                         </div>
                         <div class="model-response"></div>
+                        <div class="model-actions" id="actions-${safeId}"></div>
+                        <div class="model-stats" id="stats-${safeId}"></div>
                     `;
                     const respEl = card.querySelector('.model-response');
                     if (response?.text) {
                         respEl.innerHTML = marked.parse(response.text);
+                        renderModelStats(model, roundNum, response);
+                        // Show retry/skip for failed models in restored view
+                        if (response.status === 'error' || response.status === 'timeout') {
+                            const acts = card.querySelector(`#actions-${safeId}`);
+                            if (acts) {
+                                acts.innerHTML = `
+                                    <button class="btn-sleek btn-retry" onclick="retryModel('${model}', ${roundNum}, ${totalRounds})">🔄 Retry</button>
+                                    <button class="btn-sleek btn-skip" onclick="skipModel('${model}', ${roundNum})">⏭ Skip</button>
+                                `;
+                            }
+                        }
                     } else {
                         respEl.textContent = 'Waiting...';
                     }
@@ -1832,6 +2106,7 @@
                 document.getElementById('consensusSection').classList.remove('active');
                 document.getElementById('exportSection').classList.remove('active');
                 renderRoundTimeline(totalRounds);
+                if (discussion.stats) recalculateDiscussionStats();
                 
                 for (let i = 1; i <= currentRoundNum; i++) {
                     renderRound(i);
