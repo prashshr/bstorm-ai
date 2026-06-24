@@ -1,0 +1,20 @@
+# Reasonix agent metadata (not part of the application)
+.reasonix/
+
+# Debug HAR files (contain full API request/response data including API keys)
+debugging/
+
+# Review documents (not source code)
+*.md
+
+# Local dev files
+reasonix.toml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
