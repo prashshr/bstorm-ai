@@ -299,7 +299,7 @@
             border: 1px solid var(--border);
             padding: 12px;
             min-height: 100px;
-            max-height: 400px;
+            max-height: 600px;
             overflow-y: auto;
             resize: vertical;
             font-size: 13px;
@@ -1103,9 +1103,9 @@
                         <span class="hq">${h.question.substring(0, 80)}${h.question.length > 80 ? '…' : ''}</span>
                         <span class="hmeta">${new Date(h.timestamp).toLocaleDateString()} · ${h.models?.length || 0}m · ${Object.keys(h.rounds||{}).length}r</span>
                         <span class="hactions">
-                            <button onclick="event.stopPropagation();copyHistoryQuery('${h.id}')">📋</button>
-                            <button onclick="event.stopPropagation();copyHistorySummary('${h.id}')">📝</button>
-                            ${h.status !== 'in_progress' ? `<button onclick="event.stopPropagation();loadHistoryView('${h.id}')">👁️</button>` : `<button onclick="event.stopPropagation();resumeDiscussion('${h.id}')">▶️</button>`}
+                            <button title="Copy question" onclick="event.stopPropagation();copyHistoryQuery('${h.id}')">📋</button>
+                            <button title="Copy summary" onclick="event.stopPropagation();copyHistorySummary('${h.id}')">📝</button>
+                            ${h.status !== 'in_progress' ? `<button title="View discussion" onclick="event.stopPropagation();loadHistoryView('${h.id}')">👁️</button>` : `<button title="Resume discussion" onclick="event.stopPropagation();resumeDiscussion('${h.id}')">▶️</button>`}
                         </span>
                     </div>
                     <div class="history-item-detail" id="hd-${idx}">
@@ -1115,9 +1115,9 @@
                             ${new Date(h.timestamp).toLocaleString()} · ${h.models?.length || 0} models · ${Object.keys(h.rounds||{}).length} rounds · Status: ${h.status}
                         </div>
                         <div class="hd-actions">
-                            <button onclick="copyHistoryQuery('${h.id}')">📋 Copy Query</button>
-                            ${h.consensus ? `<button onclick="copyHistorySummary('${h.id}')">📝 Copy Summary</button>` : ''}
-                            ${h.status !== 'in_progress' ? `<button onclick="loadHistoryView('${h.id}')">👁️ View Discussion</button>` : `<button onclick="resumeDiscussion('${h.id}')">▶️ Resume</button>`}
+                            <button title="Copy question text" onclick="copyHistoryQuery('${h.id}')">📋 Copy Query</button>
+                            ${h.consensus ? `<button title="Copy consensus summary" onclick="copyHistorySummary('${h.id}')">📝 Copy Summary</button>` : ''}
+                            ${h.status !== 'in_progress' ? `<button title="View full discussion" onclick="loadHistoryView('${h.id}')">👁️ View Discussion</button>` : `<button title="Continue discussion" onclick="resumeDiscussion('${h.id}')">▶️ Resume</button>`}
                         </div>
                     </div>
                 </div>`;
@@ -1286,34 +1286,6 @@
             switchTab('current');
             window.location.hash = discussionId;
             updateStatusDot();
-
-            discussionData = {
-                id: discussionId,
-                timestamp: new Date().toISOString(),
-                question,
-                instructions,
-                models: [...selectedModels],
-                rounds: {},
-                consensus: '',
-                endpoint,
-                consensusModel,
-                timeout,
-                maxTokens,
-                status: 'in_progress',
-                totalRounds
-            };
-
-            for (let i = 1; i <= totalRounds; i++) {
-                discussionData.rounds[i] = {};
-                selectedModels.forEach(model => {
-                    discussionData.rounds[i][model] = { text: '', status: 'waiting' };
-                });
-            }
-
-            saveState();
-            document.getElementById('setupSection').style.display = 'none';
-            document.getElementById('discussionSection').classList.add('active');
-            window.location.hash = discussionId;
 
             document.getElementById('questionDisplayText').textContent = question;
             const instDisplay = document.getElementById('instructionsDisplay');
@@ -1999,7 +1971,7 @@
                 storedApiKey = discussion.apiKey || '';
                 storedTimeout = discussion.timeout || 120;
                 window.location.hash = id;
-                document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+                switchTab('current');
                 document.getElementById('setupSection').style.display = 'none';
                 document.getElementById('discussionSection').classList.add('active');
                 document.getElementById('questionDisplayText').textContent = discussion.question || '';
@@ -2091,7 +2063,7 @@
                 discussionRunning = true;
                 window.location.hash = id;
                 
-                document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+                switchTab('current');
                 document.getElementById('setupSection').style.display = 'none';
                 document.getElementById('discussionSection').classList.add('active');
                 document.getElementById('questionDisplayText').textContent = discussion.question || '';
