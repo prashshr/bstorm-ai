@@ -1,5 +1,5 @@
 #!/bin/bash
-DIR="/arbeit/ai-welt/projects/ai-ensemble"
+DIR=$PWD
 LOG="/tmp/server3000.log"
 cd "$DIR" || exit 1
 while true; do

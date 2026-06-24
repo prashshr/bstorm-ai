@@ -643,6 +643,12 @@
         <div class="tab-content active" id="tab-new">
             <div id="setupSection">
                 <div class="form-section">
+                    <div id="restoreBanner" style="display:none;background:var(--bg-secondary);border:1px solid var(--accent);padding:12px 16px;margin-bottom:20px;font-size:13px;border-radius:8px;">
+                        <strong>🔄 Discussion In Progress</strong>
+                        <span style="color:var(--text-secondary);margin-left:8px;">You have an unfinished discussion from a previous session.</span>
+                        <button class="btn-sleek" style="background:var(--accent);color:white;padding:4px 14px;margin-left:12px;font-size:12px;" onclick="restoreLastDiscussion()">Restore</button>
+                        <button class="btn-sleek" style="background:transparent;color:var(--text-tertiary);padding:4px 14px;margin-left:4px;font-size:12px;border:1px solid var(--border);" onclick="dismissRestore()">Dismiss</button>
+                    </div>
                     <h2>API Configuration</h2>
                     <div id="statusMsg" class="status-message" style="display:none;"></div>
                     <div class="form-row">
@@ -691,10 +697,26 @@
 
                         <div class="form-row">
                             <div class="form-group" style="grid-column: 1 / -1;">
-                                <label for="instructions">Instructions for Final Summary (Optional)</label>
+                                <label for="responseFormat">Response Format</label>
+                                <select id="responseFormat" onchange="applyResponseFormat()" style="margin-bottom:8px;">
+                                    <option value="default">Default — Let the model decide</option>
+                                    <option value="compact">Compact — Precise, bullet points, short</option>
+                                    <option value="elaborate">Elaborate — Detailed with explanations & reasoning</option>
+                                </select>
+                                <label for="instructions">Custom Instructions (Optional — overrides format above)</label>
                                 <textarea id="instructions" placeholder="E.g., Format as bullet points..."></textarea>
                             </div>
                         </div>
+
+                        <div class="form-row">
+                            <div class="form-group" style="grid-column: 1 / -1;">
+                                <label for="summaryFormat">Final Summary Format</label>
+                                <select id="summaryFormat" style="margin-bottom:8px;">
+                                    <option value="elaborate">Elaborate — Full synthesis with reasoning (recommended)</option>
+                                    <option value="compact">Compact — Quick verdict with weighted scores</option>
+                                    <option value="default">Default — Let consensus model decide</option>
+                                </select>
+                            </div>
 
                         <div class="form-row">
                             <div class="form-group">
@@ -835,6 +857,7 @@
         let storedMaxTokens = 6000;
         let consensusAbortController = null;
         let stateRestored = false;
+        let _settingHash = false;
         
         let discussionData = {
             id: null,
@@ -876,7 +899,17 @@
             handleHash();
             setupFileUpload();
         });
-        window.addEventListener('hashchange', handleHash);
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                const fs = document.querySelector('.model-response.fullscreen');
+                if (fs) {
+                    fs.classList.remove('fullscreen');
+                    document.querySelector('.fullscreen-overlay')?.remove();
+                }
+            }
+        });
+        window.addEventListener('hashchange', (e) => { if (!_settingHash) handleHash(); });
 
         function handleHash() {
             if (stateRestored && window.location.hash) return;
@@ -974,6 +1007,28 @@
             document.querySelector('.theme-toggle').textContent = saved === 'dark' ? '☀️ Light Mode' : '🌙 Dark Mode';
         }
 
+        function restoreLastDiscussion() {
+            document.getElementById('restoreBanner').style.display = 'none';
+            const saved = localStorage.getItem('councilState');
+            if (saved) {
+                try {
+                    const state = JSON.parse(saved);
+                    if (state.status === 'in_progress' && state.id) {
+                        resumeDiscussion(state.id);
+                    } else {
+                        loadDiscussion(state.id);
+                    }
+                } catch (e) {
+                    log('Could not restore');
+                }
+            }
+        }
+
+        function dismissRestore() {
+            document.getElementById('restoreBanner').style.display = 'none';
+            localStorage.removeItem('councilState');
+        }
+
         function switchTab(tab) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.tab-button').forEach(el => el.classList.remove('active'));
@@ -997,7 +1052,7 @@
                 try {
                     const state = JSON.parse(saved);
                     discussionData = state;
-                    document.getElementById('endpoint').value = state.endpoint || '';
+                    document.getElementById('endpoint').value = state.endpoint || 'https://api.openrouter.ai/v1';
                     document.getElementById('apiKey').value = state.apiKey || '';
                     storedEndpoint = state.endpoint || '';
                     storedApiKey = state.apiKey || '';
@@ -1006,34 +1061,16 @@
                     selectedModels = state.models || [];
                     totalRounds = state.totalRounds || 0;
 
+                    // Don't auto-restore — let user start fresh. Show a restore hint in the resume section.
                     if (state.status === 'in_progress' && state.id) {
                         stateRestored = true;
                         discussionRunning = true;
                         currentRoundNum = Object.keys(state.rounds).length || 1;
-                        document.getElementById('setupSection').style.display = 'none';
-                        document.getElementById('discussionSection').classList.add('active');
-                        document.getElementById('questionDisplayText').textContent = state.question || '';
-                        const instDisplay = document.getElementById('instructionsDisplay');
-                        if (state.instructions) {
-                            document.getElementById('instructionsDisplayText').textContent = state.instructions;
-                            instDisplay.style.display = 'block';
-                        } else {
-                            instDisplay.style.display = 'none';
+                        // Show a subtle banner instead of auto-switching
+                        const banner = document.getElementById('restoreBanner');
+                        if (banner) {
+                            banner.style.display = 'block';
                         }
-                        document.getElementById('questionDisplay').style.display = 'block';
-                        renderRoundTimeline(totalRounds);
-                        for (let i = 1; i <= currentRoundNum; i++) {
-                            renderRound(i);
-                        }
-                        if (state.stats) {
-                            recalculateDiscussionStats();
-                        }
-                        if (state.consensus) {
-                            document.getElementById('consensusSection').classList.add('active');
-                            document.getElementById('consensusText').innerHTML = marked.parse(state.consensus);
-                            document.getElementById('exportSection').classList.add('active');
-                        }
-                        updateStatusDot();
                     }
                 } catch (e) {
                     log('Could not restore state');
@@ -1227,6 +1264,16 @@
             selectedModels = Array.from(document.querySelectorAll('.model-checkbox input:checked')).map(cb => cb.value);
         }
 
+        function applyResponseFormat() {
+            const fmt = document.getElementById('responseFormat').value;
+            const ta = document.getElementById('instructions');
+            if (fmt === 'compact') {
+                ta.value = 'Provide a COMPACT response:\n- Use bullet points\n- Be concise and precise\n- Limit to 3-5 key points\n- No lengthy explanations\n- Use short sentences';
+            } else if (fmt === 'elaborate') {
+                ta.value = 'Provide an ELABORATE response:\n- Include thorough explanations and reasoning\n- Cover multiple perspectives\n- Provide examples and evidence where relevant\n- Structure with clear sections\n- Be comprehensive but well-organized';
+            }
+        }
+
         async function startDiscussion() {
             const question = document.getElementById('question').value.trim();
             const instructions = document.getElementById('instructions').value.trim();
@@ -1234,6 +1281,7 @@
             const endpoint = document.getElementById('endpoint').value.trim();
             const apiKey = document.getElementById('apiKey').value.trim();
             const consensusModel = document.getElementById('consensusModel').value;
+            const summaryFormat = document.getElementById('summaryFormat').value;
             const timeout = parseInt(document.getElementById('timeout').value);
             const maxTokens = parseInt(document.getElementById('maxTokens').value) || 6000;
 
@@ -1268,6 +1316,7 @@
                 consensusModel,
                 timeout,
                 maxTokens,
+                summaryFormat,
                 attachments: attachedFiles.map(f => ({ name: f.name, size: f.size, type: f.type })),
                 status: 'in_progress',
                 totalRounds
@@ -1284,7 +1333,10 @@
             document.getElementById('setupSection').style.display = 'none';
             document.getElementById('discussionSection').classList.add('active');
             switchTab('current');
+            _settingHash = true;
             window.location.hash = discussionId;
+            _settingHash = false;
+            updateStatusDot();
             updateStatusDot();
 
             document.getElementById('questionDisplayText').textContent = question;
@@ -1572,13 +1624,15 @@
                 };
                 discussionData.rounds[roundNum][modelId].stats = stats;
 
-                // Expand/fullscreen actions
+                // Actions: expand, fullscreen, retry, skip on every completed model
                 const safeId = modelId.replace(/[^a-zA-Z0-9]/g, '-');
                 const actionsDiv = document.getElementById(`actions-${safeId}`) || actionsEl;
                 if (actionsDiv) {
                     actionsDiv.innerHTML = `
                         <button class="btn-expand" onclick="toggleExpand(this, '${safeId}')">🔲 Expand</button>
                         <button class="btn-expand" onclick="toggleFullscreen('${safeId}')">⛶ Full Screen</button>
+                        <button class="btn-sleek btn-retry" onclick="retryModel('${modelId}', ${roundNum}, ${totalRounds})">🔄 Retry</button>
+                        <button class="btn-sleek btn-skip" onclick="skipModel('${modelId}', ${roundNum})">⏭ Skip</button>
                     `;
                 }
 
@@ -1646,7 +1700,7 @@
         }
 
         function toggleExpand(btn, safeId) {
-            const resp = document.querySelector(`[data-model] .model-response`);
+            const resp = document.querySelector(`#actions-${safeId}`)?.closest('.model-card')?.querySelector('.model-response');
             if (!resp) return;
             resp.classList.toggle('expanded');
             btn.textContent = resp.classList.contains('expanded') ? '🔽 Collapse' : '🔲 Expand';
@@ -1687,6 +1741,12 @@
 
             let prompt = `Synthesize consensus for: "${discussionData.question}"\n\nAll model responses:\n${allResponses.join('\n\n')}`;
             if (discussionData.instructions) prompt += `\n\nFormat as: ${discussionData.instructions}`;
+            const fmt = discussionData.summaryFormat || 'elaborate';
+            if (fmt === 'compact') {
+                prompt += `\n\nProvide a COMPACT consensus:\n- Start with a 1-sentence verdict\n- Use a weighted score table (4 core points, max 40 points)\n- Bullet-point key agreements and disagreements\n- Output 3 priority recommendations as numbered items\n- Be precise, no fluff`;
+            } else if (fmt === 'elaborate') {
+                prompt += `\n\nProvide an ELABORATE consensus:\n- Start with a detailed executive verdict (2-3 sentences)\n- Include a full weighted scoring table with rationale\n- Show a council alignment & friction matrix\n- Explain excluded points and why they were deprioritized\n- End with actionable recommendations`;
+            }
 
             try {
                 const timeoutId = setTimeout(() => consensusAbortController.abort(), timeout * 1000);
@@ -1743,10 +1803,18 @@
                 if (!endsProperly) log(`Consensus may be truncated: ${fullText.length} chars, ends with: "${fullText.slice(-30)}"`);
                 saveState();
             } catch (error) {
+                debugLog(`Consensus error: ${error.message}`, 'error');
                 if (error.name === 'AbortError') {
                     document.getElementById('consensusText').textContent = discussionData.consensus || 'Consensus cancelled.';
                 } else {
-                    document.getElementById('consensusText').textContent = `Error: ${error.message}`;
+                    document.getElementById('consensusText').innerHTML = `<div style="color:var(--error);padding:12px;border:1px solid var(--error);background:rgba(220,38,38,0.1);">
+                        <strong>❌ Consensus Failed</strong><br>
+                        ${error.message}
+                        <div style="margin-top:8px;font-size:11px;color:var(--text-tertiary);">
+                            Model: ${consensusModel} · Endpoint: ${endpoint} · Timeout: ${timeout}s
+                            ${allResponses.length === 0 ? '<br>⚠ No model responses available — all models may have failed.' : ''}
+                        </div>
+                    </div>`;
                 }
             } finally {
                 consensusAbortController = null;
