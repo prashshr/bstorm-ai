@@ -7,6 +7,9 @@ debugging/
 # Review documents (not source code)
 *.md
 
+# Quick reference
+QUICK_REFERENCE.txt
+
 # Local dev files
 reasonix.toml
 
