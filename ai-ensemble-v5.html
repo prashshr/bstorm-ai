@@ -418,6 +418,11 @@
                                 <input type="number" id="timeout" value="120" min="10" max="300">
                             </div>
                             <div class="form-group">
+                                <label for="maxTokens">Max Tokens per Response</label>
+                                <input type="number" id="maxTokens" value="3500" min="500" max="10000" step="500">
+                                <div style="font-size: 11px; color: var(--text-tertiary); margin-top: 4px;">Higher values preserve more context in multi-round discussions</div>
+                            </div>
+                            <div class="form-group">
                                 <label for="consensusModel">Consensus Model</label>
                                 <select id="consensusModel"></select>
                             </div>
@@ -468,10 +473,6 @@
                 </div>
             </div>
 
-            <div class="discussion-controls">
-                <button class="btn-danger" onclick="stopDiscussion()">Stop & Summarize</button>
-            </div>
-
             <div class="progress-container">
                 <div class="progress-header">
                     <span id="roundLabel">Round 1 of 3</span>
@@ -500,6 +501,10 @@
                     <button class="btn-secondary" onclick="copyToClipboard()">Copy</button>
                 </div>
             </div>
+
+            <div class="discussion-controls" style="margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--border);">
+                <button class="btn-danger" onclick="stopDiscussion()" style="flex: 1; min-width: 200px;">⏹️ Stop & Summarize</button>
+            </div>
         </div>
     </div>
 
@@ -520,6 +525,7 @@
         let storedEndpoint = '';
         let storedApiKey = '';
         let storedTimeout = 120;
+        let storedMaxTokens = 3500;
         let consensusAbortController = null;
         let stateRestored = false;
         
@@ -616,6 +622,7 @@
                     storedEndpoint = state.endpoint || '';
                     storedApiKey = state.apiKey || '';
                     storedTimeout = state.timeout || 120;
+                    storedMaxTokens = state.maxTokens || 3500;
                     selectedModels = state.models || [];
                     totalRounds = state.totalRounds || 0;
 
@@ -793,6 +800,7 @@
             const apiKey = document.getElementById('apiKey').value.trim();
             const consensusModel = document.getElementById('consensusModel').value;
             const timeout = parseInt(document.getElementById('timeout').value);
+            const maxTokens = parseInt(document.getElementById('maxTokens').value) || 3500;
 
             if (!question) { showStatus('Please enter a question', 'error'); return; }
             if (selectedModels.length < 2 || selectedModels.length > 5) { showStatus('Select 2-5 models', 'error'); return; }
@@ -805,6 +813,7 @@
             storedEndpoint = endpoint;
             storedApiKey = apiKey;
             storedTimeout = timeout;
+            storedMaxTokens = maxTokens;
 
             document.getElementById('consensusSection').classList.remove('active');
             document.getElementById('consensusText').textContent = '';
@@ -822,6 +831,7 @@
                 endpoint,
                 consensusModel,
                 timeout,
+                maxTokens,
                 status: 'in_progress',
                 totalRounds
             };
@@ -850,8 +860,8 @@
 
             renderRoundTimeline(totalRounds);
             
-            log(`Starting discussion with ${selectedModels.length} models, ${totalRounds} rounds, ${timeout}s timeout`);
-            await runRound(1, totalRounds, endpoint, apiKey, timeout);
+            log(`Starting discussion with ${selectedModels.length} models, ${totalRounds} rounds, ${timeout}s timeout, ${maxTokens} max tokens`);
+            await runRound(1, totalRounds, endpoint, apiKey, timeout, maxTokens);
         }
 
         function renderRoundTimeline(totalRoundsNum) {
@@ -885,7 +895,7 @@
             }
         }
 
-        async function runRound(roundNum, totalRoundsNum, endpoint, apiKey, timeout) {
+        async function runRound(roundNum, totalRoundsNum, endpoint, apiKey, timeout, maxTokens) {
             document.getElementById('roundLabel').textContent = `Round ${roundNum} of ${totalRoundsNum}`;
             document.getElementById('progressFill').style.width = (roundNum / totalRoundsNum * 100) + '%';
 
@@ -896,7 +906,7 @@
 
             for (const model of selectedModels) {
                 if (!discussionRunning) return;
-                await queryModel(model, roundNum, totalRoundsNum, endpoint, apiKey, timeout);
+                await queryModel(model, roundNum, totalRoundsNum, endpoint, apiKey, timeout, maxTokens);
             }
 
             saveState();
@@ -939,7 +949,7 @@
         function proceedToNextRound(roundNum) {
             currentRoundNum = roundNum;
             document.querySelector('.next-round-button')?.remove();
-            runRound(roundNum, totalRounds, storedEndpoint, storedApiKey, storedTimeout);
+            runRound(roundNum, totalRounds, storedEndpoint, storedApiKey, storedTimeout, storedMaxTokens);
         }
 
         function showRoundStatus() {
@@ -968,7 +978,7 @@
             }
         }
 
-        async function queryModel(modelId, roundNum, totalRounds, endpoint, apiKey, timeout) {
+        async function queryModel(modelId, roundNum, totalRounds, endpoint, apiKey, timeout, maxTokens = 3500) {
             const modelsGrid = document.getElementById(`modelsRound${roundNum}`);
             
             let card = modelsGrid.querySelector(`[data-model="${modelId}"]`);
@@ -1037,7 +1047,7 @@
                         ],
                         stream: true,
                         temperature: 0.7,
-                        max_tokens: 1500
+                        max_tokens: maxTokens
                     })
                 });
 
