@@ -1020,6 +1020,16 @@
             if (saved) {
                 try {
                     const state = JSON.parse(saved);
+                    if (!state.id) return;
+                    // Push into queryHistory if not already there
+                    if (!queryHistory.find(h => h.id === state.id)) {
+                        queryHistory.unshift(state);
+                        saveHistory();
+                    }
+                    // Restore API key
+                    if (state._key) {
+                        try { storedApiKey = atob(state._key); } catch(e) {}
+                    }
                     if (state.status === 'in_progress' && state.id) {
                         resumeDiscussion(state.id);
                     } else {
@@ -1069,6 +1079,12 @@
                     storedMaxTokens = state.maxTokens || 6000;
                     selectedModels = state.models || [];
                     totalRounds = state.totalRounds || 0;
+
+                    // Sync into queryHistory so history tab and restore functions can find it
+                    if (state.id && !queryHistory.find(h => h.id === state.id)) {
+                        queryHistory.unshift(state);
+                        saveHistory();
+                    }
 
                     // Don't auto-restore — let user start fresh. Show a restore hint in the resume section.
                     if (state.status === 'in_progress' && state.id) {
@@ -1374,7 +1390,7 @@
             switchTab('current');
             _settingHash = true;
             window.location.hash = discussionId;
-            _settingHash = false;
+            setTimeout(() => { _settingHash = false; }, 50);
             updateStatusDot();
             updateStatusDot();
 
