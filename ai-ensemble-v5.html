@@ -19,9 +19,20 @@
             --error: #dc2626;
             --warning: #f59e0b;
             --success: #10b981;
+            --proceed: #0ea5e9;
+            --proceed-hover: #38bdf8;
             --border: #2a2a2a;
             --input-bg: #121212;
             --input-border: #2a2a2a;
+            --discussion-active: #10b981;
+            --discussion-running: #eab308;
+        }
+
+        [data-theme="light"] {
+            --proceed: #0284c7;
+            --proceed-hover: #0ea5e9;
+            --discussion-active: #16a34a;
+            --discussion-running: #ca8a04;
         }
 
         [data-theme="light"] {
@@ -37,9 +48,13 @@
             --error: #dc2626;
             --warning: #f59e0b;
             --success: #10b981;
+            --proceed: #0284c7;
+            --proceed-hover: #0ea5e9;
             --border: #e7e5e4;
             --input-bg: #ffffff;
             --input-border: #e7e5e4;
+            --discussion-active: #16a34a;
+            --discussion-running: #ca8a04;
         }
 
         * {
@@ -203,13 +218,7 @@
         .history-item-title { font-weight: 500; color: var(--text-primary); margin-bottom: 6px; font-size: 14px; }
         .history-item-meta { font-size: 12px; color: var(--text-tertiary); }
 
-        .discussion-section { display: none; }
-        .discussion-section.active { display: block; }
-
-        .discussion-controls { display: flex; gap: 12px; margin-bottom: 30px; flex-wrap: wrap; }
-        .discussion-controls button { flex: 1; min-width: 140px; }
-
-        .round-status {
+        /* ── History Tab ── */
             background: var(--bg-secondary);
             border-left: 3px solid var(--accent);
             padding: 16px;
@@ -226,6 +235,10 @@
         .progress-fill { height: 100%; background: var(--accent); width: 0%; transition: width 0.3s; }
 
         .round-timeline { margin-bottom: 30px; }
+
+        .discussion-controls { display: flex; gap: 12px; margin-top: 20px; flex-wrap: wrap; justify-content: center; }
+        .discussion-controls button { min-width: 120px; }
+
         .round-header {
             background: var(--bg-secondary);
             color: var(--text-primary);
@@ -347,6 +360,193 @@
             .header h1 { font-size: 32px; }
             .tabs { flex-direction: column; gap: 0; align-items: center; }
         }
+
+        /* ── Sleek Rounded Buttons ── */
+        .btn-sleek {
+            border-radius: 8px;
+            padding: 10px 22px;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+        .btn-sleek:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 3px 8px rgba(0,0,0,0.3); }
+        .btn-sleek:active:not(:disabled) { transform: translateY(0); }
+        .btn-stop {
+            background: #dc2626;
+            color: white;
+            padding: 10px 28px;
+            font-size: 13px;
+        }
+        .btn-stop:hover:not(:disabled) { background: #ef4444; }
+        .btn-proceed {
+            background: var(--proceed);
+            color: white;
+            padding: 12px 36px;
+            font-size: 14px;
+        }
+        .btn-proceed:hover:not(:disabled) { background: var(--proceed-hover); }
+        .btn-skip {
+            background: #6b7280;
+            color: white;
+            padding: 6px 14px;
+            font-size: 11px;
+        }
+        .btn-skip:hover:not(:disabled) { background: #9ca3af; }
+        .btn-retry {
+            background: var(--warning);
+            color: #0d0d0d;
+            padding: 6px 14px;
+            font-size: 11px;
+        }
+        .btn-retry:hover:not(:disabled) { background: #fbbf24; }
+        .btn-expand {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-tertiary);
+            padding: 3px 10px;
+            font-size: 11px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        .btn-expand:hover { border-color: var(--accent); color: var(--accent); }
+
+        /* ── Action Bar on Model Cards ── */
+        .model-actions {
+            display: flex;
+            gap: 6px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        /* ── Expanded / Fullscreen Model Response ── */
+        .model-response.expanded { max-height: none; min-height: 200px; }
+        .model-response.fullscreen {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            bottom: 20px;
+            max-height: none;
+            min-height: auto;
+            z-index: 1000;
+            background: var(--bg-primary);
+            border: 2px solid var(--accent);
+            padding: 24px;
+            font-size: 15px;
+            overflow-y: auto;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            resize: none;
+        }
+        .fullscreen-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 999;
+        }
+
+        /* ── History Compact ── */
+        .history-list-compact { background: var(--bg-secondary); border: 1px solid var(--border); }
+        .history-item-compact {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 16px;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            transition: background 0.2s;
+            font-size: 13px;
+        }
+        .history-item-compact:hover { background: var(--bg-tertiary); }
+        .history-item-compact .hq { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary); }
+        .history-item-compact .hmeta { font-size: 11px; color: var(--text-tertiary); white-space: nowrap; }
+        .history-item-compact .hactions { display: flex; gap: 4px; flex-shrink: 0; }
+        .history-item-compact .hactions button {
+            background: none;
+            border: 1px solid var(--border);
+            color: var(--text-tertiary);
+            padding: 3px 8px;
+            font-size: 10px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        .history-item-compact .hactions button:hover { border-color: var(--accent); color: var(--accent); }
+        .history-item-detail {
+            display: none;
+            padding: 12px 16px 16px 16px;
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border);
+            font-size: 12px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+        .history-item-detail.open { display: block; }
+        .history-item-detail .hd-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+        .history-item-detail .hd-actions button {
+            padding: 5px 14px;
+            font-size: 11px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .history-item-detail .hd-actions button:hover { border-color: var(--accent); color: var(--accent); }
+
+        /* ── Tab Status Indicator ── */
+        .tab-status-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-left: 6px;
+            vertical-align: middle;
+        }
+        .tab-status-dot.active { background: var(--discussion-active); box-shadow: 0 0 6px var(--discussion-active); }
+        .tab-status-dot.running { background: var(--discussion-running); box-shadow: 0 0 6px var(--discussion-running); animation: pulse-dot 1.5s infinite; }
+        @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+        /* ── File Upload ── */
+        .file-upload-area {
+            border: 2px dashed var(--border);
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 16px;
+            border-radius: 8px;
+        }
+        .file-upload-area:hover { border-color: var(--accent); background: var(--bg-tertiary); }
+        .file-upload-area.dragover { border-color: var(--accent-light); background: rgba(217,119,6,0.08); }
+        .file-upload-area input[type="file"] { display: none; }
+        .file-upload-label { font-size: 13px; color: var(--text-tertiary); }
+        .file-upload-label strong { color: var(--accent); }
+        .file-attachment { display: inline-flex; align-items: center; gap: 6px; background: var(--bg-tertiary); border: 1px solid var(--border); padding: 6px 12px; margin-top: 8px; border-radius: 6px; font-size: 12px; }
+        .file-attachment .remove-file { cursor: pointer; color: var(--error); font-weight: bold; margin-left: 4px; }
+
+        /* ── Discussion Tab Content ── */
+        .discussion-section { display: none; }
+        .discussion-section.active { display: block; }
+        .discussion-section.running { border-left: 3px solid var(--discussion-running); padding-left: 16px; }
+        .discussion-section.completed { border-left: 3px solid var(--discussion-active); padding-left: 16px; }
+
+        /* ── Next Round button styling ── */
+        .next-round-wrapper {
+            text-align: center;
+            padding: 20px;
+            margin-top: 16px;
+            border-top: 1px solid var(--border);
+        }
     </style>
 </head>
 <body>
@@ -359,7 +559,10 @@
         <div class="tabs">
             <button class="tab-button active" onclick="switchTab('new')">New Discussion</button>
             <button class="tab-button" onclick="switchTab('history')">History</button>
-            <button class="tab-button" onclick="switchTab('resume')">Resume</button>
+            <button class="tab-button" id="currentTabBtn" onclick="switchTab('current')" style="display:none;">
+                Current Discussion
+                <span class="tab-status-dot" id="statusDot"></span>
+            </button>
         </div>
 
         <div class="tab-content active" id="tab-new">
@@ -400,6 +603,19 @@
 
                         <div class="form-row">
                             <div class="form-group" style="grid-column: 1 / -1;">
+                                <label>Attachments <span style="color: var(--text-tertiary); font-weight: 400; text-transform: none;">(optional - files, images, PDFs)</span></label>
+                                <div class="file-upload-area" id="fileDropArea">
+                                    <div class="file-upload-label">
+                                        <strong>Click to upload</strong> or drag files here
+                                    </div>
+                                    <div id="fileList"></div>
+                                    <input type="file" id="fileInput" multiple accept=".txt,.pdf,.doc,.docx,.md,.csv,.json,.png,.jpg,.jpeg,.gif,.svg,.webp">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group" style="grid-column: 1 / -1;">
                                 <label for="instructions">Instructions for Final Summary (Optional)</label>
                                 <textarea id="instructions" placeholder="E.g., Format as bullet points..."></textarea>
                             </div>
@@ -419,8 +635,8 @@
                             </div>
                             <div class="form-group">
                                 <label for="maxTokens">Max Tokens per Response</label>
-                                <input type="number" id="maxTokens" value="3500" min="500" max="10000" step="500">
-                                <div style="font-size: 11px; color: var(--text-tertiary); margin-top: 4px;">Higher values preserve more context in multi-round discussions</div>
+                                <input type="number" id="maxTokens" value="6000" min="500" max="16000" step="500">
+                                <div style="font-size: 11px; color: var(--text-tertiary); margin-top: 4px;">Default 6000 — higher values preserve context in multi-round discussions</div>
                             </div>
                             <div class="form-group">
                                 <label for="consensusModel">Consensus Model</label>
@@ -436,23 +652,20 @@
 
         <div class="tab-content" id="tab-history">
             <div class="form-section">
-                <h2>Previous Discussions</h2>
-                <div class="history-list" id="historyList">
+                <h2>Discussions</h2>
+                <div id="historyFilter" style="display:flex; gap:8px; margin-bottom:12px;">
+                    <button class="btn-sleek" style="background:var(--accent);color:white;padding:6px 14px;" onclick="filterHistory('all')">All</button>
+                    <button class="btn-sleek" style="background:var(--bg-secondary);color:var(--text-secondary);padding:6px 14px;border:1px solid var(--border);" onclick="filterHistory('completed')">Completed</button>
+                    <button class="btn-sleek" style="background:var(--bg-secondary);color:var(--text-secondary);padding:6px 14px;border:1px solid var(--border);" onclick="filterHistory('running')">Running</button>
+                </div>
+                <div class="history-list-compact" id="historyList">
                     <div style="padding: 20px; text-align: center; color: var(--text-tertiary);">No discussions yet</div>
                 </div>
             </div>
         </div>
 
-        <div class="tab-content" id="tab-resume">
-            <div class="form-section">
-                <h2>Resume Discussion</h2>
-                <div class="history-list" id="resumeList">
-                    <div style="padding: 20px; text-align: center; color: var(--text-tertiary);">No incomplete discussions</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="discussion-section" id="discussionSection">
+        <div class="tab-content" id="tab-current">
+            <div class="discussion-section" id="discussionSection">
             <div class="round-status" id="roundStatus" style="display:none;">
                 <div class="round-status-title">Round Status</div>
                 <div class="round-status-info" id="roundStatusInfo"></div>
@@ -502,8 +715,8 @@
                 </div>
             </div>
 
-            <div class="discussion-controls" style="margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--border);">
-                <button class="btn-danger" onclick="stopDiscussion()" style="flex: 1; min-width: 200px;">⏹️ Stop & Summarize</button>
+            <div class="discussion-controls" style="justify-content: center;">
+                <button class="btn-sleek btn-stop" onclick="stopDiscussion()">⏹️ Stop & Summarize</button>
             </div>
         </div>
     </div>
@@ -525,7 +738,7 @@
         let storedEndpoint = '';
         let storedApiKey = '';
         let storedTimeout = 120;
-        let storedMaxTokens = 3500;
+        let storedMaxTokens = 6000;
         let consensusAbortController = null;
         let stateRestored = false;
         
@@ -540,15 +753,20 @@
             endpoint: '',
             consensusModel: '',
             timeout: 120,
+            maxTokens: 6000,
+            attachments: [],
             status: 'new',
             totalRounds: 0
         };
+
+        let attachments = [];
 
         window.addEventListener('load', () => {
             loadTheme();
             loadHistory();
             loadState();
             handleHash();
+            setupFileUpload();
         });
         window.addEventListener('hashchange', handleHash);
 
@@ -559,8 +777,8 @@
                 switchTab('new');
             } else if (hash === 'history') {
                 switchTab('history');
-            } else if (hash === 'resume') {
-                switchTab('resume');
+            } else if (hash === 'current') {
+                switchTab('current');
             } else if (hash) {
                 const discussion = queryHistory.find(h => h.id === hash);
                 if (discussion) {
@@ -575,6 +793,63 @@
 
         function log(msg) {
             console.log(`[AI Ensemble] ${msg}`);
+        }
+
+        /* ── File Upload ── */
+        let attachedFiles = [];
+
+        function setupFileUpload() {
+            const dropArea = document.getElementById('fileDropArea');
+            const fileInput = document.getElementById('fileInput');
+            if (!dropArea) return;
+
+            dropArea.addEventListener('click', () => fileInput.click());
+            dropArea.addEventListener('dragover', (e) => { e.preventDefault(); dropArea.classList.add('dragover'); });
+            dropArea.addEventListener('dragleave', () => dropArea.classList.remove('dragover'));
+            dropArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropArea.classList.remove('dragover');
+                handleFiles(e.dataTransfer.files);
+            });
+            fileInput.addEventListener('change', () => handleFiles(fileInput.files));
+        }
+
+        function handleFiles(files) {
+            for (const file of files) {
+                if (file.size > 10485760) { showStatus(`File too large: ${file.name} (max 10MB)`, 'error'); continue; }
+                attachedFiles.push({ name: file.name, size: file.size, type: file.type });
+            }
+            renderFileList();
+        }
+
+        function renderFileList() {
+            const list = document.getElementById('fileList');
+            if (!list) return;
+            list.innerHTML = attachedFiles.map((f, i) =>
+                `<div class="file-attachment">📎 ${f.name} <span class="remove-file" onclick="removeFile(${i})">×</span></div>`
+            ).join('');
+        }
+
+        function removeFile(i) {
+            attachedFiles.splice(i, 1);
+            renderFileList();
+            document.getElementById('fileInput').value = '';
+        }
+
+        /* ── Current Tab Status ── */
+        function updateStatusDot() {
+            const btn = document.getElementById('currentTabBtn');
+            const dot = document.getElementById('statusDot');
+            if (!btn || !dot) return;
+            if (discussionData.status === 'in_progress' || discussionRunning) {
+                btn.style.display = '';
+                dot.className = 'tab-status-dot running';
+            } else if (discussionData.status === 'completed' || discussionData.status === 'stopped') {
+                btn.style.display = '';
+                dot.className = 'tab-status-dot active';
+            } else {
+                btn.style.display = 'none';
+            }
         }
 
         function toggleTheme() {
@@ -595,19 +870,16 @@
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.tab-button').forEach(el => el.classList.remove('active'));
             document.getElementById(`tab-${tab}`).classList.add('active');
-            document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add('active');
+            document.querySelector(`[onclick="switchTab('${tab}')"]`)?.classList.add('active');
 
             if (tab === 'new') {
-                document.getElementById('question').value = '';
-                document.getElementById('instructions').value = '';
-                if (document.getElementById('discussionSection').classList.contains('active')) {
-                    document.getElementById('setupSection').style.display = 'block';
-                }
+                document.getElementById('setupSection').style.display = 'block';
                 window.location.hash = '#new';
             } else if (tab === 'history') {
+                renderHistory();
                 window.location.hash = '#history';
-            } else if (tab === 'resume') {
-                window.location.hash = '#resume';
+            } else if (tab === 'current') {
+                window.location.hash = '#current';
             }
         }
 
@@ -622,7 +894,7 @@
                     storedEndpoint = state.endpoint || '';
                     storedApiKey = state.apiKey || '';
                     storedTimeout = state.timeout || 120;
-                    storedMaxTokens = state.maxTokens || 3500;
+                    storedMaxTokens = state.maxTokens || 6000;
                     selectedModels = state.models || [];
                     totalRounds = state.totalRounds || 0;
 
@@ -650,6 +922,7 @@
                             document.getElementById('consensusText').innerHTML = marked.parse(state.consensus);
                             document.getElementById('exportSection').classList.add('active');
                         }
+                        updateStatusDot();
                     }
                 } catch (e) {
                     log('Could not restore state');
@@ -691,34 +964,85 @@
 
         function renderHistory() {
             const historyList = document.getElementById('historyList');
-            const resumeList = document.getElementById('resumeList');
+            if (!historyList) return;
 
             if (queryHistory.length === 0) {
                 historyList.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-tertiary);">No discussions yet</div>';
-                resumeList.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-tertiary);">No incomplete discussions</div>';
                 return;
             }
 
-            const completed = queryHistory.filter(h => h.status === 'completed' || h.status === 'stopped');
-            const incomplete = queryHistory.filter(h => h.status === 'in_progress');
+            let filtered = queryHistory;
+            if (window._historyFilter === 'completed') {
+                filtered = queryHistory.filter(h => h.status === 'completed' || h.status === 'stopped');
+            } else if (window._historyFilter === 'running') {
+                filtered = queryHistory.filter(h => h.status === 'in_progress');
+            }
 
-            historyList.innerHTML = completed.map(h => `
-                <a href="#${h.id}" class="history-item" onclick="event.preventDefault();loadDiscussion('${h.id}')">
-                    <div class="history-item-title">${h.question.substring(0, 50)}${h.question.length > 50 ? '...' : ''}</div>
-                    <div style="font-size: 12px; color: var(--text-tertiary); margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${h.question}</div>
-                    <div class="history-item-meta">${new Date(h.timestamp).toLocaleDateString()} • ${h.models.length} models • ${Object.keys(h.rounds).length} rounds</div>
-                    <button class="btn-secondary" onclick="event.stopPropagation();copyHistoryQuery('${h.id}')" style="margin-top: 8px; padding: 4px 10px; font-size: 11px;">Copy Query</button>
-                </a>
-            `).join('') || '<div style="padding: 20px; text-align: center;">No completed discussions</div>';
+            if (filtered.length === 0) {
+                historyList.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-tertiary);font-size:13px;">No discussions match this filter</div>';
+                return;
+            }
 
-            resumeList.innerHTML = incomplete.map(h => `
-                <a href="#${h.id}" class="history-item" onclick="event.preventDefault();resumeDiscussion('${h.id}')">
-                    <div class="history-item-title">${h.question.substring(0, 50)}${h.question.length > 50 ? '...' : ''}</div>
-                    <div style="font-size: 12px; color: var(--text-tertiary); margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${h.question}</div>
-                    <div class="history-item-meta">Round ${Object.keys(h.rounds).length + 1}/${h.totalRounds}</div>
-                    <button class="btn-secondary" onclick="event.stopPropagation();copyHistoryQuery('${h.id}')" style="margin-top: 8px; padding: 4px 10px; font-size: 11px;">Copy Query</button>
-                </a>
-            `).join('') || '<div style="padding: 20px; text-align: center;">No incomplete discussions</div>';
+            historyList.innerHTML = filtered.map((h, idx) => {
+                const statusIcon = h.status === 'in_progress' ? '🟡' : '✅';
+                return `
+                <div>
+                    <div class="history-item-compact" onclick="toggleHistoryDetail(${idx})">
+                        <span>${statusIcon}</span>
+                        <span class="hq">${h.question.substring(0, 80)}${h.question.length > 80 ? '…' : ''}</span>
+                        <span class="hmeta">${new Date(h.timestamp).toLocaleDateString()} · ${h.models?.length || 0}m · ${Object.keys(h.rounds||{}).length}r</span>
+                        <span class="hactions">
+                            <button onclick="event.stopPropagation();copyHistoryQuery('${h.id}')">📋</button>
+                            <button onclick="event.stopPropagation();copyHistorySummary('${h.id}')">📝</button>
+                            ${h.status !== 'in_progress' ? `<button onclick="event.stopPropagation();loadHistoryView('${h.id}')">👁️</button>` : `<button onclick="event.stopPropagation();resumeDiscussion('${h.id}')">▶️</button>`}
+                        </span>
+                    </div>
+                    <div class="history-item-detail" id="hd-${idx}">
+                        <div><strong>Question:</strong> ${h.question}</div>
+                        ${h.instructions ? `<div style="margin-top:6px;"><strong>Instructions:</strong> ${h.instructions}</div>` : ''}
+                        <div style="margin-top:6px;color:var(--text-tertiary);font-size:11px;">
+                            ${new Date(h.timestamp).toLocaleString()} · ${h.models?.length || 0} models · ${Object.keys(h.rounds||{}).length} rounds · Status: ${h.status}
+                        </div>
+                        <div class="hd-actions">
+                            <button onclick="copyHistoryQuery('${h.id}')">📋 Copy Query</button>
+                            ${h.consensus ? `<button onclick="copyHistorySummary('${h.id}')">📝 Copy Summary</button>` : ''}
+                            ${h.status !== 'in_progress' ? `<button onclick="loadHistoryView('${h.id}')">👁️ View Discussion</button>` : `<button onclick="resumeDiscussion('${h.id}')">▶️ Resume</button>`}
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function filterHistory(filter) {
+            window._historyFilter = filter;
+            document.querySelectorAll('#historyFilter button').forEach(b => {
+                b.style.background = b.textContent.toLowerCase().includes(filter) ? 'var(--accent)' : 'var(--bg-secondary)';
+                b.style.color = b.textContent.toLowerCase().includes(filter) ? 'white' : 'var(--text-secondary)';
+            });
+            renderHistory();
+        }
+
+        function toggleHistoryDetail(idx) {
+            const el = document.getElementById(`hd-${idx}`);
+            if (el) el.classList.toggle('open');
+        }
+
+        function copyHistorySummary(id) {
+            const discussion = queryHistory.find(h => h.id === id);
+            if (discussion?.consensus) {
+                navigator.clipboard.writeText(discussion.consensus);
+                const btn = event.target;
+                btn.textContent = '✅ Copied!';
+                setTimeout(() => btn.textContent = '📝', 1500);
+            }
+        }
+
+        function loadHistoryView(id) {
+            document.querySelectorAll('#historyFilter button').forEach(b => {
+                b.style.background = 'var(--bg-secondary)';
+                b.style.color = 'var(--text-secondary)';
+            });
+            loadDiscussion(id);
         }
 
         async function discoverModels() {
@@ -800,7 +1124,7 @@
             const apiKey = document.getElementById('apiKey').value.trim();
             const consensusModel = document.getElementById('consensusModel').value;
             const timeout = parseInt(document.getElementById('timeout').value);
-            const maxTokens = parseInt(document.getElementById('maxTokens').value) || 3500;
+            const maxTokens = parseInt(document.getElementById('maxTokens').value) || 6000;
 
             if (!question) { showStatus('Please enter a question', 'error'); return; }
             if (selectedModels.length < 2 || selectedModels.length > 5) { showStatus('Select 2-5 models', 'error'); return; }
@@ -819,6 +1143,38 @@
             document.getElementById('consensusText').textContent = '';
             document.getElementById('exportSection').classList.remove('active');
             document.getElementById('roundTimeline').innerHTML = '';
+            document.getElementById('discussionSection').className = 'discussion-section active running';
+
+            discussionData = {
+                id: discussionId,
+                timestamp: new Date().toISOString(),
+                question,
+                instructions,
+                models: [...selectedModels],
+                rounds: {},
+                consensus: '',
+                endpoint,
+                consensusModel,
+                timeout,
+                maxTokens,
+                attachments: attachedFiles.map(f => ({ name: f.name, size: f.size, type: f.type })),
+                status: 'in_progress',
+                totalRounds
+            };
+
+            for (let i = 1; i <= totalRounds; i++) {
+                discussionData.rounds[i] = {};
+                selectedModels.forEach(model => {
+                    discussionData.rounds[i][model] = { text: '', status: 'waiting' };
+                });
+            }
+
+            saveState();
+            document.getElementById('setupSection').style.display = 'none';
+            document.getElementById('discussionSection').classList.add('active');
+            switchTab('current');
+            window.location.hash = discussionId;
+            updateStatusDot();
 
             discussionData = {
                 id: discussionId,
@@ -918,8 +1274,10 @@
                 document.getElementById('consensusSection').classList.add('active');
                 document.getElementById('exportSection').classList.add('active');
                 discussionData.status = 'completed';
+                document.getElementById('discussionSection').className = 'discussion-section active completed';
                 saveState();
                 renderHistory();
+                updateStatusDot();
                 log('Discussion completed');
             }
         }
@@ -930,14 +1288,13 @@
             if (existingBtn) existingBtn.remove();
 
             const btnDiv = document.createElement('div');
-            btnDiv.className = 'next-round-button';
-            btnDiv.style.cssText = 'text-align: center; padding: 16px; background: var(--bg-secondary); border: 1px solid var(--border); margin-top: 16px;';
+            btnDiv.className = 'next-round-button next-round-wrapper';
             btnDiv.innerHTML = `
-                <div style="margin-bottom: 12px; color: var(--accent); font-weight: 500; font-size: 13px;">
+                <div style="margin-bottom: 10px; color: var(--text-tertiary); font-size: 13px;">
                     ✓ Round ${nextRound - 1} Complete
                 </div>
-                <button class="btn-success proceed-btn" data-next-round="${nextRound}" style="width: 100%;">
-                    Proceed to Round ${nextRound}
+                <button class="btn-sleek btn-proceed proceed-btn" data-next-round="${nextRound}">
+                    ➜ Proceed to Round ${nextRound}
                 </button>
             `;
             btnDiv.querySelector('.proceed-btn').addEventListener('click', () => {
@@ -978,7 +1335,7 @@
             }
         }
 
-        async function queryModel(modelId, roundNum, totalRounds, endpoint, apiKey, timeout, maxTokens = 3500) {
+        async function queryModel(modelId, roundNum, totalRounds, endpoint, apiKey, timeout, maxTokens = 6000) {
             const modelsGrid = document.getElementById(`modelsRound${roundNum}`);
             
             let card = modelsGrid.querySelector(`[data-model="${modelId}"]`);
@@ -992,6 +1349,7 @@
                         <div class="model-badge badge-connecting">🔗</div>
                     </div>
                     <div class="model-response">Connecting...</div>
+                    <div class="model-actions" id="actions-${modelId.replace(/[^a-zA-Z0-9]/g,'-')}"></div>
                 `;
                 modelsGrid.appendChild(card);
             }
@@ -1000,6 +1358,8 @@
 
             const responseElement = card.querySelector('.model-response');
             const badgeElement = card.querySelector('.model-badge');
+            const actionsEl = card.querySelector('.model-actions') || card.querySelector('[id^="actions-"]');
+            if (actionsEl) actionsEl.innerHTML = '';
 
             let userMessage = discussionData.question;
             if (roundNum > 1) {
@@ -1021,6 +1381,11 @@
                 }
                 contextParts.push(`\n## Round ${roundNum} Instructions\nReview all previous responses above and provide your refined analysis building upon what has been discussed. Focus on areas where you can add value or offer a different perspective.\n`);
                 userMessage = contextParts.join('\n');
+            }
+
+            // Add attachments context if any
+            if (discussionData.attachments && discussionData.attachments.length > 0) {
+                userMessage = `[Attached files: ${discussionData.attachments.map(a => a.name).join(', ')}]\n\n${userMessage}`;
             }
 
             const controller = new AbortController();
@@ -1102,6 +1467,17 @@
                 badgeElement.className = `model-badge badge-${status}`;
                 badgeElement.textContent = status === 'complete' ? '✓' : '⚠️';
                 responseElement.innerHTML = marked.parse(fullText);
+                responseElement.classList.remove('expanded');
+
+                // Expand/fullscreen actions
+                const safeId = modelId.replace(/[^a-zA-Z0-9]/g, '-');
+                const actionsDiv = document.getElementById(`actions-${safeId}`) || actionsEl;
+                if (actionsDiv) {
+                    actionsDiv.innerHTML = `
+                        <button class="btn-expand" onclick="toggleExpand(this, '${safeId}')">🔲 Expand</button>
+                        <button class="btn-expand" onclick="toggleFullscreen('${safeId}')">⛶ Full Screen</button>
+                    `;
+                }
 
                 log(`${modelId} complete: ${fullText.length} chars, ${streamedChunks} chunks`);
                 saveState();
@@ -1120,6 +1496,13 @@
                 badgeElement.className = `model-badge badge-${status}`;
                 badgeElement.textContent = status === 'timeout' ? '⏱️' : '✗';
 
+                // Add retry / skip buttons on failure
+                const safeId = modelId.replace(/[^a-zA-Z0-9]/g, '-');
+                actionsEl.innerHTML = `
+                    <button class="btn-sleek btn-retry" onclick="retryModel('${modelId}', ${roundNum}, ${totalRounds})">🔄 Retry</button>
+                    <button class="btn-sleek btn-skip" onclick="skipModel('${modelId}', ${roundNum})">⏭ Skip</button>
+                `;
+
                 const errMsg = `${modelId}: ${errorMsg}`;
                 log(`${errMsg}`);
                 if (!roundErrors[roundNum]) roundErrors[roundNum] = [];
@@ -1128,6 +1511,53 @@
                 saveState();
                 showRoundStatus();
             }
+        }
+
+        function retryModel(modelId, roundNum, totalRoundsNum) {
+            log(`Retrying ${modelId} round ${roundNum}`);
+            queryModel(modelId, roundNum, totalRoundsNum, storedEndpoint, storedApiKey, storedTimeout, storedMaxTokens);
+        }
+
+        function skipModel(modelId, roundNum) {
+            log(`Skipping ${modelId} round ${roundNum}`);
+            discussionData.rounds[roundNum][modelId] = { text: '[Skipped]', status: 'skipped' };
+            const card = document.querySelector(`[data-model="${modelId}"]`);
+            if (card) {
+                card.classList.remove('error', 'timeout', 'connecting');
+                card.classList.add('complete');
+                const badge = card.querySelector('.model-badge');
+                if (badge) { badge.className = 'model-badge badge-complete'; badge.textContent = '⏭'; }
+                const resp = card.querySelector('.model-response');
+                if (resp) resp.textContent = '[Skipped]';
+                const acts = card.querySelector('[id^="actions-"]');
+                if (acts) acts.innerHTML = '';
+            }
+            saveState();
+            showRoundStatus();
+        }
+
+        function toggleExpand(btn, safeId) {
+            const resp = document.querySelector(`[data-model] .model-response`);
+            if (!resp) return;
+            resp.classList.toggle('expanded');
+            btn.textContent = resp.classList.contains('expanded') ? '🔽 Collapse' : '🔲 Expand';
+        }
+
+        function toggleFullscreen(safeId) {
+            const card = document.querySelector(`[id^="actions-${safeId}"]`)?.closest('.model-card');
+            if (!card) return;
+            const resp = card.querySelector('.model-response');
+            if (!resp) return;
+            if (resp.classList.contains('fullscreen')) {
+                resp.classList.remove('fullscreen');
+                document.querySelector('.fullscreen-overlay')?.remove();
+                return;
+            }
+            const overlay = document.createElement('div');
+            overlay.className = 'fullscreen-overlay';
+            overlay.onclick = () => { resp.classList.remove('fullscreen'); overlay.remove(); };
+            document.body.appendChild(overlay);
+            resp.classList.add('fullscreen');
         }
 
         async function generateConsensus(endpoint, apiKey, consensusModel, timeout) {
@@ -1220,11 +1650,13 @@
             if (consensusAbortController) {
                 consensusAbortController.abort();
             }
-            saveState();
-            renderHistory();
+            document.getElementById('discussionSection').className = 'discussion-section active completed';
             document.getElementById('consensusSection').classList.add('active');
             document.getElementById('consensusText').textContent = 'Consensus skipped (stopped manually).';
             document.getElementById('exportSection').classList.add('active');
+            saveState();
+            renderHistory();
+            updateStatusDot();
         }
 
         function closeConsensus() {
