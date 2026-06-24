@@ -219,6 +219,7 @@
         .history-item-meta { font-size: 12px; color: var(--text-tertiary); }
 
         /* ── History Tab ── */
+        .round-status {
             background: var(--bg-secondary);
             border-left: 3px solid var(--accent);
             padding: 16px;
@@ -622,6 +623,17 @@
             margin-top: 16px;
             border-top: 1px solid var(--border);
         }
+
+        .btn-start-discussion {
+            width: auto;
+            min-width: 220px;
+            max-width: 100%;
+        }
+
+        .start-discussion-row {
+            display: flex;
+            justify-content: center;
+        }
     </style>
 </head>
 <body>
@@ -723,6 +735,7 @@
                                     <option value="default">Default — Let consensus model decide</option>
                                 </select>
                             </div>
+                        </div>
 
                         <div class="form-row">
                             <div class="form-group">
@@ -748,7 +761,9 @@
                             </div>
                         </div>
 
-                        <button class="btn-primary" onclick="startDiscussion()">Start Discussion</button>
+                        <div class="start-discussion-row">
+                            <button class="btn-primary btn-start-discussion" onclick="startDiscussion()">Start Discussion</button>
+                        </div>
                     </div>
                 </div>
             </div>
