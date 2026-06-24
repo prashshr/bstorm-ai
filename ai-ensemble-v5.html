@@ -642,22 +642,27 @@
 
         <div class="tab-content active" id="tab-new">
             <div id="setupSection">
-                <div class="form-section">
+                <div style="margin-bottom:15px;">
+                    <button class="btn-sleek" style="background:var(--bg-secondary);color:var(--text-secondary);border:1px solid var(--border);width:100%;text-align:left;justify-content:space-between;padding:10px 16px;" onclick="toggleApiPanel()">
+                        <span>🔧 API Configuration</span>
+                        <span id="apiToggleIcon" style="font-size:11px;">▼</span>
+                    </button>
+                </div>
+                <div id="apiConfigPanel" style="display:none;">
                     <div id="restoreBanner" style="display:none;background:var(--bg-secondary);border:1px solid var(--accent);padding:12px 16px;margin-bottom:20px;font-size:13px;border-radius:8px;">
                         <strong>🔄 Discussion In Progress</strong>
                         <span style="color:var(--text-secondary);margin-left:8px;">You have an unfinished discussion from a previous session.</span>
                         <button class="btn-sleek" style="background:var(--accent);color:white;padding:4px 14px;margin-left:12px;font-size:12px;" onclick="restoreLastDiscussion()">Restore</button>
                         <button class="btn-sleek" style="background:transparent;color:var(--text-tertiary);padding:4px 14px;margin-left:4px;font-size:12px;border:1px solid var(--border);" onclick="dismissRestore()">Dismiss</button>
                     </div>
-                    <h2>API Configuration</h2>
-                    <div id="statusMsg" class="status-message" style="display:none;"></div>
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="endpoint">API Endpoint</label>
+                            <label for="endpoint">API Endpoint <span style="color:var(--text-tertiary);font-weight:400;text-transform:none;">(e.g., OpenRouter, OpenAI, Ollama)</span></label>
                             <input type="text" id="endpoint" placeholder="https://api.openrouter.ai/v1" value="https://api.openrouter.ai/v1">
+                            <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;">💡 OpenRouter provides the widest model selection with unified billing. See <a href="https://openrouter.ai/models" target="_blank" style="color:var(--accent);">model rankings</a>.</div>
                         </div>
                         <div class="form-group">
-                            <label for="apiKey">API Key</label>
+                            <label for="apiKey">API Key <span style="color:var(--text-tertiary);font-weight:400;text-transform:none;">(stored securely in browser)</span></label>
                             <input type="password" id="apiKey" placeholder="sk-...">
                         </div>
                     </div>
@@ -736,8 +741,9 @@
                                 <div style="font-size: 11px; color: var(--text-tertiary); margin-top: 4px;">Default 6000 — higher values preserve context in multi-round discussions</div>
                             </div>
                             <div class="form-group">
-                                <label for="consensusModel">Consensus Model</label>
+                                <label for="consensusModel">Consensus Model <span style="color:var(--text-tertiary);font-weight:400;text-transform:none;">(pick a capable model)</span></label>
                                 <select id="consensusModel"></select>
+                                <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;">💡 Recommended for summaries: <strong>gpt-4o-mini</strong> (fast, cheap), <strong>claude-3-haiku</strong> (balanced), <strong>gemini-2.0-flash</strong> (best value)</div>
                             </div>
                         </div>
 
@@ -1052,10 +1058,12 @@
                 try {
                     const state = JSON.parse(saved);
                     discussionData = state;
+                    // Decode obfuscated API key
+                    const decodedKey = state._key ? (() => { try { return atob(state._key); } catch(e) { return ''; } })() : (state.apiKey || '');
                     document.getElementById('endpoint').value = state.endpoint || 'https://api.openrouter.ai/v1';
-                    document.getElementById('apiKey').value = state.apiKey || '';
+                    document.getElementById('apiKey').value = decodedKey;
                     storedEndpoint = state.endpoint || '';
-                    storedApiKey = state.apiKey || '';
+                    storedApiKey = decodedKey;
                     storedTimeout = state.timeout || 120;
                     storedMaxTokens = state.maxTokens || 6000;
                     selectedModels = state.models || [];
@@ -1079,12 +1087,15 @@
         }
 
         function saveState() {
-            const state = { ...discussionData, apiKey: storedApiKey };
+            const state = { ...discussionData };
+            // Basic client-side obfuscation — not true encryption, but prevents casual reading
+            if (storedApiKey) state._key = btoa(storedApiKey);
             localStorage.setItem('councilState', JSON.stringify(state));
 
             if (discussionData.id) {
                 const existingIdx = queryHistory.findIndex(h => h.id === discussionData.id);
-                const entry = { ...discussionData, apiKey: storedApiKey };
+                const entry = { ...discussionData };
+                if (storedApiKey) entry._key = btoa(storedApiKey);
                 if (existingIdx >= 0) {
                     queryHistory[existingIdx] = entry;
                 } else {
@@ -1099,6 +1110,12 @@
             if (saved) {
                 try {
                     queryHistory = JSON.parse(saved);
+                    // Restore API keys from obfuscated form
+                    queryHistory.forEach(h => {
+                        if (h._key && !h.apiKey) {
+                            try { h.apiKey = atob(h._key); } catch(e) {}
+                        }
+                    });
                     renderHistory();
                 } catch (e) {
                     log('Could not load history');
@@ -1263,6 +1280,27 @@
         function updateSelectedModels() {
             selectedModels = Array.from(document.querySelectorAll('.model-checkbox input:checked')).map(cb => cb.value);
         }
+
+        function toggleApiPanel() {
+            const panel = document.getElementById('apiConfigPanel');
+            const icon = document.getElementById('apiToggleIcon');
+            if (!panel) return;
+            const open = panel.style.display !== 'block';
+            panel.style.display = open ? 'block' : 'none';
+            if (icon) icon.textContent = open ? '▲' : '▼';
+            // Save preference
+            localStorage.setItem('apiPanelOpen', open ? '1' : '0');
+        }
+
+        // Restore API panel state on load
+        window.addEventListener('load', () => {
+            if (localStorage.getItem('apiPanelOpen') === '1') {
+                const panel = document.getElementById('apiConfigPanel');
+                const icon = document.getElementById('apiToggleIcon');
+                if (panel) panel.style.display = 'block';
+                if (icon) icon.textContent = '▲';
+            }
+        });
 
         function applyResponseFormat() {
             const fmt = document.getElementById('responseFormat').value;
