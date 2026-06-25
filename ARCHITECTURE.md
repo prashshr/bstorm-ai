@@ -1,8 +1,8 @@
 # AI Ensemble — Architecture Document
 
-> **Version:** 0.2.0  
+> **Version:** 0.2.1  
 > **Last Updated:** 2026-06-25  
-> **Source of Truth:** This document defines the authoritative architecture of the AI Ensemble project. Every component, data flow, security boundary, and deployment detail is recorded here. Keep this in sync with all code changes.
+> **Source of Truth:** This document defines the authoritative architecture of the AI Ensemble project. Every component, data flow, security boundary, and deployment detail is recorded here. **Any LLM, AI coding agent, or developer working on this project MUST read this document first and follow all rules, conventions, and architectural decisions defined herein.** Keep this in sync with all code changes — updating this file is a mandatory part of every feature or fix.
 
 ---
 
@@ -620,6 +620,18 @@ Frontend                     Backend                     Provider API
 
 ## 9. Development Guide
 
+### ⚠️ Mandatory Rule: ARCHITECTURE.md Is the Source of Truth
+
+**Every AI coding agent, LLM, or developer working on this project MUST:**
+
+1. **Read this entire document first** before making any changes.
+2. **Follow all architectural decisions, conventions, security rules, and data flow patterns** defined here — never deviate without explicit discussion.
+3. **Update this document as part of every code change** — if you modify code behavior, add features, change deployment, or alter security boundaries, update the relevant section(s) in this file.
+4. **Bump the version** in the header (see [Versioning & Changelog](#11-versioning--changelog)) for every meaningful change.
+5. **Tag the git commit** with the new version after committing.
+
+This file is co-authored by the entire development lifecycle — human and AI alike. Treat it as the single source of authority. When in doubt, the answer is here.
+
 ### Local Development
 
 ```bash
@@ -699,6 +711,14 @@ See `PRODUCTION_PLAN.md` for full details. Key checklist:
 ## 11. Versioning & Changelog
 
 Version format: `v<major>.<minor>.<patch>-<YYYYMMDD>` (e.g., `v0.1.0-20260625`)
+
+### v0.2.1 (2026-06-25)
+
+- Strengthened "Source of Truth" mandate: explicit instruction that every AI agent/developer must read ARCHITECTURE.md first and update it with every change
+- Removed inline auth panel from setup tab (login now exclusively via full-screen overlay)
+- Added persistent logout button in header area for switching users
+- Removed default credential hint from login overlay
+- Updated footer text to "Built for discussions with multiple AI models."
 
 ### v0.2.0 (2026-06-25)
 

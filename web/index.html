@@ -106,6 +106,23 @@
 
         .theme-toggle:hover { border-color: var(--accent); color: var(--accent); }
 
+        .logout-header-btn {
+            position: absolute;
+            top: 0;
+            right: 160px;
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 8px 14px;
+            border-radius: 0;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+
+        .logout-header-btn:hover { border-color: var(--accent); color: var(--accent); }
+
         .tabs {
             display: flex;
             gap: 30px;
@@ -819,15 +836,13 @@
             </div>
             <div class="login-error" id="olError"></div>
             <div class="login-info" id="olInfo"></div>
-            <div class="login-hint">
-                Default: <code>admin</code> / <code>arhatadmin</code>
-            </div>
         </div>
     </div>
 
     <div class="container">
         <div class="header">
             <button class="theme-toggle" onclick="toggleTheme()">☀️ Light Mode</button>
+            <button class="logout-header-btn" onclick="logoutUser()" title="Switch user">🚪 Logout</button>
             <h1>AI - Ensemble</h1>
         </div>
 
@@ -842,29 +857,6 @@
 
         <div class="tab-content active" id="tab-new">
             <div id="setupSection">
-                <div class="auth-panel">
-                    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
-                        <strong>Account</strong>
-                        <div id="authStateText" style="font-size:12px;color:var(--text-tertiary);">Not signed in</div>
-                    </div>
-                    <div class="auth-grid" style="margin-top:10px;">
-                        <div class="form-group" style="margin:0;">
-                            <label for="authIdentifier">Username or Email</label>
-                            <input type="text" id="authIdentifier" placeholder="admin or admin@example.com" autocomplete="username">
-                        </div>
-                        <div class="form-group" style="margin:0;">
-                            <label for="authPassword">Password</label>
-                            <input type="password" id="authPassword" placeholder="••••••••" autocomplete="current-password">
-                        </div>
-                        <div class="auth-actions">
-                            <button class="btn-sleek" style="padding:8px 12px;" onclick="loginUser()">Login</button>
-                            <button class="btn-sleek" style="padding:8px 12px;" onclick="registerUser()">Register</button>
-                            <button class="btn-sleek" style="padding:8px 12px;" onclick="logoutUser()">Logout</button>
-                        </div>
-                    </div>
-                    <div class="auth-note">Minimal secure mode: token is stored in this browser session only and cleared on logout/browser close.</div>
-                </div>
-
                 <div style="margin-bottom:15px;">
                     <button class="btn-sleek" style="background:var(--bg-secondary);color:var(--text-secondary);border:1px solid var(--border);width:100%;text-align:left;justify-content:space-between;padding:10px 16px;" onclick="toggleApiPanel()">
                         <span>🔧 API Configuration</span>
@@ -1071,8 +1063,7 @@
     </div>
 
     <div class="footer">
-        <p>State preserved • Query history with timestamps • Smart round progression</p>
-        <p style="margin-top: 8px; opacity: 0.7;">Built for thoughtful conversations with multiple AI models.</p>
+        <p>Built for discussions with multiple AI models.</p>
     </div>
 
     <script>
