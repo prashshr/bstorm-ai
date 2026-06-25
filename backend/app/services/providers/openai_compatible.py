@@ -4,6 +4,23 @@ from app.services.providers.base import ProviderClient
 
 
 class OpenAICompatibleClient(ProviderClient):
+    async def list_models(self, endpoint: str, api_key: str) -> list[str]:
+        base = endpoint.rstrip("/") if endpoint else "https://api.openai.com/v1"
+        url = f"{base}/models"
+        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.get(url, headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
+
+        rows = data.get("data", [])
+        models: list[str] = []
+        for row in rows:
+            model_id = row.get("id")
+            if isinstance(model_id, str) and model_id:
+                models.append(model_id)
+        return sorted(models)
+
     async def chat(
         self,
         endpoint: str,

@@ -4,6 +4,11 @@ from app.services.providers.base import ProviderClient
 
 
 class AnthropicClient(ProviderClient):
+    async def list_models(self, endpoint: str, api_key: str) -> list[str]:
+        # Anthropic model listing endpoint is not consistently available across gateways.
+        # Return an empty list so callers can provide manual model entry fallback.
+        return []
+
     async def chat(
         self,
         endpoint: str,

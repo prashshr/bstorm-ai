@@ -19,11 +19,10 @@ services:
     image: caddy:2.8
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
+      - "8088:80"
+      - "8444:443"
     volumes:
       - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./ai-ensemble-v5.html:/srv/index.html:ro
       - ./web:/srv:ro
       - caddy_data:/data
       - caddy_config:/config

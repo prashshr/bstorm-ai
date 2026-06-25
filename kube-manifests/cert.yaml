@@ -1,0 +1,12 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ai-ensemble-cert
+  namespace: ai-ensemble
+spec:
+  secretName: ai-ensemble-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+  - ai-ensemble.samkhya.cloud

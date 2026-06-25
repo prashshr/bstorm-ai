@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-ensemble
+  namespace: ai-ensemble
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ai-ensemble
+  template:
+    metadata:
+      labels:
+        app: ai-ensemble
+    spec:
+      containers:
+      - name: ai-ensemble
+        image: ai-ensemble:local
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8080
+
+        envFrom:
+        - configMapRef:
+            name: ai-ensemble-config
+        - secretRef:
+            name: ai-ensemble-secrets
+
+        volumeMounts:
+        - name: app-data
+          mountPath: /data
+
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 20
+          periodSeconds: 20
+          timeoutSeconds: 5
+          failureThreshold: 5
+
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "384Mi"
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
+
+        securityContext:
+          runAsNonRoot: false
+          allowPrivilegeEscalation: false
+
+      securityContext:
+        fsGroup: 0
+
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+
+      volumes:
+      - name: app-data
+        hostPath:
+          path: /arbeit/ai-welt/projects/ai-ensemble/data
+          type: DirectoryOrCreate

@@ -21,5 +21,20 @@ def get_db() -> Generator[Session, None, None]:
 
 def init_db() -> None:
     from app.models import models  # noqa: F401
+    from app.core.security import get_password_hash
 
     Base.metadata.create_all(bind=engine)
+
+    # Seed default admin user
+    db = SessionLocal()
+    try:
+        admin = db.query(models.User).filter(models.User.email == "admin@local.ai-ensemble").first()
+        if not admin:
+            admin = models.User(
+                email="admin@local.ai-ensemble",
+                password_hash=get_password_hash("arhatadmin"),
+            )
+            db.add(admin)
+            db.commit()
+    finally:
+        db.close()

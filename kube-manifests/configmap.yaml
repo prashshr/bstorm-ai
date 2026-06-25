@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-ensemble-config
+  namespace: ai-ensemble
+data:
+  JWT_ALGORITHM: "HS256"
+  ACCESS_TOKEN_EXPIRE_MINUTES: "1440"
+  DATABASE_URL: "sqlite:////data/ai_ensemble.db"
+  CORS_ORIGINS: '["https://ai-ensemble.samkhya.cloud"]'

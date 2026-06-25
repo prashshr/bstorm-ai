@@ -667,9 +667,164 @@
                 grid-template-columns: 1fr;
             }
         }
+
+        /* ── Full-Screen Login Overlay ── */
+        #loginOverlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: var(--bg-primary);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.3s ease;
+        }
+        #loginOverlay.hidden {
+            display: none;
+        }
+        .login-modal {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            padding: 40px;
+            max-width: 420px;
+            width: 90%;
+        }
+        .login-modal h1 {
+            font-size: 32px;
+            font-weight: 300;
+            letter-spacing: 2px;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+        .login-modal .subtitle {
+            text-align: center;
+            color: var(--text-tertiary);
+            font-size: 13px;
+            margin-bottom: 30px;
+        }
+        .login-modal .form-group {
+            margin-bottom: 18px;
+        }
+        .login-modal .form-group label {
+            display: block;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .login-modal .form-group input {
+            width: 100%;
+            padding: 12px;
+            background: var(--input-bg);
+            border: 1px solid var(--input-border);
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 14px;
+            border-radius: 0;
+            transition: border-color 0.3s;
+        }
+        .login-modal .form-group input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        .login-modal .login-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+        }
+        .login-modal .login-actions button {
+            flex: 1;
+            padding: 12px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            border-radius: 8px;
+            letter-spacing: 0.5px;
+            transition: all 0.2s;
+        }
+        .login-modal .login-btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+        }
+        .login-modal .login-btn:hover {
+            background: var(--accent-light);
+        }
+        .login-modal .register-btn {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+        .login-modal .register-btn:hover {
+            border-color: var(--accent);
+        }
+        .login-modal .login-error {
+            background: rgba(220,38,38,0.1);
+            border: 1px solid var(--error);
+            color: var(--error);
+            padding: 10px;
+            font-size: 12px;
+            margin-top: 16px;
+            display: none;
+        }
+        .login-modal .login-error.visible {
+            display: block;
+        }
+        .login-modal .login-info {
+            background: rgba(217,119,6,0.1);
+            border: 1px solid var(--accent);
+            color: var(--text-secondary);
+            padding: 10px;
+            font-size: 12px;
+            margin-top: 16px;
+            display: none;
+        }
+        .login-modal .login-info.visible {
+            display: block;
+        }
+        .login-modal .login-hint {
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-tertiary);
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid var(--border);
+        }
+        .login-modal .login-hint code {
+            background: var(--bg-tertiary);
+            padding: 2px 6px;
+            font-size: 11px;
+        }
     </style>
 </head>
 <body>
+    <!-- Full-screen login overlay -->
+    <div id="loginOverlay">
+        <div class="login-modal">
+            <h1>AI · Ensemble</h1>
+            <div class="subtitle">Multi-Model Discussion Platform</div>
+            <div class="form-group">
+                <label for="olAuthIdentifier">Username or Email</label>
+                <input type="text" id="olAuthIdentifier" placeholder="admin or admin@example.com" autocomplete="username">
+            </div>
+            <div class="form-group">
+                <label for="olAuthPassword">Password</label>
+                <input type="password" id="olAuthPassword" placeholder="••••••••" autocomplete="current-password">
+            </div>
+            <div class="login-actions">
+                <button class="login-btn" onclick="overlayLogin()">Login</button>
+                <button class="register-btn" onclick="overlayRegister()">Register</button>
+            </div>
+            <div class="login-error" id="olError"></div>
+            <div class="login-info" id="olInfo"></div>
+            <div class="login-hint">
+                Default: <code>admin</code> / <code>arhatadmin</code>
+            </div>
+        </div>
+    </div>
+
     <div class="container">
         <div class="header">
             <button class="theme-toggle" onclick="toggleTheme()">☀️ Light Mode</button>
@@ -1029,9 +1184,22 @@
             authToken = sessionStorage.getItem('authToken') || '';
             currentUser = sessionStorage.getItem('authUser') || '';
             updateAuthUi();
-            if (authToken) {
+            const overlay = document.getElementById('loginOverlay');
+            if (!authToken) {
+                if (overlay) overlay.classList.remove('hidden');
+            } else {
+                if (overlay) overlay.classList.add('hidden');
                 loadUserProviderConfig();
             }
+            // Enter key triggers login
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && overlay && !overlay.classList.contains('hidden')) {
+                    const focused = document.activeElement;
+                    if (focused && (focused.id === 'olAuthIdentifier' || focused.id === 'olAuthPassword')) {
+                        overlayLogin();
+                    }
+                }
+            });
         }
 
         function updateAuthUi() {
@@ -1050,6 +1218,9 @@
             if (authToken) {
                 sessionStorage.setItem('authToken', authToken);
                 sessionStorage.setItem('authUser', currentUser);
+                // Hide login overlay
+                const overlay = document.getElementById('loginOverlay');
+                if (overlay) overlay.classList.add('hidden');
                 queryHistory = [];
                 discussionData = {
                     id: null,
@@ -1203,7 +1374,82 @@
             setAuth('', '');
             const pw = document.getElementById('authPassword');
             if (pw) pw.value = '';
+            // Show login overlay
+            const overlay = document.getElementById('loginOverlay');
+            if (overlay) overlay.classList.remove('hidden');
             showStatus('Logged out', 'info');
+        }
+
+        /* ── Login Overlay Functions ── */
+        function overlayLogin() {
+            const rawId = document.getElementById('olAuthIdentifier')?.value || '';
+            const password = document.getElementById('olAuthPassword')?.value || '';
+            const email = normalizeAuthIdentifier(rawId);
+            const errEl = document.getElementById('olError');
+            const infoEl = document.getElementById('olInfo');
+            errEl.classList.remove('visible');
+            infoEl.classList.remove('visible');
+            if (!email || !password) {
+                errEl.textContent = 'Enter username/email and password';
+                errEl.classList.add('visible');
+                return;
+            }
+            infoEl.textContent = 'Signing in...';
+            infoEl.classList.add('visible');
+            fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            })
+            .then(async r => {
+                const payload = await r.json().catch(() => ({}));
+                if (!r.ok) throw new Error(payload.detail || `Login failed (${r.status})`);
+                infoEl.classList.remove('visible');
+                setAuth(payload.access_token, email);
+            })
+            .catch(e => {
+                infoEl.classList.remove('visible');
+                errEl.textContent = `Login failed: ${e.message}`;
+                errEl.classList.add('visible');
+            });
+        }
+
+        function overlayRegister() {
+            const rawId = document.getElementById('olAuthIdentifier')?.value || '';
+            const password = document.getElementById('olAuthPassword')?.value || '';
+            const email = normalizeAuthIdentifier(rawId);
+            const errEl = document.getElementById('olError');
+            const infoEl = document.getElementById('olInfo');
+            errEl.classList.remove('visible');
+            infoEl.classList.remove('visible');
+            if (!email || !password) {
+                errEl.textContent = 'Enter username/email and password';
+                errEl.classList.add('visible');
+                return;
+            }
+            if (password.length < 8) {
+                errEl.textContent = 'Password must be at least 8 characters';
+                errEl.classList.add('visible');
+                return;
+            }
+            infoEl.textContent = 'Registering account...';
+            infoEl.classList.add('visible');
+            fetch('/api/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            })
+            .then(async r => {
+                const payload = await r.json().catch(() => ({}));
+                if (!r.ok) throw new Error(payload.detail || `Register failed (${r.status})`);
+                infoEl.classList.remove('visible');
+                setAuth(payload.access_token, email);
+            })
+            .catch(e => {
+                infoEl.classList.remove('visible');
+                errEl.textContent = `Register failed: ${e.message}`;
+                errEl.classList.add('visible');
+            });
         }
 
         /* ── File Upload ── */
