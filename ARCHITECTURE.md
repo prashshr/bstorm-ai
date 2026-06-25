@@ -1,6 +1,6 @@
 # AI Ensemble — Architecture Document
 
-> **Version:** 0.1.0  
+> **Version:** 0.2.0  
 > **Last Updated:** 2026-06-25  
 > **Source of Truth:** This document defines the authoritative architecture of the AI Ensemble project. Every component, data flow, security boundary, and deployment detail is recorded here. Keep this in sync with all code changes.
 
@@ -310,24 +310,40 @@ The frontend is a **single-page application** (~2436 lines) containing all CSS, 
 
 ### 4.2 Auth Flow
 
-The frontend implements token-based auth with a UI panel for login/register:
+The frontend implements a **two-tier auth system**:
 
-1. **Login/Register API calls** use `POST /api/auth/login` and `POST /api/auth/register`
-2. Plain usernames are normalized to `username@local.ai-ensemble` for backend `EmailStr` validation
-3. JWT token is stored in `sessionStorage` (cleared on tab close)
-4. All authenticated API calls use the `authFetch()` helper which adds `Authorization: Bearer <token>` header
-5. `requireAuth()` gate checks for token presence before sensitive operations
-6. Logout clears `sessionStorage` and resets the UI to setup state
+**Tier 1 — Full-screen login overlay:**
+- On page load (unauthenticated), a full-screen overlay (`#loginOverlay`) blocks all app access
+- Login/Register buttons in the overlay hit the backend API directly via `fetch()` (no auth token needed)
+- Default hint shows `admin` / `arhatadmin` credentials
+- Enter key submits the form when username/password fields are focused
+- On successful auth, the overlay is hidden via `classList.add('hidden')`
+- On logout, `classList.remove('hidden')` re-shows the overlay
+
+**Tier 2 — Inline auth panel:**
+- Inside the setup tab, a compact auth panel provides Login/Register/Logout for convenience
+- Reuses the same `setAuth()` / `handleLogin()` / `handleRegister()` functions
+
+**Auth mechanics:**
+- Plain usernames are normalized to `username@local.ai-ensemble` for backend `EmailStr` validation
+- JWT token is stored in `sessionStorage` (cleared on tab close)
+- All authenticated API calls use the `authFetch()` helper which adds `Authorization: Bearer <token>` header
+- `requireAuth()` gate checks for token presence before sensitive operations
+- Logout clears `sessionStorage` and resets the UI to setup state
 
 **Key auth functions:**
 
-| Function | Description |
-|----------|-------------|
+| Function | Purpose |
+|----------|---------|
 | `authFetch(url, options)` | Wrapper around fetch that adds JWT Bearer header |
 | `requireAuth(action)` | Checks token, shows login prompt if missing |
-| `handleLogin()` | Reads email/password, calls `/api/auth/login`, stores token |
-| `handleRegister()` | Reads email/password, calls `/api/auth/register`, stores token |
-| `handleLogout()` | Clears sessionStorage, resets UI |
+| `overlayLogin()` | Login from the full-screen overlay |
+| `overlayRegister()` | Register from the full-screen overlay |
+| `handleLogin()` | Login from the inline auth panel |
+| `handleRegister()` | Register from the inline auth panel |
+| `handleLogout()` | Clears sessionStorage, resets UI, shows overlay |
+| `setAuth(token, email)` | Stores token, hides overlay, loads provider config |
+| `loadAuth()` | Checks sessionStorage on page load, shows/hides overlay |
 
 ### 4.3 Discussion Lifecycle
 
@@ -683,6 +699,14 @@ See `PRODUCTION_PLAN.md` for full details. Key checklist:
 ## 11. Versioning & Changelog
 
 Version format: `v<major>.<minor>.<patch>-<YYYYMMDD>` (e.g., `v0.1.0-20260625`)
+
+### v0.2.0 (2026-06-25)
+
+- Full-screen login overlay with auth gate (blocks app access until authenticated)
+- Login overlay supports Enter key submission
+- Default admin auto-seeded: `admin@local.ai-ensemble` / `arhatadmin`
+- Error/info display within overlay modal
+- Architecture document updated to v0.2.0
 
 ### v0.1.0 (2026-06-25)
 
