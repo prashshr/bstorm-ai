@@ -35,6 +35,7 @@ class Discussion(Base):
     title: Mapped[str] = mapped_column(String(255), default="")
     question: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(50), default="new")
+    state_json: Mapped[str] = mapped_column(Text, default="")  # Full discussion state (models, rounds, consensus, etc.)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     messages = relationship("Message", back_populates="discussion", cascade="all, delete-orphan")

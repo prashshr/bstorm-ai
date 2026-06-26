@@ -7,6 +7,7 @@ from app.core.crypto import encrypt_secret
 from app.db.session import get_db
 from app.models.models import ProviderCredential, User
 from app.schemas.provider import ProviderCredentialResponse, UpsertProviderCredentialRequest
+from app.services.providers.endpoints import normalize_endpoint
 from app.services.providers.factory import get_provider_client
 
 
@@ -28,20 +29,26 @@ def upsert_provider_credential(
         .first()
     )
     encrypted = encrypt_secret(payload.api_key)
+    # Normalize endpoint to canonical form so model discovery + chat work correctly
+    normalized_endpoint = normalize_endpoint(payload.endpoint or "")
     if row:
         row.api_key_encrypted = encrypted
-        row.endpoint = payload.endpoint
+        row.endpoint = normalized_endpoint
     else:
         row = ProviderCredential(
             user_id=current_user.id,
             provider=payload.provider,
-            endpoint=payload.endpoint,
+            endpoint=normalized_endpoint,
             api_key_encrypted=encrypted,
         )
         db.add(row)
 
     db.commit()
-    return ProviderCredentialResponse(provider=payload.provider, endpoint=payload.endpoint, has_key=True)
+    return ProviderCredentialResponse(
+        provider=payload.provider,
+        endpoint=normalized_endpoint,
+        has_key=True,
+    )
 
 
 @router.get("", response_model=list[ProviderCredentialResponse])

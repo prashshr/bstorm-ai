@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -6,6 +7,12 @@ from pydantic import BaseModel, Field
 class DiscussionCreateRequest(BaseModel):
     question: str = Field(min_length=1)
     title: str = ""
+
+
+class DiscussionUpdateRequest(BaseModel):
+    status: Optional[str] = None
+    state_json: Optional[str] = None
+    title: Optional[str] = None
 
 
 class MessageCreateRequest(BaseModel):
@@ -21,6 +28,7 @@ class DiscussionResponse(BaseModel):
     title: str
     question: str
     status: str
+    state_json: str = ""
     created_at: datetime
 
 

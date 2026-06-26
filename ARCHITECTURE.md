@@ -1,6 +1,6 @@
 # AI Ensemble — Architecture Document
 
-> **Version:** 0.2.1  
+> **Version:** 0.2.2  
 > **Last Updated:** 2026-06-25  
 > **Source of Truth:** This document defines the authoritative architecture of the AI Ensemble project. Every component, data flow, security boundary, and deployment detail is recorded here. **Any LLM, AI coding agent, or developer working on this project MUST read this document first and follow all rules, conventions, and architectural decisions defined herein.** Keep this in sync with all code changes — updating this file is a mandatory part of every feature or fix.
 
@@ -711,6 +711,30 @@ See `PRODUCTION_PLAN.md` for full details. Key checklist:
 ## 11. Versioning & Changelog
 
 Version format: `v<major>.<minor>.<patch>-<YYYYMMDD>` (e.g., `v0.1.0-20260625`)
+
+### v0.2.3 (2026-06-26)
+
+- **Bug Fix: Perplexity/OpenAI-compat proxy 500 errors** — Backend proxy now catches `httpx.HTTPStatusError` and `RequestError` to return meaningful error responses; auto-retries without `/v1` suffix on 404 for providers like Perplexity
+- **Feature: Endpoint normalization** — New `backend/app/services/providers/endpoints.py` with canonical endpoint mapping for major providers (OpenAI, OpenRouter, Perplexity, Groq, Together, Mistral, DeepSeek, xAI, Fireworks, Cohere); endpoint auto-normalized on both save and proxy routes
+- **Bug Fix: "body stream already read"** — Frontend error handler now reads `response.text()` once and parses JSON with `JSON.parse()` instead of calling `response.json()` then falling back to `response.text()`
+- **Feature: Admin user endpoints** — New `GET /api/admin/users` and `DELETE /api/admin/users/{id}` for user management
+- **UI Redesign: Login overlay** — Separated "Sign In" and "Create New Account" with clear sections; password complexity rules displayed
+- **Improvement: Provider discussion field** — Added discussion section ID input on provider config for multi-turn conversations
+- **Build: Docker images pushed to GHCR** — `ghcr.io/prashshr/ai-ensemble-backend:latest` and `:v0.2.3`
+- **Deployment: k8s rollout** — Backend and web deployments updated and rolled out successfully
+
+### v0.2.2 (2026-06-25)
+
+- **Bug Fix: Login persistence** — `setAuth()` no longer resets `queryHistory` on login; calls `loadUserDiscussions()` to fetch backend discussions
+- **Bug Fix: Provider credential retention** — `loadUserProviderConfig()` now auto-discovers models on login if endpoint + key exist (silent mode)
+- **Bug Fix: History not saved to DB** — Added `loadUserDiscussions()`, `saveDiscussionToBackend()`, `createDiscussionOnBackend()`; `saveState()` now persists to both localStorage and backend
+- **Feature: User management** — New `GET /api/admin/users` and `DELETE /api/admin/users/{id}` endpoints; admin tab in frontend with user table + delete capability
+- **Bug Fix: Cross-user data isolation** — `availableModels`, `storedEndpoint`, `storedApiKey` now cleared on user switch; localStorage keys (`councilHistory`, `councilState`) scoped per-user via `getHistoryKey()`/`getStateKey()`
+- **Improvement: User visibility** — Added `👤 user@email` badge below theme toggle showing logged-in user
+- **UI Polish: Theme toggle** — Shows only ☀️/🌙 symbols (no text); added `title` tooltip
+- **UI Polish: Header layout** — Theme toggle moved to top-left, logout stays top-right; added `padding-top` to prevent overlap with heading
+- **Database reset** — Fresh SQLite database (all users start clean)
+- Backend: `state_json` column on Discussion model; `DiscussionUpdateRequest` schema; full discussion CRUD (PUT, GET by ID, DELETE)
 
 ### v0.2.1 (2026-06-25)
 

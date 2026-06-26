@@ -77,7 +77,7 @@
         .header {
             text-align: center;
             margin-bottom: 50px;
-            padding-bottom: 30px;
+            padding: 45px 0 30px;
             border-bottom: 1px solid var(--border);
             position: relative;
         }
@@ -92,24 +92,34 @@
         .theme-toggle {
             position: absolute;
             top: 0;
-            right: 0;
+            left: 0;
             background: var(--bg-secondary);
             border: 1px solid var(--border);
             color: var(--text-primary);
             padding: 8px 14px;
             border-radius: 0;
             cursor: pointer;
-            font-size: 13px;
+            font-size: 15px;
             font-weight: 500;
             transition: all 0.3s;
         }
 
         .theme-toggle:hover { border-color: var(--accent); color: var(--accent); }
 
+        .user-badge {
+            position: absolute;
+            top: 40px;
+            left: 0;
+            font-size: 12px;
+            color: var(--discussion-active);
+            opacity: 0.8;
+            letter-spacing: 0.5px;
+        }
+
         .logout-header-btn {
             position: absolute;
             top: 0;
-            right: 160px;
+            right: 0;
             background: transparent;
             border: 1px solid var(--border);
             color: var(--text-secondary);
@@ -748,8 +758,9 @@
         }
         .login-modal .login-actions {
             display: flex;
-            gap: 12px;
-            margin-top: 24px;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 20px;
         }
         .login-modal .login-actions button {
             flex: 1;
@@ -760,6 +771,7 @@
             border-radius: 8px;
             letter-spacing: 0.5px;
             transition: all 0.2s;
+            width: 100%;
         }
         .login-modal .login-btn {
             background: var(--accent);
@@ -776,6 +788,41 @@
         }
         .login-modal .register-btn:hover {
             border-color: var(--accent);
+        }
+        .login-modal .section-header {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 16px;
+            margin-bottom: 8px;
+        }
+        .login-modal .section-header:first-of-type {
+            margin-top: 0;
+        }
+        .login-modal .login-divider {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 20px 0 16px;
+            color: var(--text-tertiary);
+            font-size: 11px;
+            font-weight: 500;
+        }
+        .login-modal .login-divider::before,
+        .login-modal .login-divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border);
+        }
+        .login-modal .password-reqs {
+            font-size: 11px;
+            color: var(--text-tertiary);
+            margin-top: -8px;
+            margin-bottom: 4px;
+            line-height: 1.7;
         }
         .login-modal .login-error {
             background: rgba(220,38,38,0.1);
@@ -824,16 +871,24 @@
             <div class="subtitle">Multi-Model Discussion Platform</div>
             <div class="form-group">
                 <label for="olAuthIdentifier">Username or Email</label>
-                <input type="text" id="olAuthIdentifier" placeholder="admin or admin@example.com" autocomplete="username">
+                <input type="text" id="olAuthIdentifier" placeholder="Eg. admin" autocomplete="username">
             </div>
             <div class="form-group">
                 <label for="olAuthPassword">Password</label>
                 <input type="password" id="olAuthPassword" placeholder="••••••••" autocomplete="current-password">
             </div>
-            <div class="login-actions">
-                <button class="login-btn" onclick="overlayLogin()">Login</button>
-                <button class="register-btn" onclick="overlayRegister()">Register</button>
+            <div class="password-reqs" id="olPasswordReqs">
+                Password must be at least 8 characters, include uppercase, lowercase, and a digit
             </div>
+
+            <div class="section-header">Sign In</div>
+            <button class="login-btn" onclick="overlayLogin()" style="width:100%;padding:12px;border-radius:8px;border:none;background:var(--accent);color:white;font-size:14px;font-weight:500;cursor:pointer;letter-spacing:0.5px;">Sign In</button>
+
+            <div class="login-divider">or</div>
+
+            <div class="section-header">Create New Account</div>
+            <button class="register-btn" onclick="overlayRegister()" style="width:100%;padding:12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-tertiary);color:var(--text-primary);font-size:14px;font-weight:500;cursor:pointer;letter-spacing:0.5px;">Register</button>
+
             <div class="login-error" id="olError"></div>
             <div class="login-info" id="olInfo"></div>
         </div>
@@ -841,14 +896,18 @@
 
     <div class="container">
         <div class="header">
-            <button class="theme-toggle" onclick="toggleTheme()">☀️ Light Mode</button>
-            <button class="logout-header-btn" onclick="logoutUser()" title="Switch user">🚪 Logout</button>
+            <button class="theme-toggle" onclick="toggleTheme()">☀️</button>
+            <span id="userBadge" class="user-badge"></span>
             <h1>AI - Ensemble</h1>
+            <button class="logout-header-btn" onclick="logoutUser()" title="Switch user">🚪 Logout</button>
         </div>
 
         <div class="tabs">
             <button class="tab-button active" onclick="switchTab('new')">New Discussion</button>
             <button class="tab-button" onclick="switchTab('history')">History</button>
+            <button class="tab-button" id="adminTabBtn" onclick="switchTab('admin')" style="display:none;">
+                Admin
+            </button>
             <button class="tab-button" id="currentTabBtn" onclick="switchTab('current')" style="display:none;">
                 Current Discussion
                 <span class="tab-status-dot" id="statusDot"></span>
@@ -1044,6 +1103,17 @@
         </div>
     </div>
 
+    <!-- Admin Tab -->
+    <div class="tab-content" id="tab-admin">
+        <div class="form-section">
+            <h2>User Management</h2>
+            <p style="color:var(--text-tertiary);font-size:13px;margin-bottom:20px;">Only the admin user can manage accounts. Deleting a user removes all their data (discussions, messages, provider credentials).</p>
+            <div id="adminUserList" style="background:var(--bg-secondary);border:1px solid var(--border);">
+                <div style="padding:20px;text-align:center;color:var(--text-tertiary);">Loading users...</div>
+            </div>
+        </div>
+    </div>
+
     <!-- Debug Panel -->
     <button class="debug-toggle" onclick="toggleDebug()" id="debugToggleBtn">🐛 Debug</button>
     <div class="debug-panel" id="debugPanel">
@@ -1199,6 +1269,10 @@
                 state.textContent = authToken ? `Signed in as ${currentUser}` : 'Not signed in';
                 state.style.color = authToken ? 'var(--discussion-active)' : 'var(--text-tertiary)';
             }
+            const badge = document.getElementById('userBadge');
+            if (badge) {
+                badge.textContent = authToken ? `👤 ${currentUser}` : '';
+            }
             const startBtn = document.querySelector('.btn-start-discussion');
             if (startBtn) startBtn.disabled = !authToken;
         }
@@ -1212,7 +1286,15 @@
                 // Hide login overlay
                 const overlay = document.getElementById('loginOverlay');
                 if (overlay) overlay.classList.add('hidden');
+                // Clear any cached data from previous user
+                availableModels = [];
+                storedEndpoint = '';
+                storedApiKey = '';
                 queryHistory = [];
+                document.getElementById('modelGrid').innerHTML = '';
+                document.getElementById('modelSelection').style.display = 'none';
+                // Load user's discussions from backend (persists across sessions)
+                loadUserDiscussions();
                 discussionData = {
                     id: null,
                     timestamp: null,
@@ -1230,19 +1312,26 @@
                     status: 'new',
                     totalRounds: 0
                 };
-                saveHistory();
                 saveState();
                 loadUserProviderConfig();
+                renderHistory();
             } else {
                 sessionStorage.removeItem('authToken');
                 sessionStorage.removeItem('authUser');
                 queryHistory = [];
                 saveHistory();
+                availableModels = [];
+                storedEndpoint = '';
                 storedApiKey = '';
+                document.getElementById('modelGrid').innerHTML = '';
+                document.getElementById('modelSelection').style.display = 'none';
+                const endpointInput = document.getElementById('endpoint');
+                if (endpointInput) endpointInput.value = '';
                 const apiKeyInput = document.getElementById('apiKey');
                 if (apiKeyInput) apiKeyInput.value = '';
             }
             updateAuthUi();
+            renderAdminPanel();
         }
 
         async function authFetch(url, options = {}) {
@@ -1265,8 +1354,95 @@
                     if (endpointInput) endpointInput.value = entry.endpoint;
                     storedEndpoint = entry.endpoint;
                 }
+                // Auto-discover models if endpoint has been configured
+                if (entry?.endpoint && entry?.has_key) {
+                    setTimeout(() => discoverModels(true), 300);
+                }
             } catch (e) {
                 log('Could not load provider config');
+            }
+        }
+
+        /** Load user's discussions from backend (server-side persistence). */
+        async function loadUserDiscussions() {
+            if (!authToken) return;
+            try {
+                const response = await authFetch('/api/discussions');
+                if (!response.ok) return;
+                const discussions = await response.json();
+                // Merge backend discussions into queryHistory (backend = source of truth)
+                const backendIds = new Set();
+                for (const d of discussions) {
+                    backendIds.add(String(d.id));
+                    const existing = queryHistory.findIndex(h => String(h.id) === String(d.id));
+                    let stateData = {};
+                    if (d.state_json) {
+                        try { stateData = JSON.parse(d.state_json); } catch(e) {}
+                    }
+                    const entry = {
+                        id: String(d.id),
+                        title: d.title || stateData.question?.slice(0, 80) || d.question?.slice(0, 80) || '',
+                        question: d.question || stateData.question || '',
+                        status: d.status,
+                        created_at: d.created_at,
+                        timestamp: d.created_at,
+                        ...stateData
+                    };
+                    if (existing >= 0) {
+                        queryHistory[existing] = {...queryHistory[existing], ...entry};
+                    } else {
+                        queryHistory.push(entry);
+                    }
+                }
+                // Remove local-only entries that don't exist in backend (stale)
+                // (keep local items that have no backend ID — they haven't been saved yet)
+                saveHistory();
+                renderHistory();
+            } catch (e) {
+                log('Could not load discussions from server: ' + e.message);
+            }
+        }
+
+        /** Save current discussion state to backend DB. */
+        async function saveDiscussionToBackend(discId, state) {
+            if (!authToken || !discId) return;
+            try {
+                const stateCopy = JSON.parse(JSON.stringify(state || discussionData));
+                // Don't send apiKey to backend
+                delete stateCopy.apiKey;
+                delete stateCopy._key;
+                await authFetch(`/api/discussions/${discId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        status: stateCopy.status || 'new',
+                        title: stateCopy.title || stateCopy.question?.slice(0, 80) || '',
+                        state_json: JSON.stringify(stateCopy)
+                    })
+                });
+            } catch (e) {
+                log('Could not save discussion to server: ' + e.message);
+            }
+        }
+
+        /** Create a new discussion on the backend and return its ID. */
+        async function createDiscussionOnBackend(question, title) {
+            if (!authToken) return null;
+            try {
+                const response = await authFetch('/api/discussions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        question: question || 'New discussion',
+                        title: title || question?.slice(0, 80) || 'New discussion'
+                    })
+                });
+                if (!response.ok) return null;
+                const data = await response.json();
+                return data.id;
+            } catch (e) {
+                log('Could not create discussion on server: ' + e.message);
+                return null;
             }
         }
 
@@ -1306,12 +1482,25 @@
             const password = document.getElementById('authPassword')?.value || '';
             const email = normalizeAuthIdentifier(rawId);
 
+            // Password complexity checks
+            const errors = [];
             if (!email || !password) {
-                showStatus('Enter username/email and password', 'error');
-                return;
+                errors.push('Enter username/email and password');
             }
             if (password.length < 8) {
-                showStatus('Password must be at least 8 characters', 'error');
+                errors.push('Password must be at least 8 characters');
+            }
+            if (!/[A-Z]/.test(password)) {
+                errors.push('Password must include an uppercase letter');
+            }
+            if (!/[a-z]/.test(password)) {
+                errors.push('Password must include a lowercase letter');
+            }
+            if (!/\d/.test(password)) {
+                errors.push('Password must include a digit');
+            }
+            if (errors.length > 0) {
+                showStatus(errors.join('. '), 'error');
                 return;
             }
 
@@ -1413,13 +1602,26 @@
             const infoEl = document.getElementById('olInfo');
             errEl.classList.remove('visible');
             infoEl.classList.remove('visible');
+
+            // Password complexity checks
+            const errors = [];
             if (!email || !password) {
-                errEl.textContent = 'Enter username/email and password';
-                errEl.classList.add('visible');
-                return;
+                errors.push('Enter username/email and password');
             }
             if (password.length < 8) {
-                errEl.textContent = 'Password must be at least 8 characters';
+                errors.push('Password must be at least 8 characters');
+            }
+            if (!/[A-Z]/.test(password)) {
+                errors.push('Password must include an uppercase letter');
+            }
+            if (!/[a-z]/.test(password)) {
+                errors.push('Password must include a lowercase letter');
+            }
+            if (!/\d/.test(password)) {
+                errors.push('Password must include a digit');
+            }
+            if (errors.length > 0) {
+                errEl.textContent = errors.join('. ');
                 errEl.classList.add('visible');
                 return;
             }
@@ -1505,18 +1707,20 @@
             const newTheme = (html.getAttribute('data-theme') || 'dark') === 'dark' ? 'light' : 'dark';
             html.setAttribute('data-theme', newTheme);
             localStorage.setItem('theme', newTheme);
-            document.querySelector('.theme-toggle').textContent = newTheme === 'dark' ? '☀️ Light Mode' : '🌙 Dark Mode';
+            document.querySelector('.theme-toggle').textContent = newTheme === 'dark' ? '☀️' : '🌙';
+            document.querySelector('.theme-toggle').title = newTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
         }
 
         function loadTheme() {
             const saved = localStorage.getItem('theme') || 'dark';
             document.documentElement.setAttribute('data-theme', saved);
-            document.querySelector('.theme-toggle').textContent = saved === 'dark' ? '☀️ Light Mode' : '🌙 Dark Mode';
+            document.querySelector('.theme-toggle').textContent = saved === 'dark' ? '☀️' : '🌙';
+            document.querySelector('.theme-toggle').title = saved === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
         }
 
         function restoreLastDiscussion() {
             document.getElementById('restoreBanner').style.display = 'none';
-            const saved = localStorage.getItem('councilState');
+            const saved = localStorage.getItem(getStateKey());
             if (saved) {
                 try {
                     const state = JSON.parse(saved);
@@ -1543,7 +1747,69 @@
 
         function dismissRestore() {
             document.getElementById('restoreBanner').style.display = 'none';
-            localStorage.removeItem('councilState');
+            localStorage.removeItem(getStateKey());
+        }
+
+        /* ── Admin Panel ── */
+        function renderAdminPanel() {
+            const adminTab = document.getElementById('adminTabBtn');
+            if (adminTab) {
+                adminTab.style.display = currentUser === 'admin@local.ai-ensemble' ? '' : 'none';
+            }
+        }
+
+        async function loadAdminUsers() {
+            if (currentUser !== 'admin@local.ai-ensemble') return;
+            const list = document.getElementById('adminUserList');
+            if (!list) return;
+            list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-tertiary);">Loading users...</div>';
+            try {
+                const response = await authFetch('/api/admin/users');
+                if (!response.ok) {
+                    list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--error);">Access denied. Admin only.</div>';
+                    return;
+                }
+                const users = await response.json();
+                if (users.length === 0) {
+                    list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-tertiary);">No users found.</div>';
+                    return;
+                }
+                list.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
+                    '<thead><tr style="border-bottom:1px solid var(--border);">' +
+                    '<th style="padding:12px 16px;text-align:left;color:var(--text-secondary);font-weight:500;">ID</th>' +
+                    '<th style="padding:12px 16px;text-align:left;color:var(--text-secondary);font-weight:500;">Email</th>' +
+                    '<th style="padding:12px 16px;text-align:left;color:var(--text-secondary);font-weight:500;">Created</th>' +
+                    '<th style="padding:12px 16px;text-align:center;color:var(--text-secondary);font-weight:500;">Actions</th>' +
+                    '</tr></thead><tbody>' +
+                    users.map(u => {
+                        const isSelf = String(u.id) === String(currentUser);
+                        const date = u.created_at ? new Date(u.created_at).toLocaleString() : '—';
+                        return '<tr style="border-bottom:1px solid var(--border);">' +
+                            `<td style="padding:12px 16px;font-family:monospace;color:var(--text-tertiary);">${u.id}</td>` +
+                            `<td style="padding:12px 16px;">${u.email}${isSelf ? ' <span style="color:var(--accent);font-size:11px;">(you)</span>' : ''}</td>` +
+                            `<td style="padding:12px 16px;color:var(--text-tertiary);font-size:12px;">${date}</td>` +
+                            `<td style="padding:12px 16px;text-align:center;">${isSelf ? '<span style="color:var(--text-tertiary);font-size:12px;">—</span>' : `<button class="btn-sleek" style="background:var(--error);color:white;padding:4px 12px;font-size:12px;" onclick="deleteAdminUser(${u.id}, '${u.email}')">Delete</button>`}</td>` +
+                            '</tr>';
+                    }).join('') +
+                    '</tbody></table>';
+            } catch (e) {
+                list.innerHTML = `<div style="padding:20px;text-align:center;color:var(--error);">Error: ${e.message}</div>`;
+            }
+        }
+
+        async function deleteAdminUser(userId, email) {
+            if (!confirm(`Delete user "${email}" and ALL their data? This cannot be undone.`)) return;
+            try {
+                const response = await authFetch(`/api/admin/users/${userId}`, { method: 'DELETE' });
+                if (!response.ok) {
+                    const data = await response.json().catch(() => ({}));
+                    alert(`Failed: ${data.detail || response.statusText}`);
+                    return;
+                }
+                loadAdminUsers();
+            } catch (e) {
+                alert(`Error: ${e.message}`);
+            }
         }
 
         function switchTab(tab) {
@@ -1560,11 +1826,14 @@
                 window.location.hash = '#history';
             } else if (tab === 'current') {
                 window.location.hash = '#current';
+            } else if (tab === 'admin') {
+                loadAdminUsers();
+                window.location.hash = '#admin';
             }
         }
 
         function loadState() {
-            const saved = localStorage.getItem('councilState');
+            const saved = localStorage.getItem(getStateKey());
             if (saved) {
                 try {
                     const state = JSON.parse(saved);
@@ -1605,7 +1874,7 @@
 
         function saveState() {
             const state = { ...discussionData };
-            localStorage.setItem('councilState', JSON.stringify(state));
+            localStorage.setItem(getStateKey(), JSON.stringify(state));
 
             if (discussionData.id) {
                 const existingIdx = queryHistory.findIndex(h => h.id === discussionData.id);
@@ -1616,11 +1885,21 @@
                     queryHistory.unshift(entry);
                 }
                 saveHistory();
+                // Also persist to backend
+                saveDiscussionToBackend(discussionData.id, discussionData);
             }
         }
 
+        function getHistoryKey() {
+            return currentUser ? `councilHistory_${currentUser}` : 'councilHistory';
+        }
+
+        function getStateKey() {
+            return currentUser ? `councilState_${currentUser}` : 'councilState';
+        }
+
         function loadHistory() {
-            const saved = localStorage.getItem('councilHistory');
+            const saved = localStorage.getItem(getHistoryKey());
             if (saved) {
                 try {
                     queryHistory = JSON.parse(saved);
@@ -1632,7 +1911,7 @@
         }
 
         function saveHistory() {
-            localStorage.setItem('councilHistory', JSON.stringify(queryHistory));
+            localStorage.setItem(getHistoryKey(), JSON.stringify(queryHistory));
         }
 
         function renderHistory() {
@@ -1718,14 +1997,16 @@
             loadDiscussion(id);
         }
 
-        async function discoverModels() {
+        async function discoverModels(silent = false) {
             if (!requireAuth('discover models')) return;
             let endpoint = '';
-            try {
-                endpoint = await saveProviderCredential();
-            } catch (error) {
-                showStatus(`❌ ${error.message}`, 'error');
-                return;
+            if (!silent) {
+                try {
+                    endpoint = await saveProviderCredential();
+                } catch (error) {
+                    showStatus(`❌ ${error.message}`, 'error');
+                    return;
+                }
             }
 
             showStatus('Discovering models...', 'info');
@@ -1891,15 +2172,20 @@
                 });
             }
 
-            saveState();
+            // Create discussion on backend to get a real DB ID
+            createDiscussionOnBackend(question, question.slice(0, 80)).then(backendId => {
+                if (backendId) {
+                    discussionData.id = String(backendId);
+                    discussionId = String(backendId);
+                }
+                saveState();
+            });
+
             document.getElementById('setupSection').style.display = 'none';
             document.getElementById('discussionSection').classList.add('active');
             switchTab('current');
             _settingHash = true;
             window.location.hash = discussionId;
-            setTimeout(() => { _settingHash = false; }, 50);
-            updateStatusDot();
-            updateStatusDot();
 
             document.getElementById('questionDisplayText').textContent = question;
             const instDisplay = document.getElementById('instructionsDisplay');
@@ -2116,10 +2402,16 @@
                 log(`${modelId} response status: ${response.status}`);
 
                 if (!response.ok) {
-                    const text = await response.text();
-                    const error = `${response.status}: ${text.substring(0, 100)}`;
-                    log(`${modelId} API error: ${error}`);
-                    throw new Error(error);
+                    const bodyText = await response.text();
+                    let detail = `${response.status}: `;
+                    try {
+                        const errData = JSON.parse(bodyText);
+                        detail += errData.detail || JSON.stringify(errData).substring(0, 200);
+                    } catch {
+                        detail += bodyText.substring(0, 200);
+                    }
+                    log(`${modelId} API error: ${detail}`);
+                    throw new Error(detail);
                 }
 
                 const data = await response.json();
@@ -2303,7 +2595,15 @@
                     })
                 });
 
-                if (!response.ok) throw new Error(`API Error: ${response.status}`);
+                if (!response.ok) {
+                    const bodyText = await response.text();
+                    let detail = `API Error: ${response.status}`;
+                    try {
+                        const errData = JSON.parse(bodyText);
+                        detail += ` - ${errData.detail || ''}`;
+                    } catch { /* ignore */ }
+                    throw new Error(detail);
+                }
 
                 const data = await response.json();
                 let fullText = data.output || '';
