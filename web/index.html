@@ -2022,6 +2022,24 @@
             }
         }
 
+                function parseDbDate(dateStr) {
+            if (!dateStr) return Date.now();
+            // Normalize "YYYY-MM-DD HH:MM:SS.mmmmmm" to ISO "YYYY-MM-DDTHH:MM:SS"
+            const isoStr = dateStr.trim().replace(' ', 'T');
+            const d = new Date(isoStr);
+            if (!isNaN(d.getTime())) return d.getTime();
+            
+            // Safe fallback for legacy/stubborn mobile engines (e.g. Safari / older Android)
+            try {
+                const parts = dateStr.split(/[- :.]/);
+                if (parts.length >= 6) {
+                    return new Date(parts[0], parts[1]-1, parts[2], parts[3], parts[4], parts[5]).getTime();
+                }
+            } catch(e) {}
+            
+            return Date.now();
+        }
+
         async function loadHistory() {
             if (!authToken) {
                 const saved = localStorage.getItem('councilHistory');
@@ -2051,7 +2069,7 @@
                         }
                         return {
                             id: d.id,
-                            timestamp: d.created_at ? new Date(d.created_at).getTime() : Date.now(),
+                            timestamp: parseDbDate(d.created_at),
                             question: d.question || '',
                             status: d.status || 'new',
                             ...parsedState
@@ -2087,17 +2105,17 @@
 
             let filtered = [...queryHistory];
             if (window._historyFilter === 'completed') {
-                filtered = queryHistory.filter(h => h.status === 'completed' || h.status === 'stopped');
+                filtered = filtered.filter(h => h.status === 'completed' || h.status === 'stopped');
             } else if (window._historyFilter === 'running') {
-                filtered = queryHistory.filter(h => h.status === 'in_progress');
+                filtered = filtered.filter(h => h.status === 'in_progress');
             }
 
-            // Apply sorting
+            // Apply sorting on the filtered array (which is a fresh clone)
             const sortVal = document.getElementById('historySort')?.value || 'newest';
             if (sortVal === 'newest') {
-                filtered.sort((a, b) => b.timestamp - a.timestamp);
+                filtered.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
             } else if (sortVal === 'oldest') {
-                filtered.sort((a, b) => a.timestamp - b.timestamp);
+                filtered.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
             } else if (sortVal === 'az') {
                 filtered.sort((a, b) => (a.question || '').localeCompare(b.question || ''));
             }
