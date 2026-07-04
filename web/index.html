@@ -1152,7 +1152,7 @@
             </div>
 
             <!-- ── Models Panel (narrow, shows when provider selected) ── -->
-            <div class="models-panel" id="modelsPanel">
+            <div class="models-panel" id="modelsPanel" style="display: none !important;">
                 <div class="models-panel-header">
                     Models
                     <button class="btn-sleek" style="float: right; padding: 2px 6px; font-size: 10px;" onclick="closeModelsPanel()">×</button>
@@ -1472,11 +1472,7 @@
         function selectProvider(el) {
             document.querySelectorAll('.provider-item').forEach(p => p.classList.remove('active'));
             el.classList.add('active');
-            // Open the models panel
-            const panel = document.getElementById('modelsPanel');
-            if (panel) panel.classList.add('open');
-            // Populate model list from available models
-            populateModelList();
+            // Redundant sidebar models panel disabled - using main setup checkbox grid
         }
 
         function collapseProviderList() {
@@ -2156,7 +2152,6 @@
                 if (availableModels.length === 0) throw new Error('No models found');
 
                 renderModelSelection();
-                populateModelList();
                 // Show the question section since we have models available
                 document.getElementById('questionSection').style.display = 'block';
                 
