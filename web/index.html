@@ -108,33 +108,51 @@
 
         /* ── Header ── */
         .header {
-            text-align: left;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 48px;
             margin-bottom: 20px;
             padding-bottom: 12px;
             border-bottom: 1px solid var(--border);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            width: 100%;
         }
 
         .header h1 {
-            font-size: 28px;
+            font-size: 34px;
             font-weight: 600;
             letter-spacing: -0.5px;
-            margin-bottom: 0;
+            margin: 0;
+            text-align: center;
             color: var(--text-primary);
         }
 
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 26px;
+            }
+        }
+
         .theme-toggle {
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
             background: var(--bg-secondary);
             border: 1px solid var(--border);
             color: var(--text-primary);
-            padding: 8px 16px;
-            border-radius: 4px;
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             cursor: pointer;
-            font-size: 13px;
-            font-weight: 500;
+            font-size: 16px;
             transition: all 0.2s ease;
+            padding: 0;
+            z-index: 10;
         }
 
         .theme-toggle:hover { 
@@ -1127,7 +1145,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <button class="theme-toggle" onclick="toggleTheme()">☀️ Light Mode</button>
+            <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">☀️</button>
             <h1>AI - Ensemble</h1>
         </div>
 
@@ -1890,15 +1908,15 @@
             const next = themes[(idx + 1) % themes.length];
             html.setAttribute('data-theme', next);
             localStorage.setItem('theme', next);
-            const labels = { dark: '☀️ Light Mode', light: '🌙 Dark Mode', 'ps-xai-orange': '🔥 Orange' };
+            const labels = { dark: '☀️', light: '🌙', 'ps-xai-orange': '🔥' };
             document.querySelector('.theme-toggle').textContent = labels[next];
         }
 
         function loadTheme() {
             const saved = localStorage.getItem('theme') || 'dark';
             document.documentElement.setAttribute('data-theme', saved);
-            const labels = { dark: '☀️ Light Mode', light: '🌙 Dark Mode', 'ps-xai-orange': '🔥 Orange' };
-            document.querySelector('.theme-toggle').textContent = labels[saved] || '☀️ Light Mode';
+            const labels = { dark: '☀️', light: '🌙', 'ps-xai-orange': '🔥' };
+            document.querySelector('.theme-toggle').textContent = labels[saved] || '☀️';
         }
 
         function togglePasswordVisibility(fieldId) {
