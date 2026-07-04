@@ -1176,8 +1176,11 @@
                     <div id="setupSection">
                         <div class="auth-panel">
                             <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
-                                <strong>Account</strong>
-                                <div id="authStateText" style="font-size:12px;color:var(--text-tertiary);">Not signed in</div>
+                                <strong style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-secondary);">Account</strong>
+                                <div style="display:flex;align-items:center;gap:12px;">
+                                    <div id="authStateText" style="font-size:12px;color:var(--text-tertiary);">Not signed in</div>
+                                    <button id="logoutBtn" class="btn-sleek" style="display:none;padding:4px 10px;font-size:11px;border-color:var(--accent);color:var(--accent);" onclick="logoutUser()">Logout</button>
+                                </div>
                             </div>
                             <div class="auth-grid" style="margin-top:10px;">
                                 <div class="form-group" style="margin:0;">
@@ -1194,7 +1197,6 @@
                                 <div class="auth-actions">
                                     <button class="btn-sleek" style="padding:8px 12px;" onclick="loginUser()">Login</button>
                                     <button class="btn-sleek" style="padding:8px 12px;" onclick="registerUser()">Register</button>
-                                    <button class="btn-sleek" style="padding:8px 12px;" onclick="logoutUser()">Logout</button>
                                 </div>
                             </div>
                             <div class="auth-note">Minimal secure mode: token is stored in this browser session only and cleared on logout/browser close.</div>
@@ -1629,21 +1631,24 @@
         }
 
         function updateAuthUi() {
-            const state = document.getElementById('authStateText');
+            const state = document.getElementById("authStateText");
             if (state) {
-                state.textContent = authToken ? `Signed in as ${currentUser}` : 'Not signed in';
-                state.style.color = authToken ? 'var(--discussion-active)' : 'var(--text-tertiary)';
+                state.textContent = authToken ? `Signed in as ${currentUser}` : "Not signed in";
+                state.style.color = authToken ? "var(--accent)" : "var(--text-tertiary)";
             }
-            // Hide login form fields when logged in, show them when logged out
-            const authGrid = document.querySelector('.auth-grid');
-            const authNote = document.querySelector('.auth-note');
+            const authGrid = document.querySelector(".auth-grid");
+            const authNote = document.querySelector(".auth-note");
+            const logoutBtn = document.getElementById("logoutBtn");
             if (authGrid) {
-                authGrid.style.display = authToken ? 'none' : '';
+                authGrid.style.display = authToken ? "none" : "";
             }
             if (authNote) {
-                authNote.style.display = authToken ? 'none' : '';
+                authNote.style.display = authToken ? "none" : "";
             }
-            const startBtn = document.querySelector('.btn-start-discussion');
+            if (logoutBtn) {
+                logoutBtn.style.display = authToken ? "block" : "none";
+            }
+            const startBtn = document.querySelector(".btn-start-discussion");
             if (startBtn) startBtn.disabled = !authToken;
         }
 
