@@ -1385,10 +1385,20 @@
                 <div class="tab-content" id="tab-history">
                     <div class="form-section">
                         <h2>Discussions</h2>
-                        <div id="historyFilter" style="display:flex; gap:8px; margin-bottom:12px;">
-                            <button class="btn-sleek" style="background:var(--accent);color:white;padding:6px 14px;" onclick="filterHistory('all')">All</button>
-                            <button class="btn-sleek" style="background:var(--bg-secondary);color:var(--text-secondary);padding:6px 14px;border:1px solid var(--border);" onclick="filterHistory('completed')">Completed</button>
-                            <button class="btn-sleek" style="background:var(--bg-secondary);color:var(--text-secondary);padding:6px 14px;border:1px solid var(--border);" onclick="filterHistory('running')">Running</button>
+                        <div id="historyFilter" style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+                            <div style="display:flex; gap:8px;">
+                                <button class="btn-sleek" style="background:var(--accent);color:white;padding:6px 14px;" onclick="filterHistory('all')">All</button>
+                                <button class="btn-sleek" style="background:var(--bg-secondary);color:var(--text-secondary);padding:6px 14px;border:1px solid var(--border);" onclick="filterHistory('completed')">Completed</button>
+                                <button class="btn-sleek" style="background:var(--bg-secondary);color:var(--text-secondary);padding:6px 14px;border:1px solid var(--border);" onclick="filterHistory('running')">Running</button>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:6px;">
+                                <label for="historySort" style="font-size:12px; color:var(--text-secondary);">Sort:</label>
+                                <select id="historySort" onchange="renderHistory()" style="background:var(--bg-secondary); color:var(--text-primary); border:1px solid var(--border); padding:6px 12px; border-radius:4px; font-size:12px; cursor:pointer;">
+                                    <option value="newest" selected>Newest First</option>
+                                    <option value="oldest">Oldest First</option>
+                                    <option value="az">Alphabetical (A-Z)</option>
+                                </select>
+                            </div>
                         </div>
                         <div class="history-list-compact" id="historyList">
                             <div style="padding: 20px; text-align: center; color: var(--text-tertiary);">No discussions yet</div>
@@ -2075,11 +2085,21 @@
                 return;
             }
 
-            let filtered = queryHistory;
+            let filtered = [...queryHistory];
             if (window._historyFilter === 'completed') {
                 filtered = queryHistory.filter(h => h.status === 'completed' || h.status === 'stopped');
             } else if (window._historyFilter === 'running') {
                 filtered = queryHistory.filter(h => h.status === 'in_progress');
+            }
+
+            // Apply sorting
+            const sortVal = document.getElementById('historySort')?.value || 'newest';
+            if (sortVal === 'newest') {
+                filtered.sort((a, b) => b.timestamp - a.timestamp);
+            } else if (sortVal === 'oldest') {
+                filtered.sort((a, b) => a.timestamp - b.timestamp);
+            } else if (sortVal === 'az') {
+                filtered.sort((a, b) => (a.question || '').localeCompare(b.question || ''));
             }
 
             if (filtered.length === 0) {
