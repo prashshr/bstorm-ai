@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.core.limiter import limiter
 from app.db.session import get_db
 from app.models.models import Discussion, Message, SearchHistory, User
 from app.schemas.discussion import (
@@ -17,7 +18,9 @@ router = APIRouter()
 
 
 @router.post("", response_model=DiscussionResponse)
+@limiter.limit("30/minute")
 def create_discussion(
+    request: Request,
     payload: DiscussionCreateRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -42,7 +45,9 @@ def create_discussion(
 
 
 @router.put("/{discussion_id}", response_model=DiscussionResponse)
+@limiter.limit("60/minute")
 def update_discussion(
+    request: Request,
     discussion_id: int,
     payload: DiscussionUpdateRequest,
     db: Session = Depends(get_db),
@@ -76,7 +81,9 @@ def update_discussion(
 
 
 @router.get("", response_model=list[DiscussionResponse])
+@limiter.limit("60/minute")
 def list_discussions(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[DiscussionResponse]:
@@ -100,7 +107,9 @@ def list_discussions(
 
 
 @router.get("/{discussion_id}", response_model=DiscussionResponse)
+@limiter.limit("60/minute")
 def get_discussion(
+    request: Request,
     discussion_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -123,7 +132,9 @@ def get_discussion(
 
 
 @router.delete("/{discussion_id}")
+@limiter.limit("30/minute")
 def delete_discussion(
+    request: Request,
     discussion_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -142,7 +153,9 @@ def delete_discussion(
 
 
 @router.get("/{discussion_id}/messages", response_model=list[MessageResponse])
+@limiter.limit("60/minute")
 def list_messages(
+    request: Request,
     discussion_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -176,7 +189,9 @@ def list_messages(
 
 
 @router.post("/messages", response_model=MessageResponse)
+@limiter.limit("120/minute")
 def create_message(
+    request: Request,
     payload: MessageCreateRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),

@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.core.limiter import limiter
 from app.db.session import get_db
 from app.models.models import User
 from app.schemas.auth import UserDeleteResponse, UserResponse
@@ -11,7 +12,9 @@ router = APIRouter()
 
 
 @router.get("/users", response_model=list[UserResponse])
+@limiter.limit("30/minute")
 def list_users(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[UserResponse]:
@@ -33,7 +36,9 @@ def list_users(
 
 
 @router.delete("/users/{user_id}", response_model=UserDeleteResponse)
+@limiter.limit("30/minute")
 def delete_user(
+    request: Request,
     user_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),

@@ -12,6 +12,16 @@ PROVIDER_ALIASES: dict[str, str] = {
     "anthropic": "anthropic",
     "google": "gemini",
     "gemini": "gemini",
+    "fireworks": "openai-compatible",
+    "together": "openai-compatible",
+    "perplexity": "openai-compatible",
+    "mistral": "openai-compatible",
+    "xai": "openai-compatible",
+    "deepseek": "openai-compatible",
+    "ollama": "openai-compatible",
+    "open-webui": "openai-compatible",
+    "vertex": "gemini",
+    "nvidia": "openai-compatible",
 }
 
 

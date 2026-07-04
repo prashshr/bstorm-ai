@@ -1,3 +1,4 @@
+from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
@@ -35,7 +36,7 @@ class Discussion(Base):
     title: Mapped[str] = mapped_column(String(255), default="")
     question: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(50), default="new")
-    state_json: Mapped[str] = mapped_column(Text, default="")  # Full discussion state (models, rounds, consensus, etc.)
+    state_json: Mapped[str] = mapped_column(Text, default="")  # Full discussion state
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     messages = relationship("Message", back_populates="discussion", cascade="all, delete-orphan")

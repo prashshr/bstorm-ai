@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 import httpx
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.core.crypto import decrypt_secret
+from app.core.limiter import limiter
 from app.db.session import get_db
 from app.models.models import ProviderCredential, User
 from app.schemas.provider_proxy import ChatRequest, ChatResponse
@@ -15,7 +16,9 @@ router = APIRouter()
 
 
 @router.post("/chat", response_model=ChatResponse)
+@limiter.limit("60/minute")
 async def proxy_chat(
+    request: Request,
     payload: ChatRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -50,14 +53,36 @@ async def proxy_chat(
     except httpx.HTTPStatusError as exc:
         body = exc.response.text if exc.response is not None else ""
         detail = body[:500] if body else str(exc)
+        
+        # Provide more specific error messages based on status code
+        if exc.response.status_code == 401:
+            detail = f"Authentication failed (401): Invalid API key for {endpoint or payload.provider}"
+        elif exc.response.status_code == 404:
+            detail = f"Endpoint not found (404): {endpoint or payload.provider} - Check your endpoint URL"
+        elif exc.response.status_code == 502:
+            detail = f"Bad Gateway (502): Could not reach the provider at {endpoint or payload.provider} - Check your endpoint URL and connectivity"
+        elif exc.response.status_code == 429:
+            detail = f"Rate limited (429): Too many requests to {payload.provider}"
+        
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Provider returned an error: {detail}",
         )
     except httpx.RequestError as exc:
+        # Handle other request errors like connection timeouts
+        detail = str(exc)
+        if "502" in detail or "Bad Gateway" in detail:
+            detail = f"Could not reach the provider - Check your endpoint URL and connectivity"
+        elif "401" in detail or "Authentication" in detail.lower():
+            detail = f"Authentication failed: Invalid API key"
+        elif "404" in detail:
+            detail = f"Endpoint not found - Check your endpoint URL"
+        elif "timeout" in detail.lower():
+            detail = f"Request timed out - The provider took too long to respond"
+        
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Provider request failed: {exc}",
+            detail=f"Provider request failed: {detail}",
         )
 
     return ChatResponse(provider=payload.provider, model=payload.model, output=output)

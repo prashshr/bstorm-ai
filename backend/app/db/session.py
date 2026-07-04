@@ -1,6 +1,6 @@
 from collections.abc import Generator
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 from app.core.config import settings
@@ -24,6 +24,17 @@ def init_db() -> None:
     from app.core.security import get_password_hash
 
     Base.metadata.create_all(bind=engine)
+
+    # Schema drift fallback: ensure state_json column exists on existing SQLite DBs
+    if settings.database_url.startswith("sqlite"):
+        db = SessionLocal()
+        try:
+            db.execute(text("ALTER TABLE discussions ADD COLUMN state_json TEXT DEFAULT ''"))
+            db.commit()
+        except Exception:
+            db.rollback()
+        finally:
+            db.close()
 
     # Seed default admin user
     db = SessionLocal()
