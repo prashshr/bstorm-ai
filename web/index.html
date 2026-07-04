@@ -2920,7 +2920,7 @@
                 (discussionData.models || []).forEach(m => {
                     const resp = discussionData.rounds[r]?.[m];
                     if (resp?.text && resp.text !== '[Skipped]') {
-                        summary += `**${m}**: ${resp.text.substring(0, 500)}${resp.text.length > 500 ? '…' : ''}\n\n`;
+                        summary += `**${m}**:\n\n${resp.text}\n\n`;
                     } else if (resp?.status === 'skipped') {
                         summary += `**${m}**: ⏭ *Skipped*\n\n`;
                     } else {
@@ -2961,6 +2961,14 @@
             }
         }
 
+        function getUniqueFilename(ext) {
+            const id = discussionData.id || 'ensemble';
+            const q = (discussionData.question || '').trim();
+            const words = q.split(/\s+/).slice(0, 4).join('_').replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
+            const prefix = words ? `${words}_${id}` : id;
+            return `ensemble_${prefix}.${ext}`;
+        }
+
         function exportMarkdown() {
             let md = `# AI Ensemble\n**Date:** ${new Date(discussionData.timestamp).toLocaleString()}\n**Q:** ${discussionData.question}\n\n`;
             Object.keys(discussionData.rounds).forEach(r => {
@@ -2975,7 +2983,7 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'ensemble.md';
+            a.download = getUniqueFilename('md');
             a.click();
             URL.revokeObjectURL(url);
         }
@@ -2986,7 +2994,7 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `discussion-${discussionData.id}.json`;
+            a.download = getUniqueFilename('json');
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
