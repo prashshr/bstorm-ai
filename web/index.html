@@ -1675,6 +1675,7 @@
                 saveHistory();
                 saveState();
                 loadUserProviderConfig();
+                loadHistory();
             } else {
                 sessionStorage.removeItem('authToken');
                 sessionStorage.removeItem('authUser');
@@ -2011,15 +2012,52 @@
             }
         }
 
-        function loadHistory() {
-            const saved = localStorage.getItem('councilHistory');
-            if (saved) {
-                try {
-                    queryHistory = JSON.parse(saved);
+        async function loadHistory() {
+            if (!authToken) {
+                const saved = localStorage.getItem('councilHistory');
+                if (saved) {
+                    try {
+                        queryHistory = JSON.parse(saved);
+                    } catch (e) {
+                        log(`Error loading local history: ${e.message}`);
+                    }
+                } else {
+                    queryHistory = [];
+                }
+                renderHistory();
+                return;
+            }
+
+            try {
+                const response = await authFetch('/api/discussions');
+                if (response.ok) {
+                    const data = await response.json();
+                    queryHistory = data.map(d => {
+                        let parsedState = {};
+                        if (d.state_json) {
+                            try {
+                                parsedState = JSON.parse(d.state_json);
+                            } catch (e) {}
+                        }
+                        return {
+                            id: d.id,
+                            timestamp: d.created_at ? new Date(d.created_at).getTime() : Date.now(),
+                            question: d.question || '',
+                            status: d.status || 'new',
+                            ...parsedState
+                        };
+                    });
+                    saveHistory();
                     renderHistory();
-                } catch (e) {
-                    showStatus(`Error loading history: ${e.message}`, 'error');
-                    log(`Error loading history: ${e.message}`);
+                }
+            } catch (error) {
+                log(`Error fetching server history: ${error.message}`);
+                const saved = localStorage.getItem('councilHistory');
+                if (saved) {
+                    try {
+                        queryHistory = JSON.parse(saved);
+                        renderHistory();
+                    } catch (e) {}
                 }
             }
         }
