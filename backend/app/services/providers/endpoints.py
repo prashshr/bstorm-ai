@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 # These are the correct paths that work for BOTH model listing AND chat completion.
 PROVIDER_ENDPOINTS: dict[str, str] = {
     "openai.com": "https://api.openai.com/v1",
-    "openrouter.ai": "https://api.openrouter.ai/v1",
+    "openrouter.ai": "https://openrouter.ai/api/v1",
     "perplexity.ai": "https://api.perplexity.ai",
     "groq.com": "https://api.groq.com/openai/v1",
     "together.xyz": "https://api.together.xyz/v1",
@@ -50,7 +50,7 @@ PROVIDER_DEFAULT_ENDPOINTS: dict[str, dict[str, str]] = {
         "chat_endpoint": "/v1beta/models/{model}:generateContent",
     },
     "openrouter": {
-        "base_url": "https://api.openrouter.ai/v1",
+        "base_url": "https://openrouter.ai/api/v1",
         "models_endpoint": "/models",
         "chat_endpoint": "/chat/completions",
     },

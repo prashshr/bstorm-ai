@@ -684,7 +684,7 @@
         }
         .model-grid { 
             display: grid; 
-            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); 
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); 
             gap: 12px; 
             margin-bottom: 16px; 
         }
@@ -1275,6 +1275,11 @@
                 </select>
             </div>
 
+            <div id="modalCustomProviderGroup" class="form-group" style="display: none; margin: 0;">
+                <label for="modalCustomProviderName">Provider Name / Identifier</label>
+                <input type="text" id="modalCustomProviderName" placeholder="e.g., Fireworks, Ollama, Together" style="width: 100%; padding: 10px; background: var(--bg-tertiary); border: 1px solid var(--border); color: var(--text-primary); border-radius: 4px; font-size: 13px; box-sizing: border-box;">
+            </div>
+
             <div id="modalOpenrouterOAuthGroup" style="display:none; padding: 12px; background: rgba(255, 92, 0, 0.05); border: 1px solid var(--border); border-radius: 6px; flex-direction: column; gap: 8px; box-sizing: border-box;">
                 <button class="btn-primary" style="background: #ff5c00; color: white; font-weight: 600; border: none; padding: 10px 16px; border-radius: 4px; cursor: pointer; width: 100%; box-sizing: border-box;" onclick="startOpenRouterOAuth()">
                     <span>🔑 Sign In with OpenRouter (OAuth)</span>
@@ -1421,7 +1426,7 @@
                                 <div class="form-row">
                                     <div class="form-group">
                                         <label for="endpoint">API Endpoint <span style="color:var(--text-tertiary);font-weight:400;text-transform:none;">(e.g., OpenRouter, OpenAI, Ollama)</span></label>
-                                        <input type="text" id="endpoint" placeholder="https://api.openrouter.ai/v1" value="https://api.openrouter.ai/v1">
+                                        <input type="text" id="endpoint" placeholder="https://openrouter.ai/api/v1" value="https://openrouter.ai/api/v1">
                                         <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;">💡 OpenRouter provides the widest model selection with unified billing.</div>
                                     </div>
                                     <div class="form-group">
@@ -1682,8 +1687,9 @@
         let PROVIDER_NAME = 'openai-compatible';
         let savedCredentials = {};
         let activeSavedProvider = 'openrouter';
+        let modelHealthStatus = {};
 
-        const PRESET_PROVIDERS = {
+        const STATIC_PRESETS = {
             'openrouter': { name: 'OpenRouter', endpoint: 'https://openrouter.ai/api/v1', authUrl: 'https://openrouter.ai' },
             'openai': { name: 'OpenAI Official', endpoint: 'https://api.openai.com/v1', authUrl: 'https://platform.openai.com/api-keys' },
             'perplexity': { name: 'Perplexity AI', endpoint: 'https://api.perplexity.ai', authUrl: 'https://www.perplexity.ai/settings/api' },
@@ -1692,6 +1698,8 @@
             'requesty': { name: 'Requesty AI', endpoint: 'https://router.requesty.ai/v1', authUrl: 'https://router.requesty.ai' },
             'custom': { name: 'Custom Compatible', endpoint: '', authUrl: '' }
         };
+
+        let PRESET_PROVIDERS = { ...STATIC_PRESETS };
         
         let discussionData = {
             id: null,
@@ -1769,19 +1777,21 @@
                 alert('API Endpoint is required to save.');
                 return;
             }
-            if (!apiKey) {
-                alert('API Key is required to save.');
-                return;
-            }
 
             try {
+                showStatus(`Testing connection to ${endpoint}...`, 'connecting');
+                
+                // Store the original credential in case we need to roll back
+                const originalCredential = savedCredentials[PROVIDER_NAME] ? { ...savedCredentials[PROVIDER_NAME] } : null;
+
+                // 1. Temporarily save to the database
                 const response = await authFetch('/api/providers', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         provider: PROVIDER_NAME,
                         endpoint: endpoint,
-                        api_key: apiKey
+                        api_key: apiKey || '[Saved]'
                     })
                 });
 
@@ -1790,18 +1800,65 @@
                     throw new Error(err.detail || 'Failed to save provider credentials');
                 }
 
-                showStatus(`✓ Saved ${PROVIDER_NAME} credentials permanently`, 'success');
+                // 2. Test connection by requesting model discovery
+                try {
+                    const modelsResponse = await authFetch(`/api/providers/${PROVIDER_NAME}/models`);
+                    if (!modelsResponse.ok) {
+                        const errText = await modelsResponse.text();
+                        let errMsg = '';
+                        try {
+                            const errObj = JSON.parse(errText);
+                            errMsg = errObj.detail || errText;
+                        } catch (e) {
+                            errMsg = errText || `HTTP Error ${modelsResponse.status}`;
+                        }
+                        throw new Error(errMsg);
+                    }
+                    
+                    const models = await modelsResponse.json();
+                    if (!Array.isArray(models) || models.length === 0) {
+                        throw new Error('Connection successful, but no models were returned by the endpoint.');
+                    }
+                } catch (discoveryError) {
+                    // Rollback to original valid credential or delete
+                    if (originalCredential) {
+                        await authFetch('/api/providers', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                provider: PROVIDER_NAME,
+                                endpoint: originalCredential.endpoint,
+                                api_key: '[Saved]'
+                            })
+                        });
+                    } else {
+                        await authFetch(`/api/providers/${PROVIDER_NAME}`, {
+                            method: 'DELETE'
+                        });
+                    }
+                    throw new Error(`Connection verification failed: ${discoveryError.message}`);
+                }
+
+                showStatus(`✓ Saved and verified ${PROVIDER_NAME} credentials successfully!`, 'success');
                 await loadUserProviderConfig();
+
             } catch (e) {
-                alert('Error: ' + e.message);
+                alert('Connection Error: ' + e.message);
                 log('Failed to save provider: ' + e.message);
+                showStatus(`❌ Error connecting to provider: ${e.message}`, 'error');
             }
         }
 
         function onModalProviderChange() {
             const providerKey = document.getElementById('modalProviderSelect').value;
             const preset = PRESET_PROVIDERS[providerKey];
-            if (!preset) return;
+            
+            const customGroup = document.getElementById('modalCustomProviderGroup');
+            if (customGroup) {
+                customGroup.style.display = (providerKey === 'custom') ? 'flex' : 'none';
+            }
+            
+            if (providerKey !== 'custom' && !preset) return;
             
             const modalOauthGroup = document.getElementById('modalOpenrouterOAuthGroup');
             if (modalOauthGroup) {
@@ -1816,14 +1873,14 @@
                 if (gcpFields) gcpFields.style.display = 'none';
                 const endpointInput = document.getElementById('modalEndpoint');
                 if (endpointInput) {
-                    endpointInput.value = preset.endpoint;
+                    endpointInput.value = preset ? preset.endpoint : '';
                     endpointInput.disabled = (providerKey !== 'custom');
                 }
             }
             
             const webAuthLink = document.getElementById('modalWebAuthLink');
             if (webAuthLink) {
-                if (preset.authUrl) {
+                if (preset && preset.authUrl) {
                     webAuthLink.href = preset.authUrl;
                     webAuthLink.style.display = 'inline';
                     webAuthLink.textContent = `🔗 Login to ${preset.name}`;
@@ -1834,7 +1891,7 @@
         }
 
         async function saveModalProvider() {
-            const provider = document.getElementById('modalProviderSelect').value;
+            let provider = document.getElementById('modalProviderSelect').value;
             const endpoint = document.getElementById('modalEndpoint').value.trim();
             const apiKey = document.getElementById('modalApiKey').value.trim();
 
@@ -1847,7 +1904,29 @@
                 return;
             }
 
+            let customName = '';
+            if (provider === 'custom') {
+                customName = document.getElementById('modalCustomProviderName').value.trim();
+                if (!customName) {
+                    alert('Provider Name / Identifier is required for custom compatible providers.');
+                    return;
+                }
+                const customKey = customName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+                if (!customKey) {
+                    alert('Invalid Provider Name. Please use alphanumeric characters.');
+                    return;
+                }
+                if (STATIC_PRESETS[customKey]) {
+                    alert(`"${customName}" is a reserved preset name. Please choose a different identifier.`);
+                    return;
+                }
+                provider = customKey;
+            }
+
             try {
+                showStatus(`Testing connection to ${endpoint}...`, 'connecting');
+                
+                // 1. Save temporarily to the database
                 const response = await authFetch('/api/providers', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1863,15 +1942,48 @@
                     throw new Error(err.detail || 'Failed to save provider credentials');
                 }
 
-                showStatus(`✓ Saved ${provider} credentials successfully`, 'success');
+                // 2. Verify connection by fetching models for this provider
+                try {
+                    const modelsResponse = await authFetch(`/api/providers/${provider}/models`);
+                    if (!modelsResponse.ok) {
+                        const errText = await modelsResponse.text();
+                        let errMsg = '';
+                        try {
+                            const errObj = JSON.parse(errText);
+                            errMsg = errObj.detail || errText;
+                        } catch (e) {
+                            errMsg = errText || `HTTP Error ${modelsResponse.status}`;
+                        }
+                        throw new Error(errMsg);
+                    }
+                    
+                    const models = await modelsResponse.json();
+                    if (!Array.isArray(models) || models.length === 0) {
+                        throw new Error('Connection successful, but no models were returned by the endpoint.');
+                    }
+                } catch (discoveryError) {
+                    // Revert/delete the temporary credential
+                    await authFetch(`/api/providers/${provider}`, {
+                        method: 'DELETE'
+                    });
+                    throw new Error(`Connection verification failed: ${discoveryError.message}`);
+                }
+
+                showStatus(`✓ Saved and verified ${customName || provider} credentials successfully!`, 'success');
+                
+                if (document.getElementById('modalCustomProviderName')) {
+                    document.getElementById('modalCustomProviderName').value = '';
+                }
+                
                 closeAddProviderModal();
                 
                 await loadUserProviderConfig();
                 await selectSavedProvider(provider);
 
             } catch (e) {
-                alert('Error: ' + e.message);
-                log('Failed to save provider: ' + e.message);
+                alert('Connection Error: ' + e.message);
+                log('Failed to save/verify provider: ' + e.message);
+                showStatus(`❌ Error connecting to provider: ${e.message}`, 'error');
             }
         }
 
@@ -2164,10 +2276,26 @@
                 if (!response.ok) return;
                 const providers = await response.json();
                 
+                // Reset PRESET_PROVIDERS to static defaults
+                PRESET_PROVIDERS = { ...STATIC_PRESETS };
+                
                 savedCredentials = {};
                 if (Array.isArray(providers)) {
                     providers.forEach(p => {
                         savedCredentials[p.provider] = p;
+                        
+                        // Dynamically add custom providers so they render in the grid
+                        if (!PRESET_PROVIDERS[p.provider] && p.provider !== 'custom') {
+                            const displayName = p.provider
+                                .split('-')
+                                .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                                .join(' ');
+                            PRESET_PROVIDERS[p.provider] = {
+                                name: displayName,
+                                endpoint: p.endpoint,
+                                authUrl: ''
+                            };
+                        }
                     });
                 }
                 
@@ -2590,7 +2718,7 @@
                     const state = JSON.parse(saved);
                     discussionData = state;
                     // Decode obfuscated API key
-                    document.getElementById('endpoint').value = state.endpoint || 'https://api.openrouter.ai/v1';
+                    document.getElementById('endpoint').value = state.endpoint || 'https://openrouter.ai/api/v1';
                     storedEndpoint = state.endpoint || '';
                     storedApiKey = state.apiKey || '';
                     storedTimeout = state.timeout || 120;
@@ -2870,24 +2998,57 @@
 
         async function discoverModels() {
             if (!requireAuth('discover models')) return;
-            let endpoint = '';
-            try {
-                endpoint = await saveProviderCredential();
-            } catch (error) {
-                showStatus(`❌ ${error.message}`, 'error');
+            
+            const endpointInput = document.getElementById('endpoint');
+            const apiKeyInput = document.getElementById('apiKey');
+            const endpointValue = endpointInput ? endpointInput.value.trim() : '';
+            const apiKeyValue = apiKeyInput ? apiKeyInput.value.trim() : '';
+            
+            if (!endpointValue) {
+                showStatus('❌ API Endpoint is required to discover models.', 'error');
                 return;
             }
 
             showStatus('Discovering models...', 'info');
             log('Discovering models from user provider settings');
 
+            // Store original credential in case we need to roll back
+            const originalCredential = savedCredentials[PROVIDER_NAME] ? { ...savedCredentials[PROVIDER_NAME] } : null;
+
+            // 1. Temporarily save to the database so model listing requests can use them
+            try {
+                const saveResponse = await authFetch('/api/providers', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        provider: PROVIDER_NAME,
+                        endpoint: endpointValue,
+                        api_key: apiKeyValue || (originalCredential ? '[Saved]' : '')
+                    })
+                });
+                
+                if (!saveResponse.ok) {
+                    const errObj = await saveResponse.json();
+                    throw new Error(errObj.detail || 'Failed to temporarily save provider credentials');
+                }
+            } catch (err) {
+                showStatus(`❌ ${err.message}`, 'error');
+                return;
+            }
+
+            // 2. Discover models from this provider
             try {
                 const response = await authFetch(`/api/providers/${PROVIDER_NAME}/models`);
 
                 if (!response.ok) {
                     const text = await response.text();
+                    let errMsg = `API Error: ${response.status}`;
+                    try {
+                        const errObj = JSON.parse(text);
+                        errMsg = errObj.detail || errMsg;
+                    } catch (e) {}
                     log(`Models API Error ${response.status}: ${text.substring(0, 200)}`);
-                    throw new Error(`API Error: ${response.status}`);
+                    throw new Error(errMsg);
                 }
 
                 const data = await response.json();
@@ -2904,63 +3065,185 @@
                         return null;
                     })
                     .filter(Boolean)
-                    .sort((a, b) => (a.id || '').localeCompare(b.id || ''));
+                    .sort((a, b) => a.id.localeCompare(b.id));
 
-                if (availableModels.length === 0) throw new Error('No models found');
+                if (availableModels.length === 0) {
+                    throw new Error('Connection successful, but no models were returned by the endpoint.');
+                }
 
+                showStatus(`✓ Successfully discovered ${availableModels.length} models`, 'success');
                 renderModelSelection();
-                // Show the question section since we have models available
-                document.getElementById('questionSection').style.display = 'block';
                 
-                // Keep the model selection checkbox grid fully visible and highly mobile-friendly
-                document.getElementById('modelSelection').style.display = 'block';
-                
-                // Also open the sidebar models panel so they show up there
-                const sidebarPanel = document.getElementById('modelsPanel');
-                if (sidebarPanel) sidebarPanel.classList.add('open');
+                // Reload provider config to turn the dot green
+                await loadUserProviderConfig();
 
-                showStatus(`✓ Found ${availableModels.length} models`, 'success');
-                log(`Found models: ${availableModels.slice(0, 3).map(m => m.id || m.name).join(', ')}...`);
-            } catch (error) {
-                showStatus(`❌ ${error.message}`, 'error');
-                log(`Discovery failed: ${error.message}`);
+                // Kick off background health checks for discovered models
+                setTimeout(() => {
+                    checkAllModelsHealth(availableModels);
+                }, 200);
+
+            } catch (e) {
+                showStatus(`❌ Discovery failed: ${e.message}`, 'error');
+                log(`Failed to discover models: ${e.message}`);
+                
+                // Clear active models list
+                availableModels = [];
+                renderModelSelection();
+
+                // Rollback database save to the previous valid configuration
+                try {
+                    if (originalCredential) {
+                        await authFetch('/api/providers', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                provider: PROVIDER_NAME,
+                                endpoint: originalCredential.endpoint,
+                                api_key: '[Saved]'
+                            })
+                        });
+                    } else {
+                        await authFetch(`/api/providers/${PROVIDER_NAME}`, {
+                            method: 'DELETE'
+                        });
+                    }
+                } catch (rollbackErr) {
+                    log(`Failed to roll back unverified provider: ${rollbackErr.message}`);
+                }
+
+                // Reload provider configs to sync green/grey indicator dots
+                await loadUserProviderConfig();
             }
         }
 
-        function renderModelSelection() {
+        function renderModelSelection(models) {
             const grid = document.getElementById('modelGrid');
             if (!grid) return;
             grid.innerHTML = '';
-            
-            availableModels.forEach(model => {
-                const modelId = model.id || model.name;
-                const compositeKey = `${PROVIDER_NAME}::${modelId}`;
-                const isChecked = selectedModels.includes(compositeKey) ? 'checked' : '';
-                
+
+            const modelsToRender = models || availableModels || [];
+
+            const selection = document.getElementById('modelSelection');
+            if (modelsToRender.length > 0) {
+                if (selection) selection.style.display = 'block';
+            } else {
+                if (selection) selection.style.display = 'none';
+                updateActiveEnsembleDisplay();
+                return;
+            }
+
+            modelsToRender.forEach(model => {
                 const label = document.createElement('label');
                 label.className = 'model-checkbox';
+                label.style.display = 'flex';
+                label.style.alignItems = 'center';
+                label.style.justifyContent = 'space-between';
+                label.style.padding = '10px 14px';
+                label.style.border = '1px solid var(--border)';
+                label.style.borderRadius = '4px';
+                label.style.cursor = 'pointer';
+                label.style.background = 'var(--bg-secondary)';
+                
+                const compositeKey = `${PROVIDER_NAME}::${model.id}`;
+                const checked = selectedModels.includes(compositeKey) ? 'checked' : '';
+                const cleanName = model.id.split('/').pop();
+                
+                let pricingBadge = '';
+                if (PROVIDER_NAME === 'openrouter') {
+                    const isFree = model.id.toLowerCase().includes(':free') || model.id.toLowerCase().includes('/free');
+                    if (isFree) {
+                        pricingBadge = `<span style="font-size: 10px; color: #34c759; background: rgba(52, 199, 89, 0.1); padding: 2px 6px; border-radius: 4px; font-weight: 600; margin-left: auto;">[Free]</span>`;
+                    } else {
+                        pricingBadge = `<span style="font-size: 10px; color: var(--text-tertiary); background: var(--bg-tertiary); padding: 2px 6px; border-radius: 4px; margin-left: auto;">[Paid]</span>`;
+                    }
+                }
+                
+                let healthBadge = '';
+                const health = modelHealthStatus[model.id];
+                if (health === 'testing') {
+                    healthBadge = `<span style="font-size: 10px; color: var(--text-tertiary); background: var(--bg-tertiary); padding: 2px 6px; border-radius: 4px; margin-left: 6px;">⏳ Testing...</span>`;
+                } else if (health === 'OK') {
+                    healthBadge = `<span style="font-size: 10px; color: #34c759; background: rgba(52, 199, 89, 0.1); padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-left: 6px;">OK</span>`;
+                } else if (health === 'KO') {
+                    healthBadge = `<span style="font-size: 10px; color: #ff9f0a; background: rgba(255, 159, 10, 0.1); padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-left: 6px;">KO</span>`;
+                }
+                
                 label.innerHTML = `
-                    <input type="checkbox" value="${modelId}" ${isChecked} onchange="onCheckboxToggle('${modelId}', this.checked)">
-                    <span>${modelId.split('/').pop()}</span>
+                    <div style="display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0;">
+                        <input type="checkbox" value="${model.id}" ${checked} onchange="onCheckboxToggle('${model.id}', this.checked)">
+                        <span style="text-overflow: ellipsis; overflow: hidden; white-space: nowrap; color: var(--text-primary); font-size: 13px;">${cleanName}</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        ${pricingBadge}
+                        ${healthBadge}
+                    </div>
                 `;
                 grid.appendChild(label);
             });
 
-            const consensusSelect = document.getElementById('consensusModel');
-            if (consensusSelect) {
-                consensusSelect.innerHTML = '';
-                selectedModels.forEach(comp => {
-                    let mId = comp;
-                    if (comp.includes('::')) mId = comp.split('::')[1];
-                    const option = document.createElement('option');
-                    option.value = comp;
-                    option.textContent = mId.split('/').pop();
-                    consensusSelect.appendChild(option);
-                });
-            }
-
             updateActiveEnsembleDisplay();
         }
+
+        async function checkAllModelsHealth(models) {
+            if (!models || models.length === 0) return;
+            log('Starting background health checks for discovered models...');
+            
+            // Limit concurrency to 1 and add delay to prevent rate-limiting (429)
+            const concurrencyLimit = 1;
+            const queue = [...models];
+            
+            async function worker() {
+                while (queue.length > 0) {
+                    const model = queue.shift();
+                    const modelId = model.id || model.name;
+                    
+                    // Skip if already tested
+                    if (modelHealthStatus[modelId]) continue;
+                    
+                    modelHealthStatus[modelId] = 'testing';
+                    renderModelSelection(availableModels);
+                    
+                    // Add delay to prevent rate-limiting (429)
+                    await new Promise(resolve => setTimeout(resolve, 1500));
+                    
+                    try {
+                        const controller = new AbortController();
+                        const timer = setTimeout(() => controller.abort(), 12000); // 12 second timeout for health check
+                        
+                        const response = await authFetch('/api/proxy/chat', {
+                            method: 'POST',
+                            signal: controller.signal,
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                provider: PROVIDER_NAME,
+                                endpoint: storedEndpoint,
+                                model: modelId,
+                                prompt: 'Respond with exactly: OK',
+                                max_tokens: 5,
+                                temperature: 0
+                            })
+                        });
+                        
+                        clearTimeout(timer);
+                        
+                        if (response.ok) {
+                            modelHealthStatus[modelId] = 'OK';
+                        } else {
+                            modelHealthStatus[modelId] = 'KO';
+                        }
+                    } catch (e) {
+                        modelHealthStatus[modelId] = 'KO';
+                    }
+                    
+                    renderModelSelection(availableModels);
+                }
+            }
+            
+            const workers = Array.from({ length: concurrencyLimit }, worker);
+            await Promise.all(workers);
+            log('Finished background health checks for models.');
+        }
+
 
         function onCheckboxToggle(modelId, isChecked) {
             const compositeKey = `${PROVIDER_NAME}::${modelId}`;
@@ -3348,6 +3631,157 @@
             }
         }
 
+        function getModelReplacementDropdownHtml(currentModelId, roundNum) {
+            let modelsToUse = [...availableModels];
+            
+            // If availableModels is empty, use a curated set of standard models across key providers
+            if (modelsToUse.length === 0) {
+                const presets = [
+                    { id: 'openrouter::openai/gpt-4o', name: 'OpenRouter / GPT-4o' },
+                    { id: 'openrouter::openai/gpt-4o-mini', name: 'OpenRouter / GPT-4o Mini' },
+                    { id: 'openrouter::anthropic/claude-3.5-sonnet', name: 'OpenRouter / Claude 3.5 Sonnet' },
+                    { id: 'openrouter::google/gemini-1.5-pro', name: 'OpenRouter / Gemini 1.5 Pro' },
+                    { id: 'openrouter::perplexity/llama-3-sonar-large-32k-online', name: 'OpenRouter / Perplexity Sonar' },
+                    { id: 'openai::gpt-4o', name: 'OpenAI / GPT-4o' },
+                    { id: 'openai::gpt-4o-mini', name: 'OpenAI / GPT-4o Mini' },
+                    { id: 'anthropic::claude-3-5-sonnet-20240620', name: 'Anthropic / Claude 3.5 Sonnet' },
+                    { id: 'google::gemini-1.5-pro', name: 'Google / Gemini 1.5 Pro' },
+                    { id: 'google::gemini-1.5-flash', name: 'Google / Gemini 1.5 Flash' },
+                    { id: 'perplexity::llama-3.1-sonar-large-128k-online', name: 'Perplexity / Sonar Online' }
+                ];
+                
+                // Add any currently selected models that aren't in presets
+                selectedModels.forEach(mId => {
+                    if (!presets.find(p => p.id === mId)) {
+                        presets.push({ id: mId, name: mId.split('/').pop() });
+                    }
+                });
+                
+                modelsToUse = presets;
+            } else {
+                // Ensure all currently selected models are included
+                selectedModels.forEach(mId => {
+                    if (!modelsToUse.find(p => p.id === mId)) {
+                        modelsToUse.push({ id: mId, name: mId.split('/').pop() });
+                    }
+                });
+            }
+
+            // Group models by provider
+            const groups = {};
+            modelsToUse.forEach(m => {
+                let provider = 'Other';
+                let modelName = m.name || m.id;
+                
+                if (m.id.includes('::')) {
+                    provider = m.id.split('::')[0].toUpperCase();
+                } else if (m.id.includes('/')) {
+                    provider = m.id.split('/')[0].toUpperCase();
+                }
+                
+                if (!groups[provider]) {
+                    groups[provider] = [];
+                }
+                groups[provider].push(m);
+            });
+            
+            // Build option groups
+            let optionsHtml = `<option value="" disabled selected>🔄 Replace model...</option>`;
+            Object.keys(groups).sort().forEach(provider => {
+                optionsHtml += `<optgroup label="${provider}">`;
+                groups[provider].sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id)).forEach(m => {
+                    if (m.id !== currentModelId) {
+                        optionsHtml += `<option value="${m.id}">${m.name || m.id}</option>`;
+                    }
+                });
+                optionsHtml += `</optgroup>`;
+            });
+            
+            return `
+                <select class="model-replace-select" onchange="replaceModelInCard('${currentModelId}', this.value, ${roundNum})" style="
+                    background: var(--bg-secondary);
+                    color: var(--text-secondary);
+                    border: 1px solid var(--border);
+                    padding: 4px 8px;
+                    font-size: 11px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    max-width: 100%;
+                    margin-top: 6px;
+                    box-sizing: border-box;
+                    transition: border-color 0.15s ease;
+                " onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+                    ${optionsHtml}
+                </select>
+            `;
+        }
+
+        async function replaceModelInCard(oldModelId, newModelId, roundNum) {
+            if (!newModelId) return;
+            log(`Replacing model ${oldModelId} with ${newModelId} in round ${roundNum}`);
+            
+            // 1. Replace the model in selectedModels list
+            const idx = selectedModels.indexOf(oldModelId);
+            if (idx >= 0) {
+                selectedModels[idx] = newModelId;
+            }
+            
+            // 2. Replace the model in discussionData.models list
+            if (discussionData.models) {
+                const dIdx = discussionData.models.indexOf(oldModelId);
+                if (dIdx >= 0) {
+                    discussionData.models[dIdx] = newModelId;
+                }
+            }
+            
+            // 3. Update activeEnsemble displays if they are visible
+            updateActiveEnsembleDisplay();
+            renderSelectedModelsRow(selectedModels);
+            
+            // 4. Update the round data inside discussionData.rounds[roundNum]
+            if (discussionData.rounds?.[roundNum]) {
+                delete discussionData.rounds[roundNum][oldModelId];
+                discussionData.rounds[roundNum][newModelId] = { text: '', status: 'connecting' };
+            }
+            
+            // 5. Re-render the round statistics panel & update status
+            recalculateDiscussionStats();
+            
+            // 6. Replace the old card with the new model ID
+            const grid = document.getElementById(`modelsRound${roundNum}`);
+            const oldCard = grid ? grid.querySelector(`[data-model="${oldModelId}"]`) : null;
+            
+            if (oldCard) {
+                const newSafeId = newModelId.replace(/[^a-zA-Z0-9]/g, '-');
+                
+                oldCard.setAttribute('data-model', newModelId);
+                oldCard.className = `model-card connecting`;
+                
+                const replacementDropdownHtml = getModelReplacementDropdownHtml(newModelId, roundNum);
+                
+                oldCard.innerHTML = `
+                    <div class="model-card-header" style="align-items: flex-start;">
+                        <div style="display:flex; flex-direction:column; gap:4px; max-width:85%; flex:1;">
+                            <div class="model-name" style="font-weight:600; font-size:13px; color:var(--text-primary); word-break:break-all;">${newModelId.split('/').pop()}</div>
+                            ${replacementDropdownHtml}
+                        </div>
+                        <div class="model-badge badge-connecting" style="align-self: center;">🔗</div>
+                    </div>
+                    <div class="model-response">Connecting...</div>
+                    <div class="model-actions" id="actions-${newSafeId}-R${roundNum}"></div>
+                `;
+            }
+            
+            saveState();
+            
+            // 7. Fire off the query to the new model!
+            try {
+                await queryModel(newModelId, roundNum, discussionData.totalRounds, storedEndpoint, storedTimeout, storedMaxTokens);
+            } catch (err) {
+                log(`Error querying replacement model ${newModelId}: ${err.message}`);
+            }
+        }
+
         async function queryModel(modelId, roundNum, totalRounds, endpoint, timeout, maxTokens = 6000) {
             let pName = PROVIDER_NAME;
             let mId = modelId;
@@ -3372,10 +3806,16 @@
                 card = document.createElement('div');
                 card.className = 'model-card connecting';
                 card.setAttribute('data-model', modelId);
+                
+                const replacementDropdownHtml = getModelReplacementDropdownHtml(modelId, roundNum);
+                
                 card.innerHTML = `
-                    <div class="model-card-header">
-                        <div class="model-name">${modelId.split('/').pop()}</div>
-                        <div class="model-badge badge-connecting">🔗</div>
+                    <div class="model-card-header" style="align-items: flex-start;">
+                        <div style="display:flex; flex-direction:column; gap:4px; max-width:85%; flex:1;">
+                            <div class="model-name" style="font-weight:600; font-size:13px; color:var(--text-primary); word-break:break-all;">${modelId.split('/').pop()}</div>
+                            ${replacementDropdownHtml}
+                        </div>
+                        <div class="model-badge badge-connecting" style="align-self: center;">🔗</div>
                     </div>
                     <div class="model-response">Connecting...</div>
                     <div class="model-actions" id="actions-${modelId.replace(/[^a-zA-Z0-9]/g,'-')}"></div>
@@ -3542,7 +3982,6 @@
                 if (actionsDiv) {
                     actionsDiv.innerHTML = `
                         <button class="btn-expand" onclick="toggleExpand(this)">🔲 Expand</button>
-                        <button class="btn-expand" onclick="toggleFullscreen(this)">⛶ Full Screen</button>
                         <button class="btn-sleek btn-retry" onclick="retryModel('${modelId}', ${roundNum}, ${totalRounds})">🔄 Retry</button>
                         <button class="btn-sleek btn-skip" onclick="skipModel('${modelId}', ${roundNum})">⏭ Skip</button>
                     `;
@@ -3996,14 +4435,20 @@
                         response?.status === 'timeout' ? '⏱️' :
                         response?.status === 'skipped' ? '⏭' : '⏳';
                     const safeId = model.replace(/[^a-zA-Z0-9]/g, '-');
+                    
+                    const replacementDropdownHtml = getModelReplacementDropdownHtml(model, roundNum);
+                    
                     card.innerHTML = `
-                        <div class="model-card-header">
-                            <div class="model-name">${(() => {
-                                const displayId = model.includes('::') ? model.split('::')[1] : model;
-                                const providerPrefix = model.includes('::') ? `${model.split('::')[0].toUpperCase()} · ` : '';
-                                return providerPrefix + displayId.split('/').pop();
-                            })()}</div>
-                            <div class="model-badge badge-${response?.status || 'waiting'}">${badgeText}</div>
+                        <div class="model-card-header" style="align-items: flex-start;">
+                            <div style="display:flex; flex-direction:column; gap:4px; max-width:85%; flex:1;">
+                                <div class="model-name" style="font-weight:600; font-size:13px; color:var(--text-primary); word-break:break-all;">${(() => {
+                                    const displayId = model.includes('::') ? model.split('::')[1] : model;
+                                    const providerPrefix = model.includes('::') ? `${model.split('::')[0].toUpperCase()} · ` : '';
+                                    return providerPrefix + displayId.split('/').pop();
+                                })()}</div>
+                                ${replacementDropdownHtml}
+                            </div>
+                            <div class="model-badge badge-${response?.status || 'waiting'}" style="align-self: center;">${badgeText}</div>
                         </div>
                         <div class="model-response"></div>
                         <div class="model-actions" id="actions-${safeId}-R${roundNum}"></div>
@@ -4018,7 +4463,6 @@
                             if (response.status === 'complete') {
                                 acts.innerHTML = `
                                     <button class="btn-expand" onclick="toggleExpand(this)">🔲 Expand</button>
-                                    <button class="btn-expand" onclick="toggleFullscreen(this)">⛶ Full Screen</button>
                                 `;
                             } else if (response.status === 'error' || response.status === 'timeout') {
                                 acts.innerHTML = `
