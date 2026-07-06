@@ -583,6 +583,102 @@ Frontend                     Backend                     Provider API
    │◄──────────────────────────│                         │
 ```
 
+### 7.4 Detailed Query & Context Initiation Flow
+
+The query context is dynamically built and augmented at each stage of the lifecycle to support multi-model, multi-round discussion, live web search capabilities, and precise formatting compliance.
+
+```
+                  ┌─────────────────────────────────┐
+                  │      User Writes Question       │
+                  └────────────────┬────────────────┘
+                                   │
+                                   ▼
+                  ┌─────────────────────────────────┐
+                  │ Stage 1: Round 1 (Init Context) │
+                  │  - Prepend activeDateStr        │
+                  │  - Add Temporal Grounding /     │
+                  │    Web-Search Mandates          │
+                  │  - Add File Attachments         │
+                  │  - Add System instructions      │
+                  └────────────────┬────────────────┘
+                                   │
+                                   ▼
+                  ┌─────────────────────────────────┐
+                  │ Stage 2: Rounds 2-N (Refine)    │
+                  │  - safe-fetch previous responses│
+                  │    via getRoundResponse()       │
+                  │  - Append Chronological Log     │
+                  │  - Add Round-Specific Directive │
+                  └────────────────┬────────────────┘
+                                   │
+                ┌──┴──────────────────────────────┐
+                ▼                                 ▼
+   ┌──────────────────────────┐      ┌──────────────────────────┐
+   │Stage 3: Consensus (Done) │      │Stage 4: Stopped/Manual   │
+   │  - Aggregate responses   │      │  - Abort active tasks    │
+   │  - Prepend Date Context  │      │  - Compile post-mortem   │
+   │  - Inject Custom Summary │      │    chronological summary │
+   │    Instructions or       │      │  - Append final token    │
+   │    Format Template       │      │    usage statistics      │
+   └──────────────────────────┘      └──────────────────────────┘
+```
+
+#### Detailed Stage Augmentations:
+
+1. **Stage 1: Round 1 Initialization (No Prior Context)**
+   * **Temporal Grounding Injection**: A dynamic system notice containing the current date (e.g. `Monday, July 6, 2026`) is prepended to the message:
+     ```
+     [SYSTEM NOTICE: Today's date is <activeDateStr>. Treat today as the absolute present moment for your temporal grounding. If you have search, browsing, or real-time web-access capabilities, you must actively perform live internet search queries to retrieve and incorporate the latest, up-to-the-minute information...]
+     ```
+   * **File Attachments Prepending**: Base64/text representations of all uploaded files are added directly:
+     ```
+     [Attached files: <name1>, <name2>]\n\n
+     ```
+   * **Custom System Instructions**: User-defined formatting rules (`instructions`) are appended to the first round:
+     ```
+     \n\n## Instructions / Response Format:\n<instructions>
+     ```
+
+2. **Stage 2: Rounds 2 to N (Refinement Phase)**
+   * **Chronological Context Assembly**: To prevent context drift, preceding answers are combined into a standardized, unified format.
+   * **Prefix-Insensitive Safe Retrieval**: Uses the self-healing `getRoundResponse(roundData, modelId)` helper to look up both legacy prefix-less database keys and normalized prefixed keys, completely resolving key mismatches.
+   * **Round Log Generation**:
+     ```
+     # Original Question
+     "<question>"
+
+     ## Instructions
+     <instructions>
+
+     ## Round 1 Responses
+     ### provider::model_name
+     <response_text>
+     ...
+     ```
+   * **Refinement Directive Append**:
+     ```
+     \n## Round <num> Instructions\nReview all previous responses above and provide your refined analysis building upon what has been discussed. Focus on areas where you can add value or offer a different perspective.
+     ```
+
+3. **Stage 3: Consensus Synthesis**
+   * **Response Aggregation**: Gathers completed round answers from all models across all rounds using `getRoundResponse()`.
+   * **Consensus Temporal Notice**:
+     ```
+     [System Notice: Today's date is <activeDateStr>. Please synthesize a balanced consensus from all perspectives as of today's date.]
+     ```
+   * **Custom Instructions & Template Injections**:
+     * **If Custom Summary Instructions Specified**: Appends `\n\n## Custom Consensus Format Instructions:\n<instructions>`.
+     * **Else (Default Templates)**:
+       * **Compact**: Injects strict limits (1-sentence verdict, 40-point weighted score table, list of priority agreements, 3 priority recommendations).
+       * **Elaborate**: Injects detail mandates (2-3 sentence verdict, alignment/friction matrix, deprioritized points log, full scoring tables).
+
+4. **Stage 4: Stopped & Manually Closed Discussions**
+   * **Instant Task Abort**: Inbound calls are canceled using `consensusAbortController.abort()`.
+   * **Post-Mortem Summarization**:
+     * Converts the partial query data instantly into a structured markdown overview.
+     * Safely reads available responses using `getRoundResponse()`, falling back to `⏭ Skipped` or `*No response*` for incomplete tasks.
+     * Appends aggregated performance and token consumption metrics (`stats`).
+
 ---
 
 ## 8. API Reference
