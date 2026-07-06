@@ -8,6 +8,82 @@
     <script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
     <style>
         :root {
+        /* ── Center-Aligned Independent Login Page ── */
+        .login-page-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: var(--bg-primary);
+            z-index: 10000;
+            overflow-y: auto;
+            box-sizing: border-box;
+            padding: 24px;
+        }
+
+        .login-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            padding: 40px;
+            width: 100%;
+            max-width: 440px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            box-sizing: border-box;
+        }
+
+        .login-card h1 {
+            font-size: 28px;
+            font-weight: 700;
+            text-align: center;
+            margin: 0;
+            color: var(--accent);
+            letter-spacing: -0.5px;
+        }
+
+        /* ── Interactive Expandable Debate Cards ── */
+        .model-card {
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+            border-radius: 6px;
+            position: relative;
+            user-select: none;
+        }
+
+        .model-card:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+        }
+
+        .model-card.expanded {
+            grid-column: 1 / -1 !important; /* Expands to full-row width */
+            z-index: 5;
+            background: var(--bg-tertiary);
+            border-color: var(--accent);
+        }
+
+        .model-card.expanded .model-response {
+            max-height: none !important;
+        }
+
+        /* ── Full Width Sidebar Toggle ── */
+        .app-layout.full-width .left-panel {
+            display: none !important;
+        }
+        .app-layout.full-width .models-panel {
+            display: none !important;
+        }
+
             /* x.ai Minimalist Dark Theme */
             --bg-primary: #000000;       /* Pure black for that ultra-premium minimalist look */
             --bg-secondary: #0a0a0c;     /* Deep dark gray for cards and panels */
@@ -171,6 +247,7 @@
 
         /* ── Left Sidebar (Providers Panel) ── */
         .left-panel {
+            display: none !important;
             width: 260px;
             flex-shrink: 0;
             display: flex;
@@ -1143,10 +1220,122 @@
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">☀️</button>
+    <!-- Independent Center-Aligned Login Page -->
+    <div id="loginPage" class="login-page-container" style="display: none;">
+        <div class="login-card">
             <h1>AI - Ensemble</h1>
+            <div style="font-size: 13px; text-align: center; color: var(--text-secondary); margin-bottom: 8px;">
+                Enter your credentials to access the Ensemble dashboard
+            </div>
+            
+            <div id="loginStatusMsg" class="status-message" style="display: none;"></div>
+            
+            <div class="form-group" style="margin: 0;">
+                <label for="authIdentifier">Username or Email</label>
+                <input type="text" id="authIdentifier" placeholder="admin or admin@example.com" autocomplete="username">
+            </div>
+            
+            <div class="form-group" style="margin: 0;">
+                <label for="authPassword">Password</label>
+                <div style="position: relative;">
+                    <input type="password" id="authPassword" placeholder="••••••••" autocomplete="current-password" style="padding-right: 40px; width: 100%;">
+                    <button type="button" onclick="togglePasswordVisibility('authPassword')" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-tertiary);">👁️</button>
+                </div>
+            </div>
+            
+            <div class="auth-actions" style="margin-top: 8px; display: flex; gap: 12px;">
+                <button class="btn-primary" style="flex: 1;" onclick="loginUser()">Login</button>
+                <button class="btn-secondary" style="flex: 1;" onclick="registerUser()">Register</button>
+            </div>
+            
+            <div class="auth-note" style="text-align: center; margin-top: 4px;">
+                Secure Session Mode: Session token is kept in this browser session only. All API keys and preferences are stored securely and encrypted on the backend server.
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Provider Modal -->
+    <div id="addProviderModal" class="fullscreen-overlay" style="display: none; align-items: center; justify-content: center; z-index: 11000; background: rgba(0, 0, 0, 0.75);">
+        <div class="login-card" style="max-width: 500px; padding: 30px; gap: 16px; background: var(--bg-secondary); border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 8px;">
+                <h2 style="margin: 0; font-size: 18px; color: var(--text-primary); font-weight: 600;">Configure Provider</h2>
+                <button onclick="closeAddProviderModal()" style="background: none; border: none; font-size: 20px; color: var(--text-tertiary); cursor: pointer; line-height: 1;">&times;</button>
+            </div>
+            
+            <div class="form-group" style="margin: 0;">
+                <label for="modalProviderSelect">Platform / Preset</label>
+                <select id="modalProviderSelect" onchange="onModalProviderChange()" style="width: 100%; padding: 10px; background: var(--bg-tertiary); border: 1px solid var(--border); color: var(--text-primary); border-radius: 4px; font-size: 13px;">
+                    <option value="openrouter">OpenRouter (Default)</option>
+                    <option value="openai">OpenAI Official</option>
+                    <option value="perplexity">Perplexity AI</option>
+                    <option value="google-vertex">Google Vertex / Gemini</option>
+                    <option value="mammouth">Mammouth AI</option>
+                    <option value="requesty">Requesty AI</option>
+                    <option value="custom">Custom Compatible...</option>
+                </select>
+            </div>
+
+            <div id="modalOpenrouterOAuthGroup" style="display:none; padding: 12px; background: rgba(255, 92, 0, 0.05); border: 1px solid var(--border); border-radius: 6px; flex-direction: column; gap: 8px; box-sizing: border-box;">
+                <button class="btn-primary" style="background: #ff5c00; color: white; font-weight: 600; border: none; padding: 10px 16px; border-radius: 4px; cursor: pointer; width: 100%; box-sizing: border-box;" onclick="startOpenRouterOAuth()">
+                    <span>🔑 Sign In with OpenRouter (OAuth)</span>
+                </button>
+                <div style="font-size: 11px; color: var(--text-tertiary); text-align: center;">Secure, direct one-click authentication.</div>
+            </div>
+
+            <div id="gcpVertexFields" style="display: none; flex-direction: column; gap: 10px; margin-top: 8px;">
+                <div class="form-group" style="margin: 0;">
+                    <label for="modalGcpProject">Google Cloud Project ID</label>
+                    <input type="text" id="modalGcpProject" oninput="onGcpFieldsChange()" placeholder="your-gcp-project-123" style="width: 100%; padding: 10px; background: var(--bg-tertiary); border: 1px solid var(--border); color: var(--text-primary); border-radius: 4px; font-size: 13px; box-sizing: border-box;">
+                </div>
+                <div class="form-group" style="margin: 0;">
+                    <label for="modalGcpRegion">GCP Region</label>
+                    <input type="text" id="modalGcpRegion" oninput="onGcpFieldsChange()" value="us-central1" placeholder="us-central1" style="width: 100%; padding: 10px; background: var(--bg-tertiary); border: 1px solid var(--border); color: var(--text-primary); border-radius: 4px; font-size: 13px; box-sizing: border-box;">
+                </div>
+            </div>
+
+            <div class="form-group" style="margin: 0;">
+                <label for="modalEndpoint">API Endpoint</label>
+                <input type="text" id="modalEndpoint" placeholder="https://openrouter.ai/api/v1" style="width: 100%; padding: 10px; background: var(--bg-tertiary); border: 1px solid var(--border); color: var(--text-primary); border-radius: 4px; font-size: 13px; box-sizing: border-box;">
+            </div>
+
+            <div class="form-group" style="margin: 0; position: relative;">
+                <label for="modalApiKey" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                    <span>API Key</span>
+                    <a id="modalWebAuthLink" href="https://openrouter.ai" target="_blank" style="font-size: 11px; color: var(--accent); text-decoration: underline; font-weight: 500;">🔗 Login & Get Key</a>
+                </label>
+                <input type="password" id="modalApiKey" placeholder="sk-or-..." style="width: 100%; padding: 10px; background: var(--bg-tertiary); border: 1px solid var(--border); color: var(--text-primary); border-radius: 4px; font-size: 13px; box-sizing: border-box;">
+            </div>
+
+            <div style="display: flex; gap: 12px; margin-top: 10px;">
+                <button class="btn-primary" style="flex: 1;" onclick="saveModalProvider()">Save & Discover</button>
+                <button class="btn-secondary" style="flex: 1;" onclick="closeAddProviderModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Dashboard Container -->
+    <div id="appContainer" class="container" style="display: none; padding: 24px; max-width: 1440px; margin: 0 auto; box-sizing: border-box;">
+        <div class="header" style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 30px; border-bottom: 1px solid var(--border); padding-bottom: 15px; position: relative;">
+            
+            <!-- Left Top Corner: Username and Logout -->
+            <div class="header-left" style="flex: 1; display: flex; justify-content: flex-start; align-items: center;">
+                <div id="userDisplayHeader" style="display: none; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); background: none; border: none; padding: 0; border-radius: 0;">
+                    <span>Logged in as: <strong id="headerUsername" style="color: var(--accent); font-weight: 600;"></strong></span>
+                    <span style="color: var(--border); margin: 0 4px; user-select: none;">|</span>
+                    <button onclick="logoutUser()" style="background: none; border: none; padding: 0; color: var(--text-tertiary); cursor: pointer; text-decoration: none; font-size: 13px; font-weight: 500; transition: color 0.15s ease;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text-tertiary)'">Logout</button>
+                </div>
+            </div>
+
+            <!-- Center: AI Ensemble (Bigger & Clicking brings Home Page) -->
+            <div class="header-center" style="flex: 2; display: flex; justify-content: center; align-items: center;">
+                <h1 style="margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.5px; color: var(--text-primary); cursor: pointer; text-align: center;" onclick="switchMainTab('new')" title="Go to Home Screen">AI - Ensemble</h1>
+            </div>
+
+            <!-- Right Top Corner: Sun or Moon Toggle button -->
+            <div class="header-right" style="flex: 1; display: flex; justify-content: flex-end; align-items: center;">
+                <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme" style="position: static !important; transform: none !important; display: flex !important; cursor: pointer; background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-primary); width: 38px !important; height: 38px !important; border-radius: 50% !important; justify-content: center !important; align-items: center !important; font-size: 16px !important; padding: 0 !important; margin: 0 !important;">☀️</button>
+            </div>
+
         </div>
 
         <div class="app-layout">
@@ -1192,70 +1381,79 @@
                 <!-- ── Tab Content: New Discussion ── -->
                 <div class="tab-content active" id="tab-new">
                     <div id="setupSection">
-                        <div class="auth-panel">
-                            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
-                                <strong style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-secondary);">Account</strong>
-                                <div style="display:flex;align-items:center;gap:12px;">
-                                    <div id="authStateText" style="font-size:12px;color:var(--text-tertiary);">Not signed in</div>
-                                    <button id="logoutBtn" class="btn-sleek" style="display:none;padding:4px 10px;font-size:11px;border-color:var(--accent);color:var(--accent);" onclick="logoutUser()">Logout</button>
-                                </div>
-                            </div>
-                            <div class="auth-grid" style="margin-top:10px;">
-                                <div class="form-group" style="margin:0;">
-                                    <label for="authIdentifier">Username or Email</label>
-                                    <input type="text" id="authIdentifier" placeholder="admin or admin@example.com" autocomplete="username">
-                                </div>
-                                <div class="form-group" style="margin:0;">
-                                    <label for="authPassword">Password</label>
-                                    <div style="position: relative;">
-                                        <input type="password" id="authPassword" placeholder="••••••••" autocomplete="current-password" style="padding-right: 40px;">
-                                        <button type="button" onclick="togglePasswordVisibility('authPassword')" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-tertiary);">👁️</button>
-                                    </div>
-                                </div>
-                                <div class="auth-actions">
-                                    <button class="btn-sleek" style="padding:8px 12px;" onclick="loginUser()">Login</button>
-                                    <button class="btn-sleek" style="padding:8px 12px;" onclick="registerUser()">Register</button>
-                                </div>
-                            </div>
-                            <div class="auth-note">Minimal secure mode: token is stored in this browser session only and cleared on logout/browser close.</div>
-                        </div>
 
-                        <div style="margin-bottom:15px;">
-                            <button class="btn-sleek" style="background:var(--bg-secondary);color:var(--text-secondary);border:1px solid var(--border);width:100%;text-align:left;justify-content:space-between;padding:10px 16px;" onclick="toggleApiPanel()">
-                                <span>🔧 API Configuration</span>
-                                <span id="apiToggleIcon" style="font-size:11px;">▼</span>
-                            </button>
-                        </div>
-                        <div id="apiConfigPanel" style="display:none;">
-                            <div id="restoreBanner" style="display:none;background:var(--bg-secondary);border:1px solid var(--accent);padding:12px 16px;margin-bottom:20px;font-size:13px;border-radius:8px;">
-                                <strong>🔄 Discussion In Progress</strong>
-                                <span style="color:var(--text-secondary);margin-left:8px;">You have an unfinished discussion from a previous session.</span>
-                                <button class="btn-sleek" style="background:var(--accent);color:white;padding:4px 14px;margin-left:12px;font-size:12px;" onclick="restoreLastDiscussion()">Restore</button>
-                                <button class="btn-sleek" style="background:transparent;color:var(--text-tertiary);padding:4px 14px;margin-left:4px;font-size:12px;border:1px solid var(--border);" onclick="dismissRestore()">Dismiss</button>
+
+                        <!-- Step 1: Select & Configure Provider (On Top) -->
+                        <div class="form-section" style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 25px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+                                <h3 style="margin: 0; font-size: 14px; font-weight: 600; color: var(--text-primary);">🔌 Step 1: Select AI Provider</h3>
+                                <button class="btn-sleek" style="padding: 4px 10px; font-size: 12px;" onclick="addProvider()">+ Add Provider</button>
                             </div>
-                            <div id="statusMsg" class="status-message" style="display:none;"></div>
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label for="endpoint">API Endpoint <span style="color:var(--text-tertiary);font-weight:400;text-transform:none;">(e.g., OpenRouter, OpenAI, Ollama)</span></label>
-                                    <input type="text" id="endpoint" placeholder="https://api.openrouter.ai/v1" value="https://api.openrouter.ai/v1">
-                                    <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;">💡 OpenRouter provides the widest model selection with unified billing. See <a href="https://openrouter.ai/models" target="_blank" style="color:var(--accent);">model rankings</a>.</div>
+                            
+                            <!-- Interactive Grid-based Provider Selection -->
+                            <div id="providerGridList" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin-bottom: 16px;">
+                                <!-- Populated dynamically with active/inactive status indicator dots -->
+                            </div>
+
+                            <!-- Expandable Configuration Fields -->
+                            <div style="margin-top:10px;">
+                                <button class="btn-sleek" style="background:var(--bg-tertiary);color:var(--text-secondary);border:1px solid var(--border);width:100%;text-align:left;justify-content:space-between;padding:10px 16px;border-radius:6px;" onclick="toggleApiPanel()">
+                                    <span style="font-size: 12px; font-weight: 500;">⚙️ Edit</span>
+                                    <span id="apiToggleIcon" style="font-size:10px;">▼</span>
+                                </button>
+                            </div>
+                            
+                            <div id="apiConfigPanel" style="display:none; margin-top: 15px; border-top: 1px solid var(--border); padding-top: 18px;">
+                                <div id="restoreBanner" style="display:none;background:var(--bg-secondary);border:1px solid var(--accent);padding:12px 16px;margin-bottom:20px;font-size:13px;border-radius:8px;">
+                                    <strong>🔄 Discussion In Progress</strong>
+                                    <span style="color:var(--text-secondary);margin-left:8px;">You have an unfinished discussion from a previous session.</span>
+                                    <button class="btn-sleek" style="background:var(--accent);color:white;padding:4px 14px;margin-left:12px;font-size:12px;" onclick="restoreLastDiscussion()">Restore</button>
+                                    <button class="btn-sleek" style="background:transparent;color:var(--text-tertiary);padding:4px 14px;margin-left:4px;font-size:12px;border:1px solid var(--border);" onclick="dismissRestore()">Dismiss</button>
                                 </div>
-                                <div class="form-group">
-                                    <label for="apiKey">API Key <span style="color:var(--text-tertiary);font-weight:400;text-transform:none;">(stored securely in browser)</span></label>
-                                    <div style="position: relative;">
-                                        <input type="password" id="apiKey" placeholder="sk-..." style="padding-right: 40px;">
-                                        <button type="button" onclick="togglePasswordVisibility('apiKey')" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-tertiary);">👁️</button>
+                                <div id="statusMsg" class="status-message" style="display:none;"></div>
+                                <div id="openrouterOAuthGroup" style="display:none; margin-bottom: 18px; padding: 14px; background: rgba(255, 92, 0, 0.05); border: 1px solid var(--border); border-radius: 6px; flex-direction: column; gap: 8px;">
+                                    <span style="font-size: 12px; font-weight: 600; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.05em;">⚡ OpenRouter One-Click Sign In</span>
+                                    <button class="btn-primary" style="background: #ff5c00; color: white; font-weight: 600; border: none; padding: 10px 16px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;" onclick="startOpenRouterOAuth()">
+                                        <span>🔑 Sign In with OpenRouter (OAuth)</span>
+                                    </button>
+                                    <div style="font-size: 11px; color: var(--text-tertiary);">No copy-pasting API keys required. Authenticate securely via standard OpenRouter PKCE flow.</div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="endpoint">API Endpoint <span style="color:var(--text-tertiary);font-weight:400;text-transform:none;">(e.g., OpenRouter, OpenAI, Ollama)</span></label>
+                                        <input type="text" id="endpoint" placeholder="https://api.openrouter.ai/v1" value="https://api.openrouter.ai/v1">
+                                        <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;">💡 OpenRouter provides the widest model selection with unified billing.</div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="apiKey">API Key <span style="color:var(--text-tertiary);font-weight:400;text-transform:none;">(Stored securely on backend)</span></label>
+                                        <div style="position: relative;">
+                                            <input type="password" id="apiKey" placeholder="sk-..." style="padding-right: 40px;">
+                                            <button type="button" onclick="togglePasswordVisibility('apiKey')" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-tertiary);">👁️</button>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                            <div style="margin-bottom: 25px;">
-                                <button class="btn-primary" onclick="discoverModels()">Discover Models</button>
+                                <div style="display: flex; gap: 12px; margin-top: 15px; flex-wrap: wrap;">
+                                    <button class="btn-primary" style="flex: 1; min-width: 150px;" onclick="discoverModels()">Discover Models</button>
+                                    <button class="btn-secondary" style="flex: 1; min-width: 120px; border: 1px solid var(--border);" onclick="saveActiveSetupProvider()">💾 Save Provider</button>
+                                    <button id="resetProviderBtn" class="btn-secondary" style="flex: 1; min-width: 120px; border: 1px solid var(--border); color: #e06c75; display: none;" onclick="resetActiveProvider()">🗑️ Reset Provider</button>
+                                </div>
                             </div>
                         </div>
 
-                        <div class="model-selection" id="modelSelection" style="display:none;">
-                            <h3 style="margin-bottom: 15px; font-size: 14px;">Select Models (2-5)</h3>
-                            <div class="model-grid" id="modelGrid"></div>
+                        <div class="model-selection" id="modelSelection" style="display:none; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 25px; overflow: hidden;">
+                            <div onclick="toggleModelGrid()" style="display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; cursor: pointer; border-bottom: 1px solid var(--border); user-select: none;">
+                                <h3 style="margin: 0; font-size: 14px; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">🤖 Select Models (2-5)</h3>
+                                <span id="modelGridToggleIcon" style="font-size: 12px; color: var(--text-tertiary);">▲</span>
+                            </div>
+                            <div id="modelGridWrapper" style="display: block; padding: 20px;">
+                                <div class="model-grid" id="modelGrid"></div>
+                            </div>
+                        </div>
+
+                        <!-- Standalone Step 2.5: Selected Ensemble Models (Multi-Provider Checklist) -->
+                        <div class="form-section" id="activeEnsembleSection" style="display: none; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 25px;">
+                            <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--accent); margin-bottom: 12px; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); padding-bottom: 10px;">🌟 Active Ensemble (Selected Models)</div>
+                            <div id="activeEnsemblePills" style="display: flex; flex-wrap: wrap; gap: 10px;"></div>
                         </div>
 
                         <div id="questionSection" style="display:none;">
@@ -1280,7 +1478,7 @@
                                                 <label for="responseFormat">Response Format</label>
                                                 <select id="responseFormat" onchange="applyResponseFormat()" style="margin-bottom:8px;">
                                                     <option value="default">Default — Let the model decide</option>
-                                                    <option value="compact">Compact — Precise, bullet points, short</option>
+                                                    <option value="compact" selected>Compact — Precise, bullet points, short</option>
                                                     <option value="elaborate">Elaborate — Detailed with explanations & reasoning</option>
                                                 </select>
                                                 <label for="instructions">Custom Instructions (Optional — overrides format above)</label>
@@ -1293,7 +1491,7 @@
                                                 <label for="summaryFormat">Final Summary Format</label>
                                                 <select id="summaryFormat" style="margin-bottom:8px;">
                                                     <option value="elaborate">Elaborate — Full synthesis with reasoning (recommended)</option>
-                                                    <option value="compact">Compact — Quick verdict with weighted scores</option>
+                                                    <option value="compact" selected>Compact — Quick verdict with weighted scores</option>
                                                     <option value="default">Default — Let consensus model decide</option>
                                                 </select>
                                             </div>
@@ -1303,8 +1501,8 @@
                                             <div class="form-group">
                                                 <label for="rounds">Number of Rounds</label>
                                                 <select id="rounds">
-                                                    <option value="2">2 Rounds</option>
-                                                    <option value="3" selected>3 Rounds</option>
+                                                    <option value="2" selected>2 Rounds</option>
+                                                    <option value="3">3 Rounds</option>
                                                 </select>
                                             </div>
                                             <div class="form-group">
@@ -1357,6 +1555,12 @@
                         </div>
                     </div>
 
+                    <!-- Row of Selected Models -->
+                    <div id="selectedModelsRow" style="display:none; background: var(--bg-secondary); border: 1px solid var(--border); padding: 12px 16px; margin-bottom: 20px; border-radius: 6px; align-items: center; gap: 12px; flex-wrap: wrap;">
+                        <span style="font-size: 11px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Participating Models:</span>
+                        <div id="selectedModelsBadges" style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;"></div>
+                    </div>
+
                     <div class="progress-container">
                         <div class="progress-header">
                             <span id="roundLabel">Round 1 of 3</span>
@@ -1369,14 +1573,7 @@
                     </div>
 
                     <div class="round-timeline" id="roundTimeline"></div>
-                    <div class="summary-panel" id="summaryPanel">
-                        <div class="summary-header">
-                            <span>📋 Summary</span>
-                            <span style="font-size:12px;color:var(--text-tertiary);">Consensus & Export</span>
-                        </div>
-                        <div class="summary-body" id="summaryBody">
-                        </div>
-                    </div>
+
 
                     <div class="consensus-section" id="consensusSection">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
@@ -1384,6 +1581,15 @@
                             <button class="btn-secondary" onclick="closeConsensus()" style="padding: 6px 14px; font-size: 12px;">Close</button>
                         </div>
                         <div class="consensus-text" id="consensusText"></div>
+                    </div>
+
+                    <!-- Independent Uncolored Neutral Discussion Summary Box -->
+                    <div class="consensus-section" id="discussionSummarySection" style="display: none; background: var(--bg-secondary); border: 1px solid var(--border); box-shadow: none; padding: 24px; margin-bottom: 30px; border-radius: 6px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
+                            <h2 style="margin:0; font-size: 16px; font-weight: 600; color: var(--text-primary); text-transform: none;">📝 Discussion Summary</h2>
+                            <button class="btn-secondary" onclick="closeDiscussionSummary()" style="padding: 6px 14px; font-size: 12px; background: transparent; border: 1px solid var(--border); color: var(--text-primary);">Close</button>
+                        </div>
+                        <div class="consensus-text" id="discussionSummaryText" style="background: transparent; border: none; padding: 0; color: var(--text-secondary); line-height: 1.6;"></div>
                     </div>
 
                     <div class="export-section" id="exportSection">
@@ -1395,8 +1601,9 @@
                         </div>
                     </div>
 
-                    <div class="discussion-controls" style="justify-content: center; margin-top: 24px;">
-                        <button class="btn-sleek btn-stop" onclick="stopDiscussion()">⏹️ Stop & Summarize</button>
+                    <div class="discussion-controls" style="justify-content: center; gap: 16px; margin-top: 24px;">
+                        <button id="stopDiscBtn" class="btn-sleek btn-stop" onclick="stopDiscussion()">⏹️ Stop & Summarize</button>
+                        <button id="startNewDiscBtn" class="btn-primary" style="display: none; min-width: 180px;" onclick="resetAndNewDiscussion()">✨ Start New Discussion</button>
                     </div>
                 </div>
                 </div>
@@ -1417,6 +1624,10 @@
                                     <option value="az">Alphabetical (A-Z)</option>
                                 </select>
                             </div>
+                        </div>
+                        <!-- Simple bar filter (keyword search input) -->
+                        <div style="margin-bottom: 16px;">
+                            <input type="text" id="historySearch" oninput="renderHistory()" placeholder="🔍 Search history (keywords or fuzzy match)..." style="width: 100%; box-sizing: border-box;">
                         </div>
                         <div class="history-list-compact" id="historyList">
                             <div style="padding: 20px; text-align: center; color: var(--text-tertiary);">No discussions yet</div>
@@ -1468,7 +1679,19 @@
         let _settingHash = false;
         let authToken = '';
         let currentUser = '';
-        const PROVIDER_NAME = 'openai-compatible';
+        let PROVIDER_NAME = 'openai-compatible';
+        let savedCredentials = {};
+        let activeSavedProvider = 'openrouter';
+
+        const PRESET_PROVIDERS = {
+            'openrouter': { name: 'OpenRouter', endpoint: 'https://openrouter.ai/api/v1', authUrl: 'https://openrouter.ai' },
+            'openai': { name: 'OpenAI Official', endpoint: 'https://api.openai.com/v1', authUrl: 'https://platform.openai.com/api-keys' },
+            'perplexity': { name: 'Perplexity AI', endpoint: 'https://api.perplexity.ai', authUrl: 'https://www.perplexity.ai/settings/api' },
+            'google-vertex': { name: 'Google Vertex', endpoint: 'https://us-central1-aiplatform.googleapis.com/v1', authUrl: 'https://aistudio.google.com/app/apikey' },
+            'mammouth': { name: 'Mammouth AI', endpoint: 'https://api.mammouth.ai/v1', authUrl: 'https://mammouth.ai/app/account/settings/api' },
+            'requesty': { name: 'Requesty AI', endpoint: 'https://router.requesty.ai/v1', authUrl: 'https://router.requesty.ai' },
+            'custom': { name: 'Custom Compatible', endpoint: '', authUrl: '' }
+        };
         
         let discussionData = {
             id: null,
@@ -1512,11 +1735,144 @@
         }
 
         function addProvider() {
-            // Show a message about provider management
-            showStatus("Provider management is not fully implemented in this version. The application currently supports OpenRouter providers. To add a new provider, you would need to implement backend changes to store and manage provider credentials securely.", "info");
+            document.getElementById('modalProviderSelect').value = 'openrouter';
+            document.getElementById('modalApiKey').value = '';
+            onModalProviderChange();
             
-            // For now, we'll just show a message since full provider management requires backend changes
-            log("User requested to add a new provider");
+            const modal = document.getElementById('addProviderModal');
+            if (modal) {
+                modal.style.display = 'flex';
+            }
+        }
+
+        function closeAddProviderModal() {
+            const modal = document.getElementById('addProviderModal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+        }
+
+        function onGcpFieldsChange() {
+            const project = document.getElementById('modalGcpProject').value.trim() || 'your-gcp-project-123';
+            const region = document.getElementById('modalGcpRegion').value.trim() || 'us-central1';
+            const endpointInput = document.getElementById('modalEndpoint');
+            if (endpointInput) {
+                endpointInput.value = `https://${region}-aiplatform.googleapis.com/v1/projects/${project}/locations/${region}/publishers/google`;
+            }
+        }
+
+        async function saveActiveSetupProvider() {
+            const endpoint = document.getElementById('endpoint').value.trim();
+            const apiKey = document.getElementById('apiKey').value.trim();
+
+            if (!endpoint) {
+                alert('API Endpoint is required to save.');
+                return;
+            }
+            if (!apiKey) {
+                alert('API Key is required to save.');
+                return;
+            }
+
+            try {
+                const response = await authFetch('/api/providers', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        provider: PROVIDER_NAME,
+                        endpoint: endpoint,
+                        api_key: apiKey
+                    })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || 'Failed to save provider credentials');
+                }
+
+                showStatus(`✓ Saved ${PROVIDER_NAME} credentials permanently`, 'success');
+                await loadUserProviderConfig();
+            } catch (e) {
+                alert('Error: ' + e.message);
+                log('Failed to save provider: ' + e.message);
+            }
+        }
+
+        function onModalProviderChange() {
+            const providerKey = document.getElementById('modalProviderSelect').value;
+            const preset = PRESET_PROVIDERS[providerKey];
+            if (!preset) return;
+            
+            const modalOauthGroup = document.getElementById('modalOpenrouterOAuthGroup');
+            if (modalOauthGroup) {
+                modalOauthGroup.style.display = (providerKey === 'openrouter') ? 'flex' : 'none';
+            }
+
+            const gcpFields = document.getElementById('gcpVertexFields');
+            if (providerKey === 'google-vertex') {
+                if (gcpFields) gcpFields.style.display = 'flex';
+                onGcpFieldsChange();
+            } else {
+                if (gcpFields) gcpFields.style.display = 'none';
+                const endpointInput = document.getElementById('modalEndpoint');
+                if (endpointInput) {
+                    endpointInput.value = preset.endpoint;
+                    endpointInput.disabled = (providerKey !== 'custom');
+                }
+            }
+            
+            const webAuthLink = document.getElementById('modalWebAuthLink');
+            if (webAuthLink) {
+                if (preset.authUrl) {
+                    webAuthLink.href = preset.authUrl;
+                    webAuthLink.style.display = 'inline';
+                    webAuthLink.textContent = `🔗 Login to ${preset.name}`;
+                } else {
+                    webAuthLink.style.display = 'none';
+                }
+            }
+        }
+
+        async function saveModalProvider() {
+            const provider = document.getElementById('modalProviderSelect').value;
+            const endpoint = document.getElementById('modalEndpoint').value.trim();
+            const apiKey = document.getElementById('modalApiKey').value.trim();
+
+            if (!endpoint) {
+                alert('Endpoint is required.');
+                return;
+            }
+            if (!apiKey) {
+                alert('API Key is required to save.');
+                return;
+            }
+
+            try {
+                const response = await authFetch('/api/providers', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        provider,
+                        endpoint,
+                        api_key: apiKey
+                    })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || 'Failed to save provider credentials');
+                }
+
+                showStatus(`✓ Saved ${provider} credentials successfully`, 'success');
+                closeAddProviderModal();
+                
+                await loadUserProviderConfig();
+                await selectSavedProvider(provider);
+
+            } catch (e) {
+                alert('Error: ' + e.message);
+                log('Failed to save provider: ' + e.message);
+            }
         }
 
         function toggleModelsPanel() {
@@ -1568,13 +1924,93 @@
             // The user can manually collapse it using the provider list toggle
         }
 
+        function renderSelectedModelsRow(models) {
+            const row = document.getElementById('selectedModelsRow');
+            const container = document.getElementById('selectedModelsBadges');
+            if (!row || !container) return;
+            if (!models || models.length === 0) {
+                row.style.display = 'none';
+                return;
+            }
+            container.innerHTML = '';
+            models.forEach(model => {
+                const badge = document.createElement('span');
+                badge.style.cssText = `
+                    background: var(--bg-tertiary);
+                    color: var(--accent);
+                    border: 1px solid var(--border);
+                    padding: 4px 10px;
+                    font-size: 11px;
+                    font-weight: 500;
+                    border-radius: 12px;
+                `;
+                const displayId = model.includes('::') ? model.split('::')[1] : model;
+                const providerPrefix = model.includes('::') ? `${model.split('::')[0].toUpperCase()} · ` : '';
+                badge.textContent = providerPrefix + displayId.split('/').pop();
+                container.appendChild(badge);
+            });
+            row.style.display = 'flex';
+        }
+
+        function resetAndNewDiscussion() {
+            // Clear current discussion state
+            discussionData = {
+                status: 'idle',
+                rounds: {},
+                currentRoundNum: 1,
+                totalRounds: 0
+            };
+            discussionRunning = false;
+            localStorage.removeItem('councilState');
+            
+            // Reset question form
+            const qInput = document.getElementById('question');
+            if (qInput) qInput.value = '';
+            
+            const consensusText = document.getElementById('consensusText');
+            if (consensusText) consensusText.innerHTML = '';
+            
+            const responseFormat = document.getElementById('responseFormat');
+            if (responseFormat) responseFormat.value = 'compact';
+            applyResponseFormat();
+
+            const timeline = document.getElementById('roundTimeline');
+            if (timeline) timeline.innerHTML = '';
+            
+            // Show setup form
+            const setupSec = document.getElementById('setupSection');
+            if (setupSec) setupSec.style.display = 'block';
+            
+            // Hide selected models row
+            const selectedRow = document.getElementById('selectedModelsRow');
+            if (selectedRow) selectedRow.style.display = 'none';
+            
+            // Switch back to New tab
+            switchMainTab('new');
+        }
+
         function updateMainTabVisibility() {
             const currentTab = document.getElementById('currentMainTab');
             if (!currentTab) return;
-            if (discussionData.status === 'in_progress' || discussionData.status === 'completed' || discussionData.status === 'stopped' || discussionRunning) {
+            
+            const isFinished = discussionData.status === 'completed' || discussionData.status === 'stopped';
+            const isRunning = discussionRunning || discussionData.status === 'in_progress';
+            
+            if (isFinished || isRunning) {
                 currentTab.style.display = '';
             } else {
                 currentTab.style.display = 'none';
+            }
+            
+            // Toggle Stop & Summarize vs Start New Discussion
+            const stopBtn = document.getElementById('stopDiscBtn');
+            const startNewBtn = document.getElementById('startNewDiscBtn');
+            
+            if (stopBtn) {
+                stopBtn.style.display = isRunning ? 'inline-block' : 'none';
+            }
+            if (startNewBtn) {
+                startNewBtn.style.display = isFinished ? 'inline-block' : 'none';
             }
         }
 
@@ -1623,7 +2059,7 @@
             } else if (hash === 'current') {
                 switchMainTab('current');
             } else if (hash) {
-                const discussion = queryHistory.find(h => h.id === hash);
+                const discussion = queryHistory.find(h => String(h.id) === String(hash));
                 if (discussion) {
                     if (discussion.status === 'in_progress') {
                         resumeDiscussion(hash);
@@ -1655,24 +2091,23 @@
         }
 
         function updateAuthUi() {
-            const state = document.getElementById("authStateText");
-            if (state) {
-                state.textContent = authToken ? `Signed in as ${currentUser}` : "Not signed in";
-                state.style.color = authToken ? "var(--accent)" : "var(--text-tertiary)";
+            const loginPage = document.getElementById('loginPage');
+            const appContainer = document.getElementById('appContainer');
+            const headerUsername = document.getElementById('headerUsername');
+            const userDisplayHeader = document.getElementById('userDisplayHeader');
+
+            if (authToken) {
+                if (loginPage) loginPage.style.display = 'none';
+                if (appContainer) appContainer.style.display = 'block';
+                if (userDisplayHeader) userDisplayHeader.style.display = 'flex';
+                if (headerUsername) headerUsername.textContent = currentUser.split('@')[0];
+            } else {
+                if (loginPage) loginPage.style.display = 'flex';
+                if (appContainer) appContainer.style.display = 'none';
+                if (userDisplayHeader) userDisplayHeader.style.display = 'none';
             }
-            const authGrid = document.querySelector(".auth-grid");
-            const authNote = document.querySelector(".auth-note");
-            const logoutBtn = document.getElementById("logoutBtn");
-            if (authGrid) {
-                authGrid.style.display = authToken ? "none" : "";
-            }
-            if (authNote) {
-                authNote.style.display = authToken ? "none" : "";
-            }
-            if (logoutBtn) {
-                logoutBtn.style.display = authToken ? "block" : "none";
-            }
-            const startBtn = document.querySelector(".btn-start-discussion");
+
+            const startBtn = document.querySelector('.btn-start-discussion');
             if (startBtn) startBtn.disabled = !authToken;
         }
 
@@ -1728,17 +2163,124 @@
                 const response = await authFetch('/api/providers');
                 if (!response.ok) return;
                 const providers = await response.json();
-                const entry = Array.isArray(providers)
-                    ? providers.find(p => p.provider === PROVIDER_NAME)
-                    : null;
-                if (entry?.endpoint) {
-                    const endpointInput = document.getElementById('endpoint');
-                    if (endpointInput) endpointInput.value = entry.endpoint;
-                    storedEndpoint = entry.endpoint;
+                
+                savedCredentials = {};
+                if (Array.isArray(providers)) {
+                    providers.forEach(p => {
+                        savedCredentials[p.provider] = p;
+                    });
+                }
+                
+                renderProviderList();
+
+                // Select the active saved provider to auto-fill the form and discover models
+                if (savedCredentials[activeSavedProvider]) {
+                    await selectSavedProvider(activeSavedProvider);
+                } else {
+                    const firstConfigured = Object.keys(savedCredentials)[0];
+                    if (firstConfigured) {
+                        await selectSavedProvider(firstConfigured);
+                    }
                 }
             } catch (e) {
                 showStatus(`Error loading provider config: ${e.message}`, 'error');
                 log(`Error loading provider config: ${e.message}`);
+            }
+        }
+
+        function renderProviderList() {
+            const grid = document.getElementById('providerGridList');
+            if (!grid) return;
+            grid.innerHTML = '';
+
+            Object.keys(PRESET_PROVIDERS).forEach(key => {
+                if (key === 'custom') return;
+                
+                const preset = PRESET_PROVIDERS[key];
+                const saved = savedCredentials[key];
+                
+                const card = document.createElement('div');
+                card.style.cssText = `
+                    background: var(--bg-tertiary);
+                    border: 1px solid var(--border);
+                    border-radius: 6px;
+                    padding: 10px 14px;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    font-size: 13px;
+                    font-weight: 500;
+                    transition: all 0.2s ease;
+                `;
+                
+                if (key === activeSavedProvider) {
+                    card.style.borderColor = 'var(--accent)';
+                    card.style.background = 'rgba(255, 92, 0, 0.05)';
+                    card.style.boxShadow = '0 0 0 1px var(--accent)';
+                }
+                
+                const isConfigured = !!saved;
+                const dotColor = isConfigured ? '#34c759' : '#8e8e93';
+                
+                card.innerHTML = `
+                    <span class="provider-dot" style="background: ${dotColor}; width: 8px; height: 8px; border-radius: 50%; display: inline-block;"></span>
+                    <span style="color: var(--text-primary); flex: 1;">${preset.name}</span>
+                `;
+                
+                card.onclick = () => selectSavedProvider(key);
+                grid.appendChild(card);
+            });
+        }
+
+        async function selectSavedProvider(key) {
+            activeSavedProvider = key;
+            renderProviderList();
+
+            const saved = savedCredentials[key] || PRESET_PROVIDERS[key];
+            
+            const oauthGroup = document.getElementById('openrouterOAuthGroup');
+            if (oauthGroup) {
+                oauthGroup.style.display = (key === 'openrouter') ? 'flex' : 'none';
+            }
+
+            const endpointInput = document.getElementById('endpoint');
+            const apiKeyInput = document.getElementById('apiKey');
+            
+            if (endpointInput) endpointInput.value = saved.endpoint || '';
+            if (apiKeyInput) {
+                apiKeyInput.value = '';
+                apiKeyInput.placeholder = savedCredentials[key] ? '[Saved]' : 'Enter API Key...';
+            }
+            
+            PROVIDER_NAME = key;
+            storedEndpoint = saved.endpoint || '';
+            
+            // Manage Reset Provider Button Visibility
+            const resetBtn = document.getElementById('resetProviderBtn');
+            if (resetBtn) {
+                if (savedCredentials[key]) {
+                    resetBtn.style.display = 'inline-block';
+                } else {
+                    resetBtn.style.display = 'none';
+                }
+            }
+            
+            if (savedCredentials[key]) {
+                log(`Auto-discovering models for active provider: ${key}`);
+                await discoverModels();
+            } else {
+                const modelSelection = document.getElementById('modelSelection');
+                if (modelSelection) modelSelection.style.display = 'none';
+                
+                // Instead of opening the modal, we expand the Edit configuration panel inline!
+                const panel = document.getElementById('apiConfigPanel');
+                const icon = document.getElementById('apiToggleIcon');
+                if (panel && panel.style.display !== 'block') {
+                    panel.style.display = 'block';
+                    if (icon) icon.textContent = '▲';
+                    localStorage.setItem('apiPanelOpen', '1');
+                }
             }
         }
 
@@ -1770,6 +2312,54 @@
             storedEndpoint = endpoint;
             storedApiKey = '';
             return endpoint;
+        }
+
+        async function resetActiveProvider() {
+            if (!confirm(`Are you sure you want to reset and clear credentials for ${PROVIDER_NAME.toUpperCase()}?`)) {
+                return;
+            }
+            try {
+                showStatus(`Resetting credentials for ${PROVIDER_NAME}...`, 'connecting');
+                const resp = await authFetch(`/api/providers/${PROVIDER_NAME}`, {
+                    method: 'DELETE'
+                });
+                if (resp.ok) {
+                    showStatus(`Successfully reset credentials for ${PROVIDER_NAME}!`, 'success');
+                    
+                    // Clear local saved credentials state
+                    delete savedCredentials[PROVIDER_NAME];
+                    
+                    // Hide reset button
+                    const resetBtn = document.getElementById('resetProviderBtn');
+                    if (resetBtn) resetBtn.style.display = 'none';
+                    
+                    // Clear form fields
+                    const endpointInput = document.getElementById('endpoint');
+                    const apiKeyInput = document.getElementById('apiKey');
+                    if (endpointInput) endpointInput.value = '';
+                    if (apiKeyInput) {
+                        apiKeyInput.value = '';
+                        apiKeyInput.placeholder = 'Enter API Key...';
+                    }
+                    
+                    // Hide model Selection checkboxes grid
+                    const modelSelection = document.getElementById('modelSelection');
+                    if (modelSelection) modelSelection.style.display = 'none';
+                    
+                    // Reset selected models array
+                    selectedModels = selectedModels.filter(m => !m.startsWith(`${PROVIDER_NAME}::`));
+                    updateActiveEnsembleDisplay();
+                    
+                    // Refresh the providers grid display to show grey-dot
+                    renderProviderList();
+                } else {
+                    const data = await resp.json().catch(() => ({}));
+                    showStatus(`Reset failed: ${data.detail || 'Unknown error'}`, 'error');
+                }
+            } catch (err) {
+                console.error(err);
+                showStatus(`Error resetting provider: ${err.message}`, 'error');
+            }
         }
 
         function requireAuth(actionName = 'perform this action') {
@@ -1902,21 +2492,21 @@
 
         function toggleTheme() {
             const html = document.documentElement;
-            const themes = ['dark', 'light', 'ps-xai-orange'];
             const current = html.getAttribute('data-theme') || 'dark';
-            const idx = themes.indexOf(current);
-            const next = themes[(idx + 1) % themes.length];
+            const next = current === 'dark' ? 'light' : 'dark';
             html.setAttribute('data-theme', next);
             localStorage.setItem('theme', next);
-            const labels = { dark: '☀️', light: '🌙', 'ps-xai-orange': '🔥' };
-            document.querySelector('.theme-toggle').textContent = labels[next];
+            const labels = { dark: '☀️', light: '🌙' };
+            const toggleBtn = document.querySelector('.theme-toggle');
+            if (toggleBtn) toggleBtn.textContent = labels[next];
         }
 
         function loadTheme() {
             const saved = localStorage.getItem('theme') || 'dark';
             document.documentElement.setAttribute('data-theme', saved);
-            const labels = { dark: '☀️', light: '🌙', 'ps-xai-orange': '🔥' };
-            document.querySelector('.theme-toggle').textContent = labels[saved] || '☀️';
+            const labels = { dark: '☀️', light: '🌙' };
+            const toggleBtn = document.querySelector('.theme-toggle');
+            if (toggleBtn) toggleBtn.textContent = labels[saved] || '☀️';
         }
 
         function togglePasswordVisibility(fieldId) {
@@ -1939,7 +2529,7 @@
                     const state = JSON.parse(saved);
                     if (!state.id) return;
                     // Push into queryHistory if not already there
-                    if (!queryHistory.find(h => h.id === state.id)) {
+                    if (!queryHistory.find(h => String(h.id) === String(state.id))) {
                         queryHistory.unshift(state);
                         saveHistory();
                     }
@@ -1963,6 +2553,15 @@
         function switchTab(tab) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
             document.getElementById(`tab-${tab}`).classList.add('active');
+
+            const appLayout = document.querySelector('.app-layout');
+            if (appLayout) {
+                if (tab === 'new') {
+                    appLayout.classList.remove('full-width');
+                } else {
+                    appLayout.classList.add('full-width');
+                }
+            }
 
             if (tab === 'new') {
                 document.getElementById('setupSection').style.display = 'block';
@@ -2000,7 +2599,7 @@
                     totalRounds = state.totalRounds || 0;
 
                     // Sync into queryHistory so history tab and restore functions can find it
-                    if (state.id && !queryHistory.find(h => h.id === state.id)) {
+                    if (state.id && !queryHistory.find(h => String(h.id) === String(state.id))) {
                         queryHistory.unshift(state);
                         saveHistory();
                     }
@@ -2029,7 +2628,7 @@
             localStorage.setItem('councilState', JSON.stringify(state));
 
             if (discussionData.id) {
-                const existingIdx = queryHistory.findIndex(h => h.id === discussionData.id);
+                const existingIdx = queryHistory.findIndex(h => String(h.id) === String(discussionData.id));
                 const entry = { ...discussionData };
                 if (existingIdx >= 0) {
                     queryHistory[existingIdx] = entry;
@@ -2037,6 +2636,22 @@
                     queryHistory.unshift(entry);
                 }
                 saveHistory();
+
+                // If logged in, sync state_json to backend database
+                const isBackendId = typeof discussionData.id === 'number' || (typeof discussionData.id === 'string' && !discussionData.id.startsWith('disc_'));
+                if (authToken && isBackendId) {
+                    authFetch(`/api/discussions/${discussionData.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            status: discussionData.status,
+                            state_json: JSON.stringify(state),
+                            title: discussionData.question.substring(0, 50)
+                        })
+                    }).catch(err => {
+                        log(`Error syncing state to server: ${err.message}`);
+                    });
+                }
             }
         }
 
@@ -2112,6 +2727,27 @@
             localStorage.setItem('councilHistory', JSON.stringify(queryHistory));
         }
 
+        function fuzzyMatch(text, query) {
+            if (!query) return true;
+            text = text.toLowerCase();
+            query = query.toLowerCase();
+            
+            // Substring check
+            if (text.includes(query)) return true;
+            
+            // Character subsequence search (fuzzy match)
+            let qIdx = 0;
+            for (let tIdx = 0; tIdx < text.length; tIdx++) {
+                if (text[tIdx] === query[qIdx]) {
+                    qIdx++;
+                }
+                if (qIdx === query.length) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         function renderHistory() {
             const historyList = document.getElementById('historyList');
             if (!historyList) return;
@@ -2128,12 +2764,34 @@
                 filtered = filtered.filter(h => h.status === 'in_progress');
             }
 
+            // Keyword/Fuzzy search filter
+            const searchVal = document.getElementById('historySearch')?.value.trim() || '';
+            if (searchVal) {
+                filtered = filtered.filter(h => {
+                    const searchText = [
+                        h.question || '',
+                        h.instructions || '',
+                        h.consensus || '',
+                        (h.models || []).join(' ')
+                    ].join(' ');
+                    return fuzzyMatch(searchText, searchVal);
+                });
+            }
+
             // Apply sorting on the filtered array (which is a fresh clone)
             const sortVal = document.getElementById('historySort')?.value || 'newest';
             if (sortVal === 'newest') {
-                filtered.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+                filtered.sort((a, b) => {
+                    const tA = typeof a.timestamp === 'string' ? new Date(a.timestamp).getTime() : (a.timestamp || 0);
+                    const tB = typeof b.timestamp === 'string' ? new Date(b.timestamp).getTime() : (b.timestamp || 0);
+                    return tB - tA;
+                });
             } else if (sortVal === 'oldest') {
-                filtered.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+                filtered.sort((a, b) => {
+                    const tA = typeof a.timestamp === 'string' ? new Date(a.timestamp).getTime() : (a.timestamp || 0);
+                    const tB = typeof b.timestamp === 'string' ? new Date(b.timestamp).getTime() : (b.timestamp || 0);
+                    return tA - tB;
+                });
             } else if (sortVal === 'az') {
                 filtered.sort((a, b) => (a.question || '').localeCompare(b.question || ''));
             }
@@ -2144,13 +2802,18 @@
             }
 
             historyList.innerHTML = filtered.map((h, idx) => {
-                const statusIcon = h.status === 'in_progress' ? '🟡' : '✅';
+                const statusIcon = h.status === 'in_progress' ? '🟡' : h.status === 'stopped' ? '⏹️' : '✅';
+                const qText = h.question || '';
+                const hTime = typeof h.timestamp === 'string' ? new Date(h.timestamp).getTime() : (h.timestamp || Date.now());
+                const formattedDateStr = new Date(hTime).toLocaleDateString();
+                const formattedTimeStr = new Date(hTime).toLocaleString();
+
                 return `
                 <div>
                     <div class="history-item-compact" onclick="toggleHistoryDetail(${idx})">
                         <span>${statusIcon}</span>
-                        <span class="hq">${h.question.substring(0, 80)}${h.question.length > 80 ? '…' : ''}</span>
-                        <span class="hmeta">${new Date(h.timestamp).toLocaleDateString()} · ${h.models?.length || 0}m · ${Object.keys(h.rounds||{}).length}r</span>
+                        <span class="hq">${qText.substring(0, 80)}${qText.length > 80 ? '…' : ''}</span>
+                        <span class="hmeta">${formattedDateStr} · ${h.models?.length || 0}m · ${Object.keys(h.rounds||{}).length}r</span>
                         <span class="hactions">
                             <button title="Copy question" onclick="event.stopPropagation();copyHistoryQuery('${h.id}')">📋</button>
                             <button title="Copy summary" onclick="event.stopPropagation();copyHistorySummary('${h.id}')">📝</button>
@@ -2158,10 +2821,10 @@
                         </span>
                     </div>
                     <div class="history-item-detail" id="hd-${idx}">
-                        <div><strong>Question:</strong> ${h.question}</div>
+                        <div><strong>Question:</strong> ${qText}</div>
                         ${h.instructions ? `<div style="margin-top:6px;"><strong>Instructions:</strong> ${h.instructions}</div>` : ''}
                         <div style="margin-top:6px;color:var(--text-tertiary);font-size:11px;">
-                            ${new Date(h.timestamp).toLocaleString()} · ${h.models?.length || 0} models · ${Object.keys(h.rounds||{}).length} rounds · Status: ${h.status}
+                            ${formattedTimeStr} · ${h.models?.length || 0} models · ${Object.keys(h.rounds||{}).length} rounds · Status: ${h.status}
                         </div>
                         <div class="hd-actions">
                             <button title="Copy question text" onclick="copyHistoryQuery('${h.id}')">📋 Copy Query</button>
@@ -2188,7 +2851,7 @@
         }
 
         function copyHistorySummary(id) {
-            const discussion = queryHistory.find(h => h.id === id);
+            const discussion = queryHistory.find(h => String(h.id) === String(id));
             if (discussion?.consensus) {
                 navigator.clipboard.writeText(discussion.consensus);
                 const btn = event.target;
@@ -2266,27 +2929,115 @@
 
         function renderModelSelection() {
             const grid = document.getElementById('modelGrid');
+            if (!grid) return;
             grid.innerHTML = '';
+            
             availableModels.forEach(model => {
                 const modelId = model.id || model.name;
+                const compositeKey = `${PROVIDER_NAME}::${modelId}`;
+                const isChecked = selectedModels.includes(compositeKey) ? 'checked' : '';
+                
                 const label = document.createElement('label');
                 label.className = 'model-checkbox';
                 label.innerHTML = `
-                    <input type="checkbox" value="${modelId}" onchange="updateSelectedModels()">
-                    ${modelId.split('/').pop()}
+                    <input type="checkbox" value="${modelId}" ${isChecked} onchange="onCheckboxToggle('${modelId}', this.checked)">
+                    <span>${modelId.split('/').pop()}</span>
                 `;
                 grid.appendChild(label);
             });
 
             const consensusSelect = document.getElementById('consensusModel');
-            consensusSelect.innerHTML = '';
-            availableModels.forEach(model => {
-                const modelId = model.id || model.name;
-                const option = document.createElement('option');
-                option.value = modelId;
-                option.textContent = modelId.split('/').pop();
-                consensusSelect.appendChild(option);
+            if (consensusSelect) {
+                consensusSelect.innerHTML = '';
+                selectedModels.forEach(comp => {
+                    let mId = comp;
+                    if (comp.includes('::')) mId = comp.split('::')[1];
+                    const option = document.createElement('option');
+                    option.value = comp;
+                    option.textContent = mId.split('/').pop();
+                    consensusSelect.appendChild(option);
+                });
+            }
+
+            updateActiveEnsembleDisplay();
+        }
+
+        function onCheckboxToggle(modelId, isChecked) {
+            const compositeKey = `${PROVIDER_NAME}::${modelId}`;
+            if (isChecked) {
+                if (!selectedModels.includes(compositeKey)) {
+                    selectedModels.push(compositeKey);
+                }
+            } else {
+                selectedModels = selectedModels.filter(m => m !== compositeKey);
+            }
+            
+            const consensusSelect = document.getElementById('consensusModel');
+            if (consensusSelect) {
+                consensusSelect.innerHTML = '';
+                selectedModels.forEach(comp => {
+                    let mId = comp;
+                    if (comp.includes('::')) mId = comp.split('::')[1];
+                    const option = document.createElement('option');
+                    option.value = comp;
+                    option.textContent = mId.split('/').pop();
+                    consensusSelect.appendChild(option);
+                });
+            }
+
+            updateActiveEnsembleDisplay();
+        }
+
+        function updateActiveEnsembleDisplay() {
+            const container = document.getElementById('activeEnsembleSection');
+            const pillsDiv = document.getElementById('activeEnsemblePills');
+            const questionSec = document.getElementById('questionSection');
+            
+            if (!container || !pillsDiv) return;
+
+            if (selectedModels.length === 0) {
+                container.style.display = 'none';
+                if (questionSec) questionSec.style.display = 'none';
+                return;
+            }
+
+            container.style.display = 'block';
+            if (questionSec) questionSec.style.display = 'block';
+            pillsDiv.innerHTML = '';
+
+            selectedModels.forEach(comp => {
+                let pName = PROVIDER_NAME;
+                let mId = comp;
+                if (comp.includes('::')) {
+                    const parts = comp.split('::');
+                    pName = parts[0];
+                    mId = parts[1];
+                }
+
+                const pill = document.createElement('div');
+                pill.style.background = 'var(--bg-tertiary)';
+                pill.style.border = '1px solid var(--border)';
+                pill.style.padding = '6px 12px';
+                pill.style.borderRadius = '20px';
+                pill.style.fontSize = '12px';
+                pill.style.color = 'var(--text-primary)';
+                pill.style.display = 'flex';
+                pill.style.alignItems = 'center';
+                pill.style.gap = '8px';
+                
+                const presetName = PRESET_PROVIDERS[pName]?.name || pName;
+                pill.innerHTML = `
+                    <span style="font-size: 10px; text-transform: uppercase; background: var(--accent); color: white; padding: 2px 6px; border-radius: 4px; font-weight: 600;">${presetName}</span>
+                    <strong style="font-weight: 500; color: var(--text-primary);">${mId.split('/').pop()}</strong>
+                    <span style="cursor: pointer; color: var(--text-tertiary); font-weight: bold; margin-left: 4px; font-size: 14px;" onclick="removeModelFromEnsemble('${comp}')">&times;</span>
+                `;
+                pillsDiv.appendChild(pill);
             });
+        }
+
+        function removeModelFromEnsemble(compositeKey) {
+            selectedModels = selectedModels.filter(m => m !== compositeKey);
+            renderModelSelection();
         }
 
         function updateSelectedModels() {
@@ -2318,6 +3069,20 @@
             const open = body.style.display !== 'block';
             body.style.display = open ? 'block' : 'none';
             if (icon) icon.classList.toggle('collapsed', !open);
+        }
+
+        function toggleModelGrid() {
+            const wrapper = document.getElementById('modelGridWrapper');
+            const icon = document.getElementById('modelGridToggleIcon');
+            if (!wrapper) return;
+            const isOpen = wrapper.style.display !== 'none';
+            wrapper.style.display = isOpen ? 'none' : 'block';
+            if (icon) icon.textContent = isOpen ? '▼' : '▲';
+            
+            const header = icon.parentElement;
+            if (header) {
+                header.style.borderBottom = isOpen ? 'none' : '1px solid var(--border)';
+            }
         }
 
         function toggleApiPanel() {
@@ -2372,7 +3137,32 @@
             if (!question) { showStatus('Please enter a question', 'error'); return; }
             if (selectedModels.length < 2 || selectedModels.length > 5) { showStatus('Select 2-5 models', 'error'); return; }
 
-            discussionId = 'disc_' + Date.now();
+            // If logged in, create the discussion on the server first
+            if (authToken) {
+                try {
+                    const res = await authFetch('/api/discussions', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            question: question,
+                            title: question.substring(0, 50)
+                        })
+                    });
+                    if (res.ok) {
+                        const d = await res.json();
+                        discussionId = d.id;
+                    } else {
+                        log(`Server error creating discussion: ${res.status}`);
+                        discussionId = 'disc_' + Date.now();
+                    }
+                } catch (err) {
+                    log(`Error creating backend discussion: ${err.message}`);
+                    discussionId = 'disc_' + Date.now();
+                }
+            } else {
+                discussionId = 'disc_' + Date.now();
+            }
+
             currentRoundNum = 1;
             roundErrors = {};
             discussionRunning = true;
@@ -2382,6 +3172,7 @@
             storedMaxTokens = maxTokens;
 
             document.getElementById('consensusSection').classList.remove('active');
+            closeDiscussionSummary();
             document.getElementById('consensusText').textContent = '';
             document.getElementById('exportSection').classList.remove('active');
             document.getElementById('roundTimeline').innerHTML = '';
@@ -2431,6 +3222,7 @@
                 instDisplay.style.display = 'none';
             }
             document.getElementById('questionDisplay').style.display = 'block';
+                renderSelectedModelsRow(selectedModels);
 
             renderRoundTimeline(totalRounds);
             
@@ -2557,6 +3349,15 @@
         }
 
         async function queryModel(modelId, roundNum, totalRounds, endpoint, timeout, maxTokens = 6000) {
+            let pName = PROVIDER_NAME;
+            let mId = modelId;
+            if (modelId.includes('::')) {
+                const parts = modelId.split('::');
+                pName = parts[0];
+                mId = parts[1];
+            }
+            const saved = savedCredentials[pName] || PRESET_PROVIDERS[pName] || {};
+            const pEndpoint = saved.endpoint || endpoint;
             const modelsGrid = document.getElementById(`modelsRound${roundNum}`);
             
             // Check if modelsGrid exists
@@ -2579,6 +3380,12 @@
                     <div class="model-response">Connecting...</div>
                     <div class="model-actions" id="actions-${modelId.replace(/[^a-zA-Z0-9]/g,'-')}"></div>
                 `;
+                card.addEventListener('click', (e) => {
+                    if (e.target.closest('button, a, input, select, textarea')) {
+                        return;
+                    }
+                    card.classList.toggle('expanded');
+                });
                 modelsGrid.appendChild(card);
                 
                 // Log that we created a new card
@@ -2614,7 +3421,13 @@
             
             if (actionsEl) actionsEl.innerHTML = '';
 
-            let userMessage = discussionData.question;
+            const activeDateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            const dateContext = `[SYSTEM NOTICE: Today's date is ${activeDateStr}. Treat today as the absolute present moment for your temporal grounding. If you have search, browsing, or real-time web-access capabilities, you must actively perform live internet search queries to retrieve and incorporate the latest, up-to-the-minute information from the most authoritative, reliable, and primary online sources before formulating your analysis, recommendations, or data picks. Do not work on pre-training cutoff or stale offline data.]`;
+
+            let userMessage = `${dateContext}\n\n${discussionData.question}`;
+            if (roundNum === 1 && discussionData.instructions) {
+                userMessage += `\n\n## Instructions / Response Format:\n${discussionData.instructions}`;
+            }
             if (roundNum > 1) {
                 const contextParts = [`# Original Question\n"${discussionData.question}"\n`];
                 if (discussionData.instructions) {
@@ -2660,9 +3473,9 @@
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        provider: PROVIDER_NAME,
-                        endpoint,
-                        model: modelId,
+                        provider: pName,
+                        endpoint: pEndpoint,
+                        model: mId,
                         prompt: `You are ${modelId}. Provide a comprehensive, well-researched response.\n\n${userMessage}`,
                         temperature: 0.7,
                         max_tokens: maxTokens
@@ -2725,11 +3538,11 @@
 
                 // Actions: expand, fullscreen, retry, skip on every completed model
                 const safeId = modelId.replace(/[^a-zA-Z0-9]/g, '-');
-                const actionsDiv = document.getElementById(`actions-${safeId}`) || actionsEl;
+                const actionsDiv = document.getElementById(`actions-${safeId}-R${roundNum}`) || actionsEl;
                 if (actionsDiv) {
                     actionsDiv.innerHTML = `
-                        <button class="btn-expand" onclick="toggleExpand(this, '${safeId}')">🔲 Expand</button>
-                        <button class="btn-expand" onclick="toggleFullscreen('${safeId}')">⛶ Full Screen</button>
+                        <button class="btn-expand" onclick="toggleExpand(this)">🔲 Expand</button>
+                        <button class="btn-expand" onclick="toggleFullscreen(this)">⛶ Full Screen</button>
                         <button class="btn-sleek btn-retry" onclick="retryModel('${modelId}', ${roundNum}, ${totalRounds})">🔄 Retry</button>
                         <button class="btn-sleek btn-skip" onclick="skipModel('${modelId}', ${roundNum})">⏭ Skip</button>
                     `;
@@ -2798,15 +3611,15 @@
             showRoundStatus();
         }
 
-        function toggleExpand(btn, modelId) {
-            const resp = document.querySelector(`#actions-${modelId}`).closest('.model-card')?.querySelector('.model-response');
-            if (!resp) return;
-            resp.classList.toggle('expanded');
-            btn.textContent = resp.classList.contains('expanded') ? '🔽 Collapse' : '🔲 Expand';
+        function toggleExpand(btn) {
+            const card = btn.closest('.model-card');
+            if (!card) return;
+            card.classList.toggle('expanded');
+            btn.textContent = card.classList.contains('expanded') ? '🔽 Collapse' : '🔲 Expand';
         }
 
-        function toggleFullscreen(modelId) {
-            const card = document.querySelector(`[id^="actions-${modelId}"]`)?.closest('.model-card');
+        function toggleFullscreen(btn) {
+            const card = btn.closest('.model-card');
             if (!card) return;
             const resp = card.querySelector('.model-response');
             if (!resp) return;
@@ -2838,7 +3651,10 @@
                 });
             });
 
-            let prompt = `Synthesize consensus for: "${discussionData.question}"\n\nAll model responses:\n${allResponses.join('\n\n')}`;
+            const activeDateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            const dateContext = `[System Notice: Today's date is ${activeDateStr}. Please synthesize a balanced consensus from all perspectives as of today's date.]`;
+
+            let prompt = `${dateContext}\n\nSynthesize consensus for: "${discussionData.question}"\n\nAll model responses:\n${allResponses.join('\n\n')}`;
             if (discussionData.instructions) prompt += `\n\nFormat as: ${discussionData.instructions}`;
             const fmt = discussionData.summaryFormat || 'elaborate';
             if (fmt === 'compact') {
@@ -2850,6 +3666,16 @@
             try {
                 const timeoutId = setTimeout(() => consensusAbortController.abort(), timeout * 1000);
 
+                let pName = PROVIDER_NAME;
+                let mId = consensusModel;
+                if (consensusModel.includes('::')) {
+                    const parts = consensusModel.split('::');
+                    pName = parts[0];
+                    mId = parts[1];
+                }
+                const saved = savedCredentials[pName] || PRESET_PROVIDERS[pName] || {};
+                const pEndpoint = saved.endpoint || endpoint;
+
                 const response = await authFetch('/api/proxy/chat', {
                     method: 'POST',
                     signal: consensusAbortController.signal,
@@ -2857,9 +3683,9 @@
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        provider: PROVIDER_NAME,
-                        endpoint,
-                        model: consensusModel,
+                        provider: pName,
+                        endpoint: pEndpoint,
+                        model: mId,
                         prompt: `Synthesize a balanced consensus from all perspectives.\n\n${prompt}`,
                         temperature: 0.7,
                         max_tokens: 2000
@@ -2923,7 +3749,7 @@
         function renderModelStats(modelId, roundNum, stats) {
             if (!stats) return;
             const safeId = modelId.replace(/[^a-zA-Z0-9]/g, '-');
-            const el = document.getElementById(`stats-${safeId}`);
+            const el = document.getElementById(`stats-${safeId}-R${roundNum}`);
             if (!el) return;
             el.innerHTML = `
                 <span>📥 ${stats.inputTokens.toLocaleString()} in</span>
@@ -3005,7 +3831,8 @@
                 consensusAbortController.abort();
             }
             document.getElementById('discussionSection').className = 'discussion-section active completed';
-            document.getElementById('consensusSection').classList.add('active');
+            document.getElementById('consensusSection').classList.remove('active');
+            closeDiscussionSummary();
 
             // Build a summary from what was collected so far
             let summary = `# Discussion Stopped\n\n## Question\n${discussionData.question}\n\n## Completed Responses\n`;
@@ -3025,12 +3852,18 @@
             if (discussionData.stats) {
                 summary += `\n## Token Usage\n- Input: ${discussionData.stats.totalInputTokens.toLocaleString()} tokens\n- Output: ${discussionData.stats.totalOutputTokens.toLocaleString()} tokens\n- Total: ${discussionData.stats.totalTokens.toLocaleString()} tokens\n- Models responded: ${discussionData.stats.modelCount}`;
             }
-            document.getElementById('consensusText').innerHTML = marked.parse(summary);
+            document.getElementById('discussionSummaryText').innerHTML = marked.parse(summary);
+            document.getElementById('discussionSummarySection').style.display = 'block';
             document.getElementById('exportSection').classList.add('active');
             saveState();
             renderHistory();
             updateStatusDot();
             debugLog('Discussion stopped and summarized', 'warn');
+        }
+
+        function closeDiscussionSummary() {
+            const summarySec = document.getElementById('discussionSummarySection');
+            if (summarySec) summarySec.style.display = 'none';
         }
 
         function closeConsensus() {
@@ -3039,6 +3872,8 @@
                 consensusAbortController = null;
             }
             document.getElementById('consensusSection').classList.remove('active');
+            closeDiscussionSummary();
+            closeDiscussionSummary();
         }
 
         function copyQuestion() {
@@ -3048,7 +3883,7 @@
         }
 
         function copyHistoryQuery(id) {
-            const discussion = queryHistory.find(h => h.id === id);
+            const discussion = queryHistory.find(h => String(h.id) === String(id));
             if (discussion) {
                 const text = discussion.instructions ? `${discussion.question}\n\nInstructions: ${discussion.instructions}` : discussion.question;
                 navigator.clipboard.writeText(text);
@@ -3109,7 +3944,7 @@
 
         function loadDiscussion(id) {
             if (!requireAuth('view discussions')) return;
-            const discussion = queryHistory.find(h => h.id === id);
+            const discussion = queryHistory.find(h => String(h.id) === String(id));
             if (discussion) {
                 discussionRunning = false;
                 if (consensusAbortController) {
@@ -3134,7 +3969,9 @@
                     instDisplay.style.display = 'none';
                 }
                 document.getElementById('questionDisplay').style.display = 'block';
+                renderSelectedModelsRow(selectedModels);
                 document.getElementById('consensusSection').classList.remove('active');
+            closeDiscussionSummary();
                 document.getElementById('exportSection').classList.remove('active');
                 renderRoundTimeline(Object.keys(discussion.rounds).length);
                 if (discussion.stats) recalculateDiscussionStats();
@@ -3161,21 +3998,29 @@
                     const safeId = model.replace(/[^a-zA-Z0-9]/g, '-');
                     card.innerHTML = `
                         <div class="model-card-header">
-                            <div class="model-name">${model.split('/').pop()}</div>
+                            <div class="model-name">${(() => {
+                                const displayId = model.includes('::') ? model.split('::')[1] : model;
+                                const providerPrefix = model.includes('::') ? `${model.split('::')[0].toUpperCase()} · ` : '';
+                                return providerPrefix + displayId.split('/').pop();
+                            })()}</div>
                             <div class="model-badge badge-${response?.status || 'waiting'}">${badgeText}</div>
                         </div>
                         <div class="model-response"></div>
-                        <div class="model-actions" id="actions-${safeId}"></div>
-                        <div class="model-stats" id="stats-${safeId}"></div>
+                        <div class="model-actions" id="actions-${safeId}-R${roundNum}"></div>
+                        <div class="model-stats" id="stats-${safeId}-R${roundNum}"></div>
                     `;
                     const respEl = card.querySelector('.model-response');
                     if (response?.text) {
                         respEl.innerHTML = marked.parse(response.text);
                         renderModelStats(model, roundNum, response);
-                        // Show retry/skip for failed models in restored view
-                        if (response.status === 'error' || response.status === 'timeout') {
-                            const acts = card.querySelector(`#actions-${safeId}`);
-                            if (acts) {
+                        const acts = card.querySelector(`#actions-${safeId}-R${roundNum}`);
+                        if (acts) {
+                            if (response.status === 'complete') {
+                                acts.innerHTML = `
+                                    <button class="btn-expand" onclick="toggleExpand(this)">🔲 Expand</button>
+                                    <button class="btn-expand" onclick="toggleFullscreen(this)">⛶ Full Screen</button>
+                                `;
+                            } else if (response.status === 'error' || response.status === 'timeout') {
                                 acts.innerHTML = `
                                     <button class="btn-sleek btn-retry" onclick="retryModel('${model}', ${roundNum}, ${totalRounds})">🔄 Retry</button>
                                     <button class="btn-sleek btn-skip" onclick="skipModel('${model}', ${roundNum})">⏭ Skip</button>
@@ -3185,6 +4030,12 @@
                     } else {
                         respEl.textContent = 'Waiting...';
                     }
+                    card.addEventListener('click', (e) => {
+                        if (e.target.closest('button, a, input, select, textarea')) {
+                            return;
+                        }
+                        card.classList.toggle('expanded');
+                    });
                     grid.appendChild(card);
                 }
             });
@@ -3192,7 +4043,7 @@
 
         function resumeDiscussion(id) {
             if (!requireAuth('resume discussions')) return;
-            const discussion = queryHistory.find(h => h.id === id);
+            const discussion = queryHistory.find(h => String(h.id) === String(id));
             if (discussion) {
                 discussionRunning = false;
                 if (consensusAbortController) {
@@ -3221,7 +4072,9 @@
                     instDisplay.style.display = 'none';
                 }
                 document.getElementById('questionDisplay').style.display = 'block';
+                renderSelectedModelsRow(selectedModels);
                 document.getElementById('consensusSection').classList.remove('active');
+            closeDiscussionSummary();
                 document.getElementById('exportSection').classList.remove('active');
                 renderRoundTimeline(totalRounds);
                 if (discussion.stats) recalculateDiscussionStats();
@@ -3243,7 +4096,7 @@
             } else if (hash === 'current') {
                 switchMainTab('current');
             } else if (hash) {
-                const discussion = queryHistory.find(h => h.id === hash);
+                const discussion = queryHistory.find(h => String(h.id) === String(hash));
                 if (discussion) {
                     if (discussion.status === 'in_progress') {
                         resumeDiscussion(hash);
@@ -3254,14 +4107,135 @@
             }
         }
 
+        async function sha256(plain) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(plain);
+            return window.crypto.subtle.digest('SHA-256', data);
+        }
+
+        function base64urlencode(a) {
+            let str = "";
+            const bytes = new Uint8Array(a);
+            const len = bytes.byteLength;
+            for (let i = 0; i < len; i++) {
+                str += String.fromCharCode(bytes[i]);
+            }
+            return btoa(str)
+                .replace(/\+/g, "-")
+                .replace(/\//g, "_")
+                .replace(/=+$/, "");
+        }
+
+        async function startOpenRouterOAuth() {
+            // Generate random 43-character verifier
+            const array = new Uint8Array(32);
+            window.crypto.getRandomValues(array);
+            const codeVerifier = base64urlencode(array.buffer);
+            sessionStorage.setItem('openrouter_oauth_verifier', codeVerifier);
+            sessionStorage.setItem('openrouter_oauth_pending', 'true');
+            
+            // Hash verifier to get the challenge
+            const hashed = await sha256(codeVerifier);
+            const codeChallenge = base64urlencode(hashed);
+            
+            const callbackUrl = window.location.origin + window.location.pathname;
+            const authUrl = `https://openrouter.ai/auth?callback_url=${encodeURIComponent(callbackUrl)}&code_challenge=${codeChallenge}&code_challenge_method=S256`;
+            
+            log(`Starting OpenRouter OAuth. Redirecting to: ${authUrl}`);
+            window.location.href = authUrl;
+        }
+
+        async function handleOpenRouterOAuthCallback() {
+            const params = new URLSearchParams(window.location.search);
+            const code = params.get('code');
+            const isPending = sessionStorage.getItem('openrouter_oauth_pending') === 'true';
+            
+            if (code && isPending) {
+                const codeVerifier = sessionStorage.getItem('openrouter_oauth_verifier');
+                sessionStorage.removeItem('openrouter_oauth_pending');
+                sessionStorage.removeItem('openrouter_oauth_verifier');
+                
+                // Clear query params from browser URL immediately so it looks clean
+                const cleanUrl = window.location.origin + window.location.pathname + window.location.hash;
+                window.history.replaceState({}, document.title, cleanUrl);
+                
+                showStatus('Exchanging OpenRouter OAuth code for API key...', 'connecting');
+                log('Exchanging OpenRouter authorization code...');
+                
+                try {
+                    const response = await fetch('https://openrouter.ai/api/v1/auth/keys', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            code: code,
+                            code_verifier: codeVerifier,
+                            code_challenge_method: 'S256'
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        const key = data.key;
+                        if (key) {
+                            showStatus('OpenRouter authorization successful!', 'success');
+                            log('OpenRouter key received via OAuth.');
+                            
+                            // Save to endpoint and apiKey fields
+                            const endpointInput = document.getElementById('endpoint');
+                            const apiKeyInput = document.getElementById('apiKey');
+                            if (endpointInput) endpointInput.value = 'https://openrouter.ai/api/v1';
+                            if (apiKeyInput) {
+                                apiKeyInput.value = key;
+                            }
+                            
+                            // Auto-save the provider to backend!
+                            PROVIDER_NAME = 'openrouter';
+                            activeSavedProvider = 'openrouter';
+                            
+                            const saveResponse = await authFetch('/api/providers', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    provider: 'openrouter',
+                                    endpoint: 'https://openrouter.ai/api/v1',
+                                    api_key: key
+                                })
+                            });
+                            
+                            if (saveResponse.ok) {
+                                showStatus('✓ Saved OpenRouter OAuth key securely on server', 'success');
+                                await loadUserProviderConfig();
+                                await selectSavedProvider('openrouter');
+                            } else {
+                                const err = await saveResponse.json();
+                                throw new Error(err.detail || 'Failed to save credentials to backend');
+                            }
+                        } else {
+                            throw new Error('Key field missing in response');
+                        }
+                    } else {
+                        const txt = await response.text();
+                        throw new Error(`Auth exchange failed: ${txt}`);
+                    }
+                } catch (err) {
+                    showStatus(`OAuth exchange error: ${err.message}`, 'error');
+                    log(`OpenRouter OAuth exchange error: ${err.message}`);
+                }
+            }
+        }
+
         // Add missing event listeners
-        window.addEventListener('load', () => {
+        window.addEventListener('load', async () => {
             loadTheme();
             loadAuth();
-            loadHistory();
+            await handleOpenRouterOAuthCallback();
+            await loadHistory();
             loadState();
             handleHash();
             setupFileUpload();
+            applyResponseFormat();
         });
 
         window.addEventListener('hashchange', (e) => { 
@@ -3269,5 +4243,6 @@
         });
 
     </script>
+    </div>
 </body>
 </html>
