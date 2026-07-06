@@ -1,24 +1,19 @@
 import httpx
-
+from fastapi import HTTPException, status
 from app.services.providers.base import ProviderClient
 
-
-class GeminiClient(ProviderClient):
+class VertexClient(ProviderClient):
     async def list_models(self, endpoint: str, api_key: str) -> list[str]:
-        base = endpoint.rstrip("/") if endpoint else "https://generativelanguage.googleapis.com"
-        url = f"{base}/v1beta/models?key={api_key}"
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.get(url)
-            resp.raise_for_status()
-            data = resp.json()
-
-        rows = data.get("models", [])
-        out: list[str] = []
-        for row in rows:
-            name = row.get("name", "")
-            if isinstance(name, str) and name:
-                out.append(name.split("/")[-1])
-        return sorted(out)
+        # Return standard active GCP Vertex Gemini models
+        return [
+            "gemini-1.5-flash",
+            "gemini-1.5-pro",
+            "gemini-2.0-flash",
+            "gemini-2.0-flash-lite",
+            "gemini-2.5-flash",
+            "gemini-2.5-pro",
+            "gemini-3.5-flash"
+        ]
 
     async def chat(
         self,
@@ -29,8 +24,14 @@ class GeminiClient(ProviderClient):
         max_tokens: int,
         temperature: float,
     ) -> str:
-        base = endpoint.rstrip("/") if endpoint else "https://generativelanguage.googleapis.com"
-        url = f"{base}/v1beta/models/{model}:generateContent?key={api_key}"
+        # Default endpoint constructs to us-central1
+        base = endpoint.rstrip("/") if endpoint else "https://us-central1-aiplatform.googleapis.com/v1/projects/my-project/locations/us-central1/publishers/google"
+        url = f"{base}/models/{model}:generateContent"
+        
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
         payload = {
             "generationConfig": {
                 "temperature": temperature,
@@ -39,7 +40,7 @@ class GeminiClient(ProviderClient):
             "contents": [{"parts": [{"text": prompt}]}],
         }
         async with httpx.AsyncClient(timeout=120) as client:
-            resp = await client.post(url, json=payload)
+            resp = await client.post(url, json=payload, headers=headers)
             resp.raise_for_status()
             data = resp.json()
 

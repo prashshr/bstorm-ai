@@ -1,7 +1,7 @@
 # AI Ensemble — Architecture Document
 
-> **Version:** 0.2.2  
-> **Last Updated:** 2026-06-25  
+> **Version:** 0.5.4  
+> **Last Updated:** 2026-07-06  
 > **Source of Truth:** This document defines the authoritative architecture of the AI Ensemble project. Every component, data flow, security boundary, and deployment detail is recorded here. **Any LLM, AI coding agent, or developer working on this project MUST read this document first and follow all rules, conventions, and architectural decisions defined herein.** Keep this in sync with all code changes — updating this file is a mandatory part of every feature or fix.
 
 ---
@@ -300,38 +300,44 @@ ProviderClient (ABC)          ← base.py
 **In k3s deployment:** `web/index.html` is served by nginx from `/usr/share/nginx/html/`
 **In Docker Compose:** `web/` directory is served by Caddy from `/srv/`
 
-The frontend is a **single-page application** (~2436 lines) containing all CSS, HTML, and JavaScript in one file.
+The frontend is a **single-page application** containing all CSS, HTML, and JavaScript in one file.
 
 | File | Purpose |
 |------|---------|
-| `web/index.html` | Main SPA served in production (2436 lines) |
-| `web/ai-ensemble-v5.html` | Standalone prototype (9 lines — redirected) |
-| `web/index.html` (at root of web/) | Redirect to `/` via meta refresh |
+| `web/index.html` | Main SPA served in production (approx. 3300 lines after layout enhancements) |
+| `web/ai-ensemble-v5.html` | Standalone template prototype in sync with main entrypoint |
+
+#### Advanced Multi-Column Dashboard Layout
+The dashboard layout is designed to maximize screen real estate and mimic a high-performance IDE/control center:
+1. **Providers Sidebar (Far Left):** Expandable column (`.left-panel`) housing active API endpoints and credentials status with real-time connectivity status dots.
+2. **Sliding Models Column (Middle Left):** A collapsible panel (`.models-panel`) that dynamically slides outward upon selecting a provider, rendering a checklist of discoverable models.
+3. **Main Workspace (Center/Right):** Includes:
+   - **Segmented Main Tabs (Top Center):** Horizontal tab control switching cleanly between *New Discussion*, *Current Discussion*, and *History*.
+   - **Collapsible Settings Card:** A toggleable header block that folds away all model configurations (Rounds, Timeouts, Tokens, Consensus model) to keep the viewport clean.
+   - **Interactive Expandable Debate Cards:** Within each round, model response cards (`.model-card`) render in a responsive side-by-side grid. Clicking on any card toggles the `.expanded` state, stretching the card across the full width of the container via `grid-column: 1 / -1 !important` for structured readability.
+   - **Summary Consensus Panel:** A dedicated block at the bottom capturing the consensus synthesis and export capabilities (Markdown/JSON/Clipboard).
 
 ### 4.2 Auth Flow
 
-The frontend implements a **two-tier auth system**:
+The frontend implements a secure, **independent centered login interface** that completely separates credential entry from the main application view:
 
-**Tier 1 — Full-screen login overlay:**
-- On page load (unauthenticated), a full-screen overlay (`#loginOverlay`) blocks all app access
-- Login/Register buttons in the overlay hit the backend API directly via `fetch()` (no auth token needed)
-- Default hint shows `admin` / `arhatadmin` credentials
-- Enter key submits the form when username/password fields are focused
-- On successful auth, the overlay is hidden via `classList.add('hidden')`
-- On logout, `classList.remove('hidden')` re-shows the overlay
+**Unauthenticated State:**
+- The entire app workspace container (`#appContainer`) is hidden (`display: none;`).
+- An independent centered credential card container (`#loginPage`) is rendered at the body root, offering a fully focused login/registration gate.
+- No application sidebars, headers, tabs, or settings are exposed to unauthenticated users.
 
-**Tier 2 — Inline auth panel:**
-- Inside the setup tab, a compact auth panel provides Login/Register/Logout for convenience
-- Reuses the same `setAuth()` / `handleLogin()` / `handleRegister()` functions
+**Authenticated State:**
+- Upon successful login/registration, `sessionStorage` stores the JWT token and current username.
+- `updateAuthUi()` toggles visibility: `#loginPage` is hidden, `#appContainer` displays, and a persistent **header-right section** displays the authenticated username alongside an instant **Logout** button.
+- Re-securing the page is immediate: clicking logout clears `sessionStorage` and swaps visibility back, immediately returning to the login gate.
 
 **Auth mechanics:**
-- Plain usernames are normalized to `username@local.ai-ensemble` for backend `EmailStr` validation
-- JWT token is stored in `sessionStorage` (cleared on tab close)
-- All authenticated API calls use the `authFetch()` helper which adds `Authorization: Bearer <token>` header
-- `requireAuth()` gate checks for token presence before sensitive operations
-- Logout clears `sessionStorage` and resets the UI to setup state
+- Plain usernames are normalized to `username@local.ai-ensemble` for backend `EmailStr` validation.
+- JWT token is stored in browser `sessionStorage` (restricted to current session lifecycle and automatically cleared on browser/tab exit).
+- All authenticated API calls use the `authFetch()` helper which adds the `Authorization: Bearer <token>` header.
+- Logout clears `sessionStorage` and immediately swaps views.
 
-**Key auth functions:**
+**Key auth functions:****Key auth functions:**
 
 | Function | Purpose |
 |----------|---------|
@@ -512,6 +518,7 @@ Two services:
 | **JWT secret** | `JWT_SECRET` must be changed per deployment |
 | **API key in transit** | Never sent to frontend after save (only `has_key: true`) |
 | **Token expiry** | Configurable via `ACCESS_TOKEN_EXPIRE_MINUTES` |
+| **Rate limiting** | slowapi with per-IP limits: auth 10–20/min, providers 30–60/min, proxy 60/min, discussions 30–60/min, admin 30/min; Redis backend optional (in-memory fallback) |
 
 ---
 
@@ -698,7 +705,7 @@ See `PRODUCTION_PLAN.md` for full details. Key checklist:
 - [x] Auth with per-user isolation
 - [x] Encrypted API key storage
 - [x] HTTPS with Let's Encrypt
-- [ ] Rate limiting (not implemented)
+- [x] Rate limiting (slowapi, per-IP, all routes)
 - [ ] Audit logging (not implemented)
 - [ ] CSP headers (partial — Caddy adds HSTS etc.)
 - [ ] Input sanitization (not implemented)
@@ -711,6 +718,77 @@ See `PRODUCTION_PLAN.md` for full details. Key checklist:
 ## 11. Versioning & Changelog
 
 Version format: `v<major>.<minor>.<patch>-<YYYYMMDD>` (e.g., `v0.1.0-20260625`)
+
+### v0.5.4 (2026-07-06)
+
+- **Infrastructure: Ingress Cleanup & Traefik Restoration** — Purged invalid Traefik timeout annotations from `/kube-manifests/ingress.yaml` which were unrecognized by the ingress provider, instantly restoring full ingress routing and resolving the 404 Page Not Found block.
+- **Backend: Patient HTTPX Timeout Tuning** — Kept the increased client-side HTTPX timeouts (120s/150s) on the backend as the primary and highly stable remedy, ensuring the proxy waits gracefully for deep multi-agent reasoning tasks while Traefik handles streaming/long-polling with no default timeout limits.
+
+### v0.5.3 (2026-07-06)
+
+- **Infrastructure: Traefik Ingress Timeout Expansion** — Configured Ingress annotations `traefik.ingress.kubernetes.io/router.timeout: 180s` and `traefik.ingress.kubernetes.io/service.response-timeout: 180s` on `/arbeit/ai-welt/projects/ai-ensemble/kube-manifests/ingress.yaml` to ensure the gateway connection remains open for complex multi-agent queries.
+- **Backend: Patient Client Timeout Scaling** — Upgraded HTTPX client timeouts in all backend provider clients (`perplexity.py`, `anthropic.py`, `gemini.py`, `openai_compatible.py`, and `vertex.py`) from 60 seconds to 120/150 seconds to gracefully wait for web search and deep-reasoning completions, completely resolving Cloudflare/Traefik 502 prematurely closed connection blocks.
+
+### v0.5.2 (2026-07-06)
+
+- **Backend: Perplexity Agent API Payload Schema Correction** — Resolved a critical schema incompatibility where Perplexity's `/v1/agent` path expects `"input"` and `"max_output_tokens"` rather than OpenAI's standard `"messages"` array. Rewrote backend request generation to construct the correct schema for Agent API models, and implemented a custom response tree traversal to successfully parse the nested output text array blocks (e.g., `data["output"][0]["content"][X]["text"]`), completely fixing 502/400 Bad Request errors.
+- **UI: Dynamic "Reset Provider" Button** — Added a dedicated, red-tinted **"🗑️ Reset Provider"** action button in the Step 1 Setup Configuration panel. Clicking this triggers a secure `DELETE /api/providers/{provider}` backend request, clearing credentials, wiping input fields, resetting local state, and converting the provider card status back to `gray-dot` in real-time.
+
+### v0.5.1 (2026-07-06)
+
+- **Backend: Perplexity Agent API vs Sonar Dual-Route Engine** — Refactored the custom `PerplexityClient` to dynamically detect and segment model queries. Standard native Sonar models are routed to `/chat/completions`, while newly supported third-party models under Perplexity's Agent API (e.g. `google/gemini-3.5-flash`, `openai/gpt-5.5`, and `anthropic/claude-sonnet-5` that contain a `/` namespace) are routed to the specialized `/v1/agent` path, completely resolving Cloudflare 502/404 routing blocks for external models.
+- **Backend: Dynamic Model Unioning for Perplexity** — Upgraded `PerplexityClient.list_models` to attempt to dynamically poll available models via `GET /v1/models` and merge them with standard Sonar models, guaranteeing access to the most up-to-date and comprehensive model list.
+
+### v0.5.0 (2026-07-05)
+
+- **Backend: Custom Perplexity AI Client** — Developed a dedicated `PerplexityClient` that bypasses standard `/models` listing constraints by automatically serving a curated list of active Perplexity models (`sonar`, `sonar-pro`, `sonar-reasoning`, etc.) and enforcing chat routing directly to the `/chat/completions` endpoint for reliable factual search querying.
+- **Backend: Custom Google Vertex AI Client** — Built a dedicated `VertexClient` that allows enterprise GCP Gemini API usage, accepting standard authorization tokens/bearer keys and dynamically structuring queries to the location-specific GCP publisher API path.
+- **Frontend: Project & Region Selectors for Google Vertex** — Configured the Add Provider modal to dynamically render **Google Cloud Project ID** and **GCP Region** text fields when Vertex is selected, auto-computing the full publisher-specific endpoint URL in real time.
+- **UI: Neutral Discussion Summary Box** — Segregated manual stop-and-summarize results out of the vibrant colored consensus box into an independent, neutral/uncolored container (`#discussionSummarySection`) with neutral borders and no box-shadows, leaving the colored consensus card reserved exclusively for successful automated multi-model syntheses.
+- **Feature: Dynamic Multi-Provider Routing** — Re-engineered `selectedModels` to utilize unique composite keys (`provider::modelId`), decoupling the model state from the active global provider. Each individual model query is dynamically dispatched to its native provider credentials and endpoint, preventing routing errors like Perplexity trying to serve OpenRouter/OpenAI models.
+- **UI: Redesigned Step-by-Step Linear Setup Flow** — Permanently retired the complex Left Sidebar panel. Restructured the entire Setup Workspace into a clean, intuitive, top-to-bottom vertical progression wizard: **Step 1** (Select Provider from a beautiful interactive grid with active/inactive status indicator dots, accompanied by collapsible configuration inputs to edit or add a provider), **Step 2** (Select Models checklist, displayed exclusively only after its active provider has been successfully configured and discovered), and **Step 3** (Write question, select settings, and start debate), maximizing centered screen spacing on both desktop and mobile layouts.
+- **UI: Dedicated Active Ensemble (Selected Models) Step Card** — Segregated the selected cross-provider models list entirely out of the expandable checklist panel, elevating it to an independent, standalone card (Step 2.5: Active Ensemble). This section dynamically displays as soon as at least one model is selected, showing each chosen model clearly labeled with its specific **Provider Name** and **Model Name** (e.g. `[OPENROUTER · gemini-2.5-pro]`, `[PERPLEXITY · sonar-reasoning]`) with click-to-remove capability.
+- **Frontend: Dual Options to Save Permanent Providers** — Implemented two methods for users to persist provider credentials: a premium "+ Add Provider" modal for setup selection and a direct "💾 Save Provider" action button inside the collapsible Setup "API Configuration" panel.
+
+### v0.4.0 (2026-07-05)
+
+- **Feature: Independent Centered Login Page** — Replaced the unaligned overlays and duplicate embedded tabs with a perfectly centered fullscreen login card (`#loginPage`) with robust fixed positioning and shadows.
+- **Improvement: Top Header Session Panel** — Standardized a top-right account block displaying the active username and an elegant `Logout` button directly next to the theme toggle.
+- **UI Polish: Dynamic Full-Width Sidebar Collapse** — Programmed tab navigation to append `.full-width` to the main layout on non-setup tabs (*History* and *Current Discussion*), automatically hiding the Providers/Models sidebar columns when they aren't needed to maximize screen spacing.
+- **UI Polish: Participating Models Row** — Added a responsive row of elegant pill badges displaying all selected models at the top of active or loaded discussions, directly above the round timeline.
+- **UI Polish: Collapsible Discovered Models Grid** — Wrapped the massive 75-model selection block in a beautifully styled collapsible accordion card (`#modelSelection`) with a clean interactive header toggle, allowing users to instantly fold/collapse the grid to reclaim vertical screen space.
+- **UI Polish: Collapsible Discovered Models Grid** — Wrapped the massive 75-model selection block in a beautifully styled collapsible accordion card (`#modelSelection`) with a clean interactive header toggle, allowing users to instantly fold/collapse the grid to reclaim vertical screen space.
+- **UI Polish: Click-to-Expand Response Cards** — Configured response cards inside the debate timeline to toggle `.expanded` on click, expanding cards across the full grid row (`grid-column: 1 / -1 !important`) and setting response heights to full height (`max-height: none !important`), completely eliminating internal scrolling and text truncation while keeping default grid alignment on collapse.
+- **UX: Home Navigation Trigger** — Implemented a prominent **"Start New Discussion"** (home button) at the bottom of completed debates that clears state, resets forms, and routes users smoothly back to the setup workspace.
+- **UX: Strictly Dark/Light Themes** — Restricted theme cycling and options strictly to standard **Dark Mode** (vibrant orange accent) and **Light Mode** for a unified design experience.
+- **UI: Simplified Icon-Only Theme Toggle** — Removed the text labels from the theme toggle button, replacing it with a clean, circular icon button displaying strictly the sun (`☀️`) or moon (`🌙`) symbol for an ultra-premium, minimalist look.
+- **UI: Symmetrical Tri-Column Header Layout** — Restructured the header layer into a fully symmetrical, three-column layout: Username and Logout on the far-left corner, the "AI - Ensemble" branding enlarged and centered (clicking triggers a return to the main dashboard/home screen), and the minimalist theme toggle on the far-right corner.
+- **UI: Ultra-Sleek Header Status Bar** — Replaced the bulky bordered user display block with an elegant, borderless inline text string showing strictly the plain username (automatically stripping the internal `@local.ai-ensemble` domain suffix), separated from an elegant link-style hoverable **Logout** button by a clean vertical divider line.
+- **Logic Fix: Round 1 Prompt Format Passing** — Resolved a critical core bug where custom instructions and Response Format selections were omitted from prompts sent in Round 1 (now perfectly appended to model prompts in Round 1 as well as Round 2+ context blocks).
+- **Bug Fix: Round-Specific Card Actions** — Standardized DOM action panel selectors with unique round suffixes (`actions-${safeId}-R${roundNum}`). This completely resolves duplicate HTML IDs across rounds that previously broke card action bars (Expand/Full Screen) on any round after Round 1.
+- **UI: Restored Card Actions in History** — Enabled completed cards loaded from historical sessions or completed states to render and execute active **Expand** and **Full Screen** action bars across all rounds.
+- **Logic: Live Daily Calendar Date Context** — Configured the active browser-computed date (e.g. `Sunday, July 5, 2026` in Europe/Berlin timezone) to be prepended as a compulsory system-level context notice to all individual model queries and final consensus prompts, prompting models to leverage current real-world search/data parameters as of today.
+- **UI: Consolidated Consensus Panel** — Completely purged a dead, duplicate `#summaryPanel` ("Summary") from the DOM structure, leaving exactly one single, active, live synthesis container: the premium, robust **"Ensemble Consensus"** block containing the full weighted scoring card, agreement timelines, and export tools.
+- **Feature: Dynamic Stored Providers System** — Integrated a multi-provider state engine that fetches saved user credentials from the backend database on page load and renders active platforms dynamically in the Left Sidebar with color-coded connectivity dots (Green for configured, Gray for inactive), allowing instant model discovery on click with **zero key re-entry required**.
+- **Improvement: Native Prefilled Platforms & Web Auth Redirects** — Refactored the "+ Add Provider" action into an interactive modal supporting native prefilled configurations for **OpenRouter, OpenAI, Perplexity, Google Vertex, Mammouth AI, and Requesty AI**, automatically prefilling endpoints and displaying direct secure redirection links so users can log in via their official webpage redirected authentication, instantly copy their generated key, and paste it back securely.
+- **Security Clarification:** Updated front-end messaging to correctly emphasize that all API keys and custom configurations are saved securely and encrypted on the backend database (no keys are stored in the browser's local cache).
+- **Deployment: HTTPS-Only Traefik Enforcement** — Modified the Kubernetes Ingress resource to enforce the Traefik `websecure` entrypoint, routing all user traffic strictly via secure SSL/TLS.
+- **Deployment Refactoring:** Cleaned up manual ConfigMap overrides and restored native HostPath volume mounts so Nginx serves the direct web source from the filesystem.
+
+### v0.3.0 (2026-06-30)
+
+- **Bug Fix: Login/Register buttons non-functional** — Duplicate `let selectedModels` declaration in the multi-provider override block caused a `SyntaxError` that killed the entire `<script>` element; all `onclick` handlers (`overlayLogin`, `overlayRegister`) were undefined. Consolidated all multi-provider state variables and constants to the top of the script; removed the entire override block.
+- **Bug Fix: `currentRound_num` vs `currentRoundNum` inconsistency** — `proceedToNextRound`, `showRoundStatus`, and `resumeDiscussion` used `currentRound_num` while the rest of the code used `currentRoundNum`; standardized on `currentRoundNum`.
+- **Bug Fix: SQLite schema drift** — `init_db()` now attempts `ALTER TABLE discussions ADD COLUMN state_json TEXT DEFAULT ''` with rollback on success, fixing existing databases missing the column.
+- **Bug Fix: Composite ID consistency in `queryModel()`** — Card `data-model`, action element IDs, `discussionData.rounds` keys, and timing keys now all use the composite `provider::modelId` format consistently.
+- **Improvement: Response card provider attribution** — `renderRound()` now shows `ProviderName · ModelName` in card headers for restored discussions (was showing only the model ID).
+- **UI Polish: Provider panel collapse** — Replaced abrupt `display` toggle with CSS width/padding/opacity transition via `.collapsed` class.
+- **UI Polish: Password requirements** — Hidden by default; shown only on password field focus via `showPasswordReqs()`.
+- **UI Polish: Add Provider cancel** — Wired via `.btn-add-provider` class selector instead of fragile `previousElementSibling`.
+- **UI Polish: Provider card overflow** — Added `min-width: 0`, `text-overflow: ellipsis`, and `.provider-model-list` containment for long hostnames/model names.
+- **Feature: Rate limiting** — slowapi 0.1.9 with per-IP limits across all routes (auth 10–20/min, providers 30–60/min, proxy 60/min, discussions 30–60/min, admin 30/min); shared `Limiter` instance in `app/core/limiter.py` to avoid circular imports; Redis backend optional.
+- **Improvement: Error boundaries** — `queryModel()` and `generateConsensus()` now wrap JSON parsing in `try/catch` with meaningful error messages instead of raw exceptions.
+- **Architecture: Multi-provider state consolidation** — `PROVIDER_DISPLAY_NAMES`, `PROVIDER_DEFAULTS`, `configuredProviders`, `providerModelCache`, `modelToProvider`, `providerPanelOpen`, `providerPanelPinned`, `panelResizing` all declared once at the top of the script; duplicate function definitions (`discoverModels`, `loadUserProviderConfig`) removed.
 
 ### v0.2.3 (2026-06-26)
 

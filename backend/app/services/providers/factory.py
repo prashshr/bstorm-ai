@@ -14,13 +14,16 @@ PROVIDER_ALIASES: dict[str, str] = {
     "gemini": "gemini",
     "fireworks": "openai-compatible",
     "together": "openai-compatible",
-    "perplexity": "openai-compatible",
+    "perplexity": "perplexity",
+    "mammouth": "openai-compatible",
+    "requesty": "openai-compatible",
     "mistral": "openai-compatible",
     "xai": "openai-compatible",
     "deepseek": "openai-compatible",
     "ollama": "openai-compatible",
     "open-webui": "openai-compatible",
-    "vertex": "gemini",
+    "vertex": "vertex",
+    "google-vertex": "vertex",
     "nvidia": "openai-compatible",
 }
 
@@ -31,4 +34,10 @@ def get_provider_client(provider: str) -> ProviderClient:
         return AnthropicClient()
     if normalized == "gemini":
         return GeminiClient()
+    if normalized == "perplexity":
+        from app.services.providers.perplexity import PerplexityClient
+        return PerplexityClient()
+    if normalized == "vertex":
+        from app.services.providers.vertex import VertexClient
+        return VertexClient()
     return OpenAICompatibleClient()

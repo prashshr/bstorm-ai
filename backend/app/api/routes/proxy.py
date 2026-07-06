@@ -52,6 +52,7 @@ async def proxy_chat(
         )
     except httpx.HTTPStatusError as exc:
         body = exc.response.text if exc.response is not None else ""
+        print(f"DEBUG PROXY STATUS EXCEPTION: status={exc.response.status_code}, url={exc.request.url}, body={body[:1000]}")
         detail = body[:500] if body else str(exc)
         
         # Provide more specific error messages based on status code
@@ -65,7 +66,7 @@ async def proxy_chat(
             detail = f"Rate limited (429): Too many requests to {payload.provider}"
         
         raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
+            status_code=exc.response.status_code,
             detail=f"Provider returned an error: {detail}",
         )
     except httpx.RequestError as exc:

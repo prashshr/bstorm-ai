@@ -56,7 +56,7 @@ class OpenAICompatibleClient(ProviderClient):
             "max_tokens": max_tokens,
             "temperature": temperature,
         }
-        async with httpx.AsyncClient(timeout=60) as client:
+        async with httpx.AsyncClient(timeout=120) as client:
             try:
                 resp = await client.post(url, json=payload, headers=headers)
                 # Some providers (e.g. Perplexity) don't use /v1 — retry without it on 404

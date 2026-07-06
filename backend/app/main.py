@@ -30,7 +30,7 @@ def startup_event() -> None:
 
 @app.get("/health")
 @limiter.limit("60/minute")
-def health(_request: Request) -> dict[str, str]:
+def health(request: Request) -> dict[str, str]:
     return {"status": "ok"}
 
 

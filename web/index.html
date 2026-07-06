@@ -1281,8 +1281,8 @@
             </div>
 
             <div id="modalOpenrouterOAuthGroup" style="display:none; padding: 12px; background: rgba(255, 92, 0, 0.05); border: 1px solid var(--border); border-radius: 6px; flex-direction: column; gap: 8px; box-sizing: border-box;">
-                <button class="btn-primary" style="background: #ff5c00; color: white; font-weight: 600; border: none; padding: 10px 16px; border-radius: 4px; cursor: pointer; width: 100%; box-sizing: border-box;" onclick="startOpenRouterOAuth()">
-                    <span>🔑 Sign In with OpenRouter (OAuth)</span>
+                <button class="btn-primary" style="background: #ff5c00; color: white; font-weight: 500; border: none; padding: 4px 10px; font-size: 11px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 4px; width: max-content; margin: 0 auto; box-sizing: border-box;" onclick="startOpenRouterOAuth()">
+                    <span>🔑 Sign-in via SSO</span>
                 </button>
                 <div style="font-size: 11px; color: var(--text-tertiary); text-align: center;">Secure, direct one-click authentication.</div>
             </div>
@@ -1416,12 +1416,12 @@
                                     <button class="btn-sleek" style="background:transparent;color:var(--text-tertiary);padding:4px 14px;margin-left:4px;font-size:12px;border:1px solid var(--border);" onclick="dismissRestore()">Dismiss</button>
                                 </div>
                                 <div id="statusMsg" class="status-message" style="display:none;"></div>
-                                <div id="openrouterOAuthGroup" style="display:none; margin-bottom: 18px; padding: 14px; background: rgba(255, 92, 0, 0.05); border: 1px solid var(--border); border-radius: 6px; flex-direction: column; gap: 8px;">
-                                    <span style="font-size: 12px; font-weight: 600; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.05em;">⚡ OpenRouter One-Click Sign In</span>
-                                    <button class="btn-primary" style="background: #ff5c00; color: white; font-weight: 600; border: none; padding: 10px 16px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;" onclick="startOpenRouterOAuth()">
-                                        <span>🔑 Sign In with OpenRouter (OAuth)</span>
-                                    </button>
-                                    <div style="font-size: 11px; color: var(--text-tertiary);">No copy-pasting API keys required. Authenticate securely via standard OpenRouter PKCE flow.</div>
+                                <div id="openrouterOAuthGroup" style="display:none; margin-bottom: 12px; flex-direction: column; gap: 0;">
+                                    <div style="display: flex; justify-content: flex-start; width: 100%; margin: 4px 0 6px 0;">
+                                        <button class="btn-primary" style="background: #ff5c00; color: white; font-weight: 500; border: none; padding: 4px 10px; font-size: 11px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 4px; width: max-content;" onclick="startOpenRouterOAuth()">
+                                            <span>🔑 Sign-in via SSO</span>
+                                        </button>
+                                    </div>
                                 </div>
                                 <div class="form-row">
                                     <div class="form-group">
@@ -1494,11 +1494,13 @@
                                         <div class="form-row">
                                             <div class="form-group" style="grid-column: 1 / -1;">
                                                 <label for="summaryFormat">Final Summary Format</label>
-                                                <select id="summaryFormat" style="margin-bottom:8px;">
+                                                <select id="summaryFormat" onchange="applySummaryFormat()" style="margin-bottom:8px;">
                                                     <option value="elaborate">Elaborate — Full synthesis with reasoning (recommended)</option>
                                                     <option value="compact" selected>Compact — Quick verdict with weighted scores</option>
                                                     <option value="default">Default — Let consensus model decide</option>
                                                 </select>
+                                                <label for="summaryInstructions">Custom Summary Instructions (Optional — overrides format above)</label>
+                                                <textarea id="summaryInstructions" placeholder="E.g., Format the final synthesis as a comparison table..." style="width:100%; min-height:100px; padding:10px; background:var(--bg-tertiary); border:1px solid var(--border); color:var(--text-primary); border-radius:4px; font-size:13px; box-sizing:border-box; margin-top:4px; resize:vertical;"></textarea>
                                             </div>
                                         </div>
 
@@ -1688,6 +1690,8 @@
         let savedCredentials = {};
         let activeSavedProvider = 'openrouter';
         let modelHealthStatus = {};
+        const verifiedProviders = new Set();
+        const healthCheckedProviders = new Set();
 
         const STATIC_PRESETS = {
             'openrouter': { name: 'OpenRouter', endpoint: 'https://openrouter.ai/api/v1', authUrl: 'https://openrouter.ai' },
@@ -1840,7 +1844,7 @@
                 }
 
                 showStatus(`✓ Saved and verified ${PROVIDER_NAME} credentials successfully!`, 'success');
-                await loadUserProviderConfig();
+                await loadUserProviderConfig(false);
 
             } catch (e) {
                 alert('Connection Error: ' + e.message);
@@ -1977,7 +1981,7 @@
                 
                 closeAddProviderModal();
                 
-                await loadUserProviderConfig();
+                await loadUserProviderConfig(false);
                 await selectSavedProvider(provider);
 
             } catch (e) {
@@ -2198,7 +2202,7 @@
             currentUser = sessionStorage.getItem('authUser') || '';
             updateAuthUi();
             if (authToken) {
-                loadUserProviderConfig();
+                loadUserProviderConfig(true);
             }
         }
 
@@ -2249,7 +2253,7 @@
                 };
                 saveHistory();
                 saveState();
-                loadUserProviderConfig();
+                loadUserProviderConfig(true);
                 loadHistory();
             } else {
                 sessionStorage.removeItem('authToken');
@@ -2269,7 +2273,7 @@
             return fetch(url, { ...options, headers });
         }
 
-        async function loadUserProviderConfig() {
+        async function loadUserProviderConfig(shouldSelectActive = true) {
             if (!authToken) return;
             try {
                 const response = await authFetch('/api/providers');
@@ -2283,6 +2287,10 @@
                 if (Array.isArray(providers)) {
                     providers.forEach(p => {
                         savedCredentials[p.provider] = p;
+                        // On first load, we initially assume saved credentials are verified
+                        if (!verifiedProviders.has(p.provider)) {
+                            verifiedProviders.add(p.provider);
+                        }
                         
                         // Dynamically add custom providers so they render in the grid
                         if (!PRESET_PROVIDERS[p.provider] && p.provider !== 'custom') {
@@ -2301,18 +2309,19 @@
                 
                 renderProviderList();
 
-                // Select the active saved provider to auto-fill the form and discover models
-                if (savedCredentials[activeSavedProvider]) {
-                    await selectSavedProvider(activeSavedProvider);
-                } else {
-                    const firstConfigured = Object.keys(savedCredentials)[0];
-                    if (firstConfigured) {
-                        await selectSavedProvider(firstConfigured);
+                // Select the active saved provider to auto-fill the form and discover models ONLY if requested
+                if (shouldSelectActive) {
+                    if (savedCredentials[activeSavedProvider]) {
+                        await selectSavedProvider(activeSavedProvider);
+                    } else {
+                        const firstConfigured = Object.keys(savedCredentials)[0];
+                        if (firstConfigured) {
+                            await selectSavedProvider(firstConfigured);
+                        }
                     }
                 }
             } catch (e) {
                 showStatus(`Error loading provider config: ${e.message}`, 'error');
-                log(`Error loading provider config: ${e.message}`);
             }
         }
 
@@ -2349,7 +2358,8 @@
                 }
                 
                 const isConfigured = !!saved;
-                const dotColor = isConfigured ? '#34c759' : '#8e8e93';
+                const isVerified = verifiedProviders.has(key);
+                const dotColor = isVerified ? '#34c759' : '#8e8e93';
                 
                 card.innerHTML = `
                     <span class="provider-dot" style="background: ${dotColor}; width: 8px; height: 8px; border-radius: 50%; display: inline-block;"></span>
@@ -2725,6 +2735,16 @@
                     storedMaxTokens = state.maxTokens || 6000;
                     selectedModels = state.models || [];
                     totalRounds = state.totalRounds || 0;
+                    normalizeSelectedModels();
+                    
+                    if (document.getElementById('summaryInstructions')) {
+                        document.getElementById('summaryInstructions').value = state.summaryInstructions || '';
+                    }
+                    if (document.getElementById('summaryFormat')) {
+                        document.getElementById('summaryFormat').value = state.summaryFormat || 'elaborate';
+                    }
+                    
+                    updateConsensusDropdown();
 
                     // Sync into queryHistory so history tab and restore functions can find it
                     if (state.id && !queryHistory.find(h => String(h.id) === String(state.id))) {
@@ -3015,25 +3035,30 @@
             // Store original credential in case we need to roll back
             const originalCredential = savedCredentials[PROVIDER_NAME] ? { ...savedCredentials[PROVIDER_NAME] } : null;
 
-            // 1. Temporarily save to the database so model listing requests can use them
-            try {
-                const saveResponse = await authFetch('/api/providers', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        provider: PROVIDER_NAME,
-                        endpoint: endpointValue,
-                        api_key: apiKeyValue || (originalCredential ? '[Saved]' : '')
-                    })
-                });
-                
-                if (!saveResponse.ok) {
-                    const errObj = await saveResponse.json();
-                    throw new Error(errObj.detail || 'Failed to temporarily save provider credentials');
+            // 1. Temporarily save to the database ONLY if credentials changed or are new
+            const isUnchanged = !apiKeyValue && originalCredential && endpointValue === originalCredential.endpoint;
+            const wasSaved = !isUnchanged;
+
+            if (wasSaved) {
+                try {
+                    const saveResponse = await authFetch('/api/providers', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            provider: PROVIDER_NAME,
+                            endpoint: endpointValue,
+                            api_key: apiKeyValue || '[Saved]'
+                        })
+                    });
+                    
+                    if (!saveResponse.ok) {
+                        const errObj = await saveResponse.json().catch(() => ({}));
+                        throw new Error(errObj.detail || 'Failed to temporarily save provider credentials');
+                    }
+                } catch (err) {
+                    showStatus(`❌ ${err.message}`, 'error');
+                    return;
                 }
-            } catch (err) {
-                showStatus(`❌ ${err.message}`, 'error');
-                return;
             }
 
             // 2. Discover models from this provider
@@ -3072,15 +3097,20 @@
                 }
 
                 showStatus(`✓ Successfully discovered ${availableModels.length} models`, 'success');
+                verifiedProviders.add(PROVIDER_NAME);
                 renderModelSelection();
+                updateConsensusDropdown();
                 
                 // Reload provider config to turn the dot green
-                await loadUserProviderConfig();
+                await loadUserProviderConfig(false);
 
-                // Kick off background health checks for discovered models
-                setTimeout(() => {
-                    checkAllModelsHealth(availableModels);
-                }, 200);
+                // Kick off background health checks for discovered models ONLY if newly saved or never tested
+                if (wasSaved || !healthCheckedProviders.has(PROVIDER_NAME)) {
+                    healthCheckedProviders.add(PROVIDER_NAME);
+                    setTimeout(() => {
+                        checkAllModelsHealth(availableModels);
+                    }, 200);
+                }
 
             } catch (e) {
                 showStatus(`❌ Discovery failed: ${e.message}`, 'error');
@@ -3088,31 +3118,35 @@
                 
                 // Clear active models list
                 availableModels = [];
+                verifiedProviders.delete(PROVIDER_NAME);
                 renderModelSelection();
+                updateConsensusDropdown();
 
-                // Rollback database save to the previous valid configuration
-                try {
-                    if (originalCredential) {
-                        await authFetch('/api/providers', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                provider: PROVIDER_NAME,
-                                endpoint: originalCredential.endpoint,
-                                api_key: '[Saved]'
-                            })
-                        });
-                    } else {
-                        await authFetch(`/api/providers/${PROVIDER_NAME}`, {
-                            method: 'DELETE'
-                        });
+                // Rollback database save ONLY if we actually made a change during this call
+                if (wasSaved) {
+                    try {
+                        if (originalCredential) {
+                            await authFetch('/api/providers', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    provider: PROVIDER_NAME,
+                                    endpoint: originalCredential.endpoint,
+                                    api_key: '[Saved]'
+                                })
+                            });
+                        } else {
+                            await authFetch(`/api/providers/${PROVIDER_NAME}`, {
+                                method: 'DELETE'
+                            });
+                        }
+                    } catch (rollbackErr) {
+                        log(`Failed to roll back unverified provider: ${rollbackErr.message}`);
                     }
-                } catch (rollbackErr) {
-                    log(`Failed to roll back unverified provider: ${rollbackErr.message}`);
                 }
 
                 // Reload provider configs to sync green/grey indicator dots
-                await loadUserProviderConfig();
+                await loadUserProviderConfig(false);
             }
         }
 
@@ -3159,7 +3193,8 @@
                 }
                 
                 let healthBadge = '';
-                const health = modelHealthStatus[model.id];
+                const healthKey = `${PROVIDER_NAME}::${model.id}`;
+                const health = modelHealthStatus[healthKey];
                 if (health === 'testing') {
                     healthBadge = `<span style="font-size: 10px; color: var(--text-tertiary); background: var(--bg-tertiary); padding: 2px 6px; border-radius: 4px; margin-left: 6px;">⏳ Testing...</span>`;
                 } else if (health === 'OK') {
@@ -3184,32 +3219,55 @@
             updateActiveEnsembleDisplay();
         }
 
+        let healthCheckAbortController = null;
+
         async function checkAllModelsHealth(models) {
             if (!models || models.length === 0) return;
+            
+            if (healthCheckAbortController) {
+                healthCheckAbortController.abort();
+            }
+            healthCheckAbortController = new AbortController();
+            const localSignal = healthCheckAbortController.signal;
+
             log('Starting background health checks for discovered models...');
             
-            // Limit concurrency to 1 and add delay to prevent rate-limiting (429)
             const concurrencyLimit = 1;
             const queue = [...models];
             
             async function worker() {
                 while (queue.length > 0) {
+                    if (localSignal.aborted) return;
+                    
                     const model = queue.shift();
                     const modelId = model.id || model.name;
+                    const healthKey = `${PROVIDER_NAME}::${modelId}`;
                     
                     // Skip if already tested
-                    if (modelHealthStatus[modelId]) continue;
+                    if (modelHealthStatus[healthKey] && modelHealthStatus[healthKey] !== 'testing') continue;
                     
-                    modelHealthStatus[modelId] = 'testing';
+                    modelHealthStatus[healthKey] = 'testing';
                     renderModelSelection(availableModels);
                     
-                    // Add delay to prevent rate-limiting (429)
-                    await new Promise(resolve => setTimeout(resolve, 1500));
+                    try {
+                        await new Promise((resolve, reject) => {
+                            const delayTimer = setTimeout(resolve, 1500);
+                            localSignal.addEventListener('abort', () => {
+                                clearTimeout(delayTimer);
+                                reject(new Error('aborted'));
+                            });
+                        });
+                    } catch (err) {
+                        return;
+                    }
+                    
+                    if (localSignal.aborted) return;
                     
                     try {
                         const controller = new AbortController();
-                        const timer = setTimeout(() => controller.abort(), 12000); // 12 second timeout for health check
-                        
+                        const timer = setTimeout(() => controller.abort(), 12000);
+                        localSignal.addEventListener('abort', () => controller.abort());
+
                         const response = await authFetch('/api/proxy/chat', {
                             method: 'POST',
                             signal: controller.signal,
@@ -3226,13 +3284,20 @@
                         
                         clearTimeout(timer);
                         
+                        if (localSignal.aborted) return;
+                        
                         if (response.ok) {
-                            modelHealthStatus[modelId] = 'OK';
+                            modelHealthStatus[healthKey] = 'OK';
                         } else {
-                            modelHealthStatus[modelId] = 'KO';
+                            if (response.status === 400 || response.status === 404) {
+                                modelHealthStatus[healthKey] = 'KO';
+                            } else {
+                                delete modelHealthStatus[healthKey];
+                            }
                         }
                     } catch (e) {
-                        modelHealthStatus[modelId] = 'KO';
+                        if (localSignal.aborted) return;
+                        delete modelHealthStatus[healthKey];
                     }
                     
                     renderModelSelection(availableModels);
@@ -3241,9 +3306,97 @@
             
             const workers = Array.from({ length: concurrencyLimit }, worker);
             await Promise.all(workers);
-            log('Finished background health checks for models.');
+            if (!localSignal.aborted) {
+                log('Finished background health checks for models.');
+            }
         }
 
+        function retestAllModels(event) {
+            if (event) event.stopPropagation();
+            
+            // Clear only the active provider's health states
+            const prefix = `${PROVIDER_NAME}::`;
+            Object.keys(modelHealthStatus).forEach(key => {
+                if (key.startsWith(prefix)) {
+                    delete modelHealthStatus[key];
+                }
+            });
+            
+            // Re-render selection layout to clear KO/OK badges and show testing/loading
+            renderModelSelection(availableModels);
+            
+            // Retest all models
+            checkAllModelsHealth(availableModels);
+        }
+
+
+        function removeSelectedModel(compositeKey) {
+            selectedModels = selectedModels.filter(m => m !== compositeKey);
+            normalizeSelectedModels();
+            updateConsensusDropdown();
+            updateActiveEnsembleDisplay();
+            renderModelSelection(availableModels);
+            saveState();
+        }
+
+        function normalizeSelectedModels() {
+            if (!Array.isArray(selectedModels)) return;
+            selectedModels = selectedModels.map(m => {
+                if (typeof m !== 'string') return String(m);
+                if (m.includes('::')) return m;
+                
+                let resolvedProvider = PROVIDER_NAME;
+                const firstPart = m.split('/')[0].toLowerCase();
+                
+                // Self-heal standard known prefixes
+                if (['openai', 'anthropic', 'perplexity', 'google', 'mammouth', 'requesty', 'openrouter'].includes(firstPart)) {
+                    resolvedProvider = firstPart;
+                } else if (firstPart.includes('cohere') || firstPart.includes('liquid') || firstPart.includes('nvidia') || firstPart.includes('qwen') || firstPart.includes('meta')) {
+                    // These namespaces are typically served via Mammouth or OpenRouter on this setup
+                    resolvedProvider = PROVIDER_NAME;
+                }
+                
+                return `${resolvedProvider}::${m}`;
+            });
+            
+            // Sync back to discussionData.models if active
+            if (discussionData) {
+                discussionData.models = [...selectedModels];
+            }
+        }
+
+        function updateConsensusDropdown() {
+            const consensusSelect = document.getElementById('consensusModel');
+            if (!consensusSelect) return;
+            
+            const prevValue = consensusSelect.value;
+            consensusSelect.innerHTML = '';
+            
+            if (selectedModels.length === 0) {
+                const defaultOption = document.createElement('option');
+                defaultOption.value = '';
+                defaultOption.textContent = 'Select models first...';
+                consensusSelect.appendChild(defaultOption);
+                return;
+            }
+            
+            selectedModels.forEach(comp => {
+                let mId = comp;
+                if (comp.includes('::')) mId = comp.split('::')[1];
+                const option = document.createElement('option');
+                option.value = comp;
+                option.textContent = mId.split('/').pop();
+                consensusSelect.appendChild(option);
+            });
+            
+            if (discussionData && discussionData.consensusModel && selectedModels.includes(discussionData.consensusModel)) {
+                consensusSelect.value = discussionData.consensusModel;
+            } else if (prevValue && selectedModels.includes(prevValue)) {
+                consensusSelect.value = prevValue;
+            } else {
+                consensusSelect.selectedIndex = 0;
+            }
+        }
 
         function onCheckboxToggle(modelId, isChecked) {
             const compositeKey = `${PROVIDER_NAME}::${modelId}`;
@@ -3255,18 +3408,7 @@
                 selectedModels = selectedModels.filter(m => m !== compositeKey);
             }
             
-            const consensusSelect = document.getElementById('consensusModel');
-            if (consensusSelect) {
-                consensusSelect.innerHTML = '';
-                selectedModels.forEach(comp => {
-                    let mId = comp;
-                    if (comp.includes('::')) mId = comp.split('::')[1];
-                    const option = document.createElement('option');
-                    option.value = comp;
-                    option.textContent = mId.split('/').pop();
-                    consensusSelect.appendChild(option);
-                });
-            }
+            updateConsensusDropdown();
 
             updateActiveEnsembleDisplay();
         }
@@ -3277,6 +3419,8 @@
             const questionSec = document.getElementById('questionSection');
             
             if (!container || !pillsDiv) return;
+
+            normalizeSelectedModels();
 
             if (selectedModels.length === 0) {
                 container.style.display = 'none';
@@ -3399,6 +3543,19 @@
             }
         }
 
+        function applySummaryFormat() {
+            const fmt = document.getElementById('summaryFormat').value;
+            const ta = document.getElementById('summaryInstructions');
+            if (!ta) return;
+            if (fmt === 'compact') {
+                ta.value = 'Provide a COMPACT consensus summary:\n- Start with a 1-sentence verdict\n- Use a weighted score table for the model answers\n- Keep paragraphs under 3 sentences\n- Focus strictly on core agreement points';
+            } else if (fmt === 'elaborate') {
+                ta.value = 'Provide an ELABORATE consensus summary:\n- Full synthesis of alternative viewpoints and reasoning\n- Explicitly trace points of divergence and conflicts between models\n- Grade consensus strength across categories\n- Detail background context and recommended next steps';
+            } else {
+                ta.value = '';
+            }
+        }
+
         async function startDiscussion() {
             if (!requireAuth('start a discussion')) return;
             const question = document.getElementById('question').value.trim();
@@ -3406,6 +3563,7 @@
             totalRounds = parseInt(document.getElementById('rounds').value);
             const consensusModel = document.getElementById('consensusModel').value;
             const summaryFormat = document.getElementById('summaryFormat').value;
+            const summaryInstructions = document.getElementById('summaryInstructions') ? document.getElementById('summaryInstructions').value.trim() : '';
             const timeout = parseInt(document.getElementById('timeout').value);
             const maxTokens = parseInt(document.getElementById('maxTokens').value) || 6000;
 
@@ -3474,6 +3632,7 @@
                 timeout,
                 maxTokens,
                 summaryFormat,
+                summaryInstructions,
                 attachments: attachedFiles.map(f => ({ name: f.name, size: f.size, type: f.type })),
                 status: 'in_progress',
                 totalRounds
@@ -3556,9 +3715,16 @@
 
             log(`===== Round ${roundNum} Started =====`);
 
+            let queryIndex = 0;
             for (const model of selectedModels) {
                 if (!discussionRunning) return;
+                if (queryIndex > 0) {
+                    // 1500ms stagger delay between queries to prevent rapid-fire or concurrent 429 rate limits
+                    await new Promise(resolve => setTimeout(resolve, 1500));
+                }
+                if (!discussionRunning) return;
                 await queryModel(model, roundNum, totalRoundsNum, endpoint, timeout, maxTokens);
+                queryIndex++;
             }
 
             saveState();
@@ -3667,7 +3833,7 @@
                 });
             }
 
-            // Group models by provider
+            // Group models by provider based on the active platform provider they connect through
             const groups = {};
             modelsToUse.forEach(m => {
                 let provider = 'Other';
@@ -3675,9 +3841,12 @@
                 
                 if (m.id.includes('::')) {
                     provider = m.id.split('::')[0].toUpperCase();
-                } else if (m.id.includes('/')) {
-                    provider = m.id.split('/')[0].toUpperCase();
+                } else {
+                    provider = PROVIDER_NAME.toUpperCase();
                 }
+                
+                // Format display name nicely (e.g. OPENAI-COMPATIBLE -> OPENAI COMPATIBLE)
+                provider = provider.replace(/-/g, ' ');
                 
                 if (!groups[provider]) {
                     groups[provider] = [];
@@ -3934,6 +4103,13 @@
                 const data = await response.json();
                 const fullText = data.output || '';
                 
+                // Discard response if this model was replaced in the current active round
+                if (!selectedModels.includes(modelId)) {
+                    log(`Discarding response from replaced model ${modelId}`);
+                    clearTimeout(timeoutId);
+                    return;
+                }
+                
                 // Scroll to bottom of response
                 responseElement.scrollTop = responseElement.scrollHeight;
 
@@ -3996,6 +4172,12 @@
 
             } catch (error) {
                 clearTimeout(timeoutId);
+
+                // Discard error/timeout if this model was replaced in the current active round
+                if (!selectedModels.includes(modelId)) {
+                    log(`Discarding error/timeout from replaced model ${modelId}`);
+                    return;
+                }
 
                 const status = error.name === 'AbortError' ? 'timeout' : 'error';
                 const errorMsg = error.message;
@@ -4095,11 +4277,15 @@
 
             let prompt = `${dateContext}\n\nSynthesize consensus for: "${discussionData.question}"\n\nAll model responses:\n${allResponses.join('\n\n')}`;
             if (discussionData.instructions) prompt += `\n\nFormat as: ${discussionData.instructions}`;
-            const fmt = discussionData.summaryFormat || 'elaborate';
-            if (fmt === 'compact') {
-                prompt += `\n\nProvide a COMPACT consensus:\n- Start with a 1-sentence verdict\n- Use a weighted score table (4 core points, max 40 points)\n- Bullet-point key agreements and disagreements\n- Output 3 priority recommendations as numbered items\n- Be precise, no fluff`;
-            } else if (fmt === 'elaborate') {
-                prompt += `\n\nProvide an ELABORATE consensus:\n- Start with a detailed executive verdict (2-3 sentences)\n- Include a full weighted scoring table with rationale\n- Show a council alignment & friction matrix\n- Explain excluded points and why they were deprioritized\n- End with actionable recommendations`;
+            if (discussionData.summaryInstructions) {
+                prompt += `\n\n## Custom Consensus Format Instructions:\n${discussionData.summaryInstructions}`;
+            } else {
+                const fmt = discussionData.summaryFormat || 'elaborate';
+                if (fmt === 'compact') {
+                    prompt += `\n\nProvide a COMPACT consensus:\n- Start with a 1-sentence verdict\n- Use a weighted score table (4 core points, max 40 points)\n- Bullet-point key agreements and disagreements\n- Output 3 priority recommendations as numbered items\n- Be precise, no fluff`;
+                } else if (fmt === 'elaborate') {
+                    prompt += `\n\nProvide an ELABORATE consensus:\n- Start with a detailed executive verdict (2-3 sentences)\n- Include a full weighted scoring table with rationale\n- Show a council alignment & friction matrix\n- Explain excluded points and why they were deprioritized\n- End with actionable recommendations`;
+                }
             }
 
             try {
@@ -4392,6 +4578,7 @@
                 }
                 discussionData = { ...discussion };
                 selectedModels = discussion.models || [];
+                normalizeSelectedModels();
                 storedEndpoint = discussion.endpoint || '';
                 storedApiKey = discussion.apiKey || '';
                 storedTimeout = discussion.timeout || 120;
@@ -4409,6 +4596,7 @@
                 }
                 document.getElementById('questionDisplay').style.display = 'block';
                 renderSelectedModelsRow(selectedModels);
+                updateConsensusDropdown();
                 document.getElementById('consensusSection').classList.remove('active');
             closeDiscussionSummary();
                 document.getElementById('exportSection').classList.remove('active');
@@ -4517,6 +4705,7 @@
                 }
                 document.getElementById('questionDisplay').style.display = 'block';
                 renderSelectedModelsRow(selectedModels);
+                updateConsensusDropdown();
                 document.getElementById('consensusSection').classList.remove('active');
             closeDiscussionSummary();
                 document.getElementById('exportSection').classList.remove('active');
@@ -4650,7 +4839,7 @@
                             
                             if (saveResponse.ok) {
                                 showStatus('✓ Saved OpenRouter OAuth key securely on server', 'success');
-                                await loadUserProviderConfig();
+                                await loadUserProviderConfig(false);
                                 await selectSavedProvider('openrouter');
                             } else {
                                 const err = await saveResponse.json();

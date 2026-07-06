@@ -17,8 +17,8 @@ spec:
     spec:
       containers:
       - name: ai-ensemble
-        image: ai-ensemble:local
-        imagePullPolicy: IfNotPresent
+        image: ghcr.io/prashshr/ai-ensemble-backend:latest
+        imagePullPolicy: Always
         ports:
         - name: http
           containerPort: 8080
