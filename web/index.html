@@ -3342,6 +3342,23 @@
             saveState();
         }
 
+        function getRoundResponse(roundData, modelId) {
+            if (!roundData || !modelId) return null;
+            if (roundData[modelId]) return roundData[modelId];
+            if (modelId.includes('::')) {
+                const plainId = modelId.split('::')[1];
+                if (roundData[plainId]) return roundData[plainId];
+            } else {
+                const suffix = `::${modelId}`;
+                for (const key of Object.keys(roundData)) {
+                    if (key === modelId || key.endsWith(suffix)) {
+                        return roundData[key];
+                    }
+                }
+            }
+            return null;
+        }
+
         function normalizeSelectedModels() {
             if (!Array.isArray(selectedModels)) return;
             selectedModels = selectedModels.map(m => {
@@ -3779,10 +3796,10 @@
             const statusInfo = document.getElementById('roundStatusInfo');
             statusDiv.style.display = 'block';
 
-            const complete = selectedModels.filter(m => discussionData.rounds[currentRoundNum]?.[m]?.status === 'complete').length;
-            const error = selectedModels.filter(m => discussionData.rounds[currentRoundNum]?.[m]?.status === 'error').length;
-            const timeout = selectedModels.filter(m => discussionData.rounds[currentRoundNum]?.[m]?.status === 'timeout').length;
-            const connecting = selectedModels.filter(m => discussionData.rounds[currentRoundNum]?.[m]?.status === 'connecting').length;
+            const complete = selectedModels.filter(m => getRoundResponse(discussionData.rounds[currentRoundNum], m)?.status === 'complete').length;
+            const error = selectedModels.filter(m => getRoundResponse(discussionData.rounds[currentRoundNum], m)?.status === 'error').length;
+            const timeout = selectedModels.filter(m => getRoundResponse(discussionData.rounds[currentRoundNum], m)?.status === 'timeout').length;
+            const connecting = selectedModels.filter(m => getRoundResponse(discussionData.rounds[currentRoundNum], m)?.status === 'connecting').length;
 
             let text = `✓ ${complete}/${selectedModels.length} complete\n`;
             if (connecting > 0) text += `🔗 ${connecting} connecting...\n`;
@@ -4048,7 +4065,7 @@
                 for (let r = 1; r < roundNum; r++) {
                     contextParts.push(`\n## Round ${r} Responses\n`);
                     selectedModels.forEach(m => {
-                        const response = discussionData.rounds[r]?.[m];
+                        const response = getRoundResponse(discussionData.rounds[r], m);
                         if (response?.text) {
                             contextParts.push(`### ${m}\n${response.text}\n`);
                         } else {
@@ -4270,7 +4287,7 @@
             const allResponses = [];
             Object.keys(discussionData.rounds).forEach(roundNum => {
                 selectedModels.forEach(model => {
-                    const response = discussionData.rounds[roundNum][model];
+                    const response = getRoundResponse(discussionData.rounds[roundNum], model);
                     if (response?.text) allResponses.push(`[R${roundNum} ${model}] ${response.text}`);
                 });
             });
@@ -4467,7 +4484,7 @@
             Object.keys(discussionData.rounds || {}).forEach(r => {
                 summary += `\n### Round ${r}\n`;
                 (discussionData.models || []).forEach(m => {
-                    const resp = discussionData.rounds[r]?.[m];
+                    const resp = getRoundResponse(discussionData.rounds[r], m);
                     if (resp?.text && resp.text !== '[Skipped]') {
                         summary += `**${m}**:\n\n${resp.text}\n\n`;
                     } else if (resp?.status === 'skipped') {
@@ -4531,8 +4548,10 @@
             Object.keys(discussionData.rounds).forEach(r => {
                 md += `## Round ${r}\n`;
                 selectedModels.forEach(m => {
-                    const resp = discussionData.rounds[r][m];
-                    md += `### ${m}\n${resp.text}\n\n`;
+                    const resp = getRoundResponse(discussionData.rounds[r], m);
+                    if (resp) {
+                        md += `### ${m}\n${resp.text || ''}\n\n`;
+                    }
                 });
             });
             md += `## Consensus\n${discussionData.consensus}`;
@@ -4603,7 +4622,10 @@
                 document.getElementById('consensusSection').classList.remove('active');
             closeDiscussionSummary();
                 document.getElementById('exportSection').classList.remove('active');
-                renderRoundTimeline(Object.keys(discussion.rounds).length);
+                
+                const totalRoundsCount = Object.keys(discussion.rounds).length;
+                currentRoundNum = totalRoundsCount;
+                renderRoundTimeline(totalRoundsCount);
                 if (discussion.stats) recalculateDiscussionStats();
                 
                 for (let i = 1; i <= currentRoundNum; i++) {
@@ -4616,7 +4638,7 @@
             const grid = document.getElementById(`modelsRound${roundNum}`);
             selectedModels.forEach(model => {
                 if (!grid.querySelector(`[data-model="${model}"]`)) {
-                    const response = discussionData.rounds[roundNum]?.[model];
+                    const response = getRoundResponse(discussionData.rounds[roundNum], model);
                     const card = document.createElement('div');
                     card.className = `model-card ${response?.status || 'waiting'}`;
                     card.setAttribute('data-model', model);
