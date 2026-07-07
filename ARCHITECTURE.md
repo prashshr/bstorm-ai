@@ -1,7 +1,7 @@
 # AI Ensemble — Architecture Document
 
-> **Version:** 0.5.4  
-> **Last Updated:** 2026-07-06  
+> **Version:** 0.5.5  
+> **Last Updated:** 2026-07-07  
 > **Source of Truth:** This document defines the authoritative architecture of the AI Ensemble project. Every component, data flow, security boundary, and deployment detail is recorded here. **Any LLM, AI coding agent, or developer working on this project MUST read this document first and follow all rules, conventions, and architectural decisions defined herein.** Keep this in sync with all code changes — updating this file is a mandatory part of every feature or fix.
 
 ---
@@ -679,6 +679,39 @@ The query context is dynamically built and augmented at each stage of the lifecy
      * Safely reads available responses using `getRoundResponse()`, falling back to `⏭ Skipped` or `*No response*` for incomplete tasks.
      * Appends aggregated performance and token consumption metrics (`stats`).
 
+### 7.5 The Layman's Guide: Behind the Scenes of a Discussion
+
+Imagine you are running a committee meeting with several expert advisors (the AI models), but instead of speaking, they communicate by writing and stacking notes. Here is exactly what happens from the moment you type a question to the final synthesis:
+
+#### 📝 Phase 1: Passing the Initial Question (Round 1)
+When you write your question and click start, the application acts as the meeting facilitator:
+1. **The Clock Check**: Before handing your question to the experts, the facilitator slips a high-priority post-it note on top of it: *"Today is Monday, July 6, 2026. Do not guess; if you can look things up, search the live web for the latest info as of today."*
+2. **The Document Handout**: If you uploaded files or documents, the facilitator translates them into text and staples them to your question.
+3. **The First Call**: Each expert advisor reads this "starter package" independently and writes down their initial position statement on their own sheet of paper.
+
+#### 🥞 Phase 2: Stacking and Passing Notes (Rounds 2 to N)
+If you set the discussion to run for multiple rounds, the experts do not work in isolation anymore. They are forced to listen to each other:
+1. **Gathering Notes**: At the end of Round 1, the facilitator collects all of the written sheets from every advisor.
+2. **Stapling the Context Stack**: The facilitator staples all of these sheets together, right underneath your original question.
+3. **Passing the Stack**: For Round 2, this entire stacked chronological booklet is handed to each expert.
+4. **The Refinement Mandate**: The facilitator adds a header directive on top of the booklet: *"Read what your peers wrote in the previous round, refine your thoughts, and write a follow-up sheet that builds constructively upon the group discussion."*
+5. **Repeating**: This process repeats for subsequent rounds, stacking new sheets on top of old sheets, creating a rich collaborative dialogue.
+
+#### 🎓 Phase 3: Reaching the Consensus (The Synthesizer)
+Once all rounds of discussion are complete, the facilitator gathers the entire booklet of stacked notes and hands it over to your designated **Consensus Model** (the Editor-in-Chief):
+1. **The Editor's Task**: The Editor is given a synthesis directive along with the current date: *"Review this entire collaborative transcript, extract where the experts agree, highlight where they disagree, and write a balanced summary."*
+2. **Formatting**:
+   * If you typed **Custom Summary Instructions** into the box, the Editor follows your custom guidelines.
+   * Otherwise, the Editor formats the output using your selected template:
+     * **Compact**: A quick, 1-sentence verdict, a weighted points table, and 3 bulleted recommendations.
+     * **Elaborate**: A deeply detailed executive overview, alignment-versus-friction matrices, and a comprehensive breakdown.
+
+#### 🛑 What If You Click "Stop"? (The "Pencils Down" Guard)
+If you decide to interrupt or end the discussion early:
+1. **Pencils Down**: The facilitator instantly calls out *"Pencils down!"* and cancels all active connections, stopping any slow-running APIs.
+2. **Salvaging the Notes**: Instead of binning the work, the facilitator neatly organizes whatever response sheets were already completed up to that second.
+3. **The Briefing**: It bundles those completed sheets into a partial transcript, adds a `⏭ Skipped` badge for pending ones, tallies up the "words" (tokens) used so far, and shows you the partial results.
+
 ---
 
 ## 8. API Reference
@@ -814,6 +847,13 @@ See `PRODUCTION_PLAN.md` for full details. Key checklist:
 ## 11. Versioning & Changelog
 
 Version format: `v<major>.<minor>.<patch>-<YYYYMMDD>` (e.g., `v0.1.0-20260625`)
+
+### v0.5.5 (2026-07-07)
+
+- **Documentation: The Layman's Guide to AI Ensemble** — Integrated a highly comprehensive and engaging "Layman's Guide: Behind the Scenes of a Discussion" under Section 7.5 to explain multi-round context building, information stacking, and consensus synthesis using a simple "Committee Meeting" analogy.
+- **Documentation: Chronological Query & Context Flow** — Detailed the step-by-step query construction, temporal grounding (calendar context injection), and prompt templates for all discussion stages (Stage 1 to 4) under Section 7.4.
+- **Backend/Frontend: Historical Discussion Restoration Fixes** — Resolved a critical UI issue where legacy, prefix-less database keys (`modelId`) failed to match modern composite keys (`provider::modelId`), implementing prefix-insensitive safe retrieval (`getRoundResponse()`) to successfully restore complete round details for historical discussions.
+- **Frontend: Health Check Execution Control** — Corrected provider selection behaviors to render the loading/refresh icon and initiate background model health checks *only* upon explicit saving or manual refresh triggers, optimizing client-side performance and rate compliance.
 
 ### v0.5.4 (2026-07-06)
 
