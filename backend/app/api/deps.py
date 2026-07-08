@@ -19,6 +19,7 @@ def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_
     try:
         payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
         subject = payload.get("sub")
+        uek = payload.get("uek")
         if subject is None:
             raise credentials_exception
         user_id = int(subject)
@@ -28,4 +29,5 @@ def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise credentials_exception
+    user.uek = uek  # Transient attribute for this request lifecycle
     return user

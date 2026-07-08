@@ -31,7 +31,7 @@ def upsert_provider_credential(
         )
         .first()
     )
-    encrypted = encrypt_secret(payload.api_key)
+    encrypted = encrypt_secret(payload.api_key, key=getattr(current_user, "uek", None))
     # Normalize endpoint to canonical form so model discovery + chat work correctly
     normalized_endpoint = normalize_endpoint(payload.endpoint or "")
     if row:
@@ -93,7 +93,7 @@ async def list_provider_models(
     client = get_provider_client(provider)
     from app.core.crypto import decrypt_secret
 
-    api_key = decrypt_secret(row.api_key_encrypted)
+    api_key = decrypt_secret(row.api_key_encrypted, key=getattr(current_user, "uek", None))
     try:
         return await client.list_models(endpoint=row.endpoint or "", api_key=api_key)
     except HTTPException:
@@ -187,7 +187,7 @@ async def test_provider_connection(
         )
 
     from app.core.crypto import decrypt_secret
-    api_key = decrypt_secret(row.api_key_encrypted)
+    api_key = decrypt_secret(row.api_key_encrypted, key=getattr(current_user, "uek", None))
     client = get_provider_client(provider)
 
     try:

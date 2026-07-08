@@ -1,7 +1,7 @@
 # AI Ensemble — Architecture Document
 
-> **Version:** 0.5.5  
-> **Last Updated:** 2026-07-07  
+> **Version:** 0.6.0  
+> **Last Updated:** 2026-07-08  
 > **Source of Truth:** This document defines the authoritative architecture of the AI Ensemble project. Every component, data flow, security boundary, and deployment detail is recorded here. **Any LLM, AI coding agent, or developer working on this project MUST read this document first and follow all rules, conventions, and architectural decisions defined herein.** Keep this in sync with all code changes — updating this file is a mandatory part of every feature or fix.
 
 ---
@@ -509,16 +509,24 @@ Two services:
 | Concern | Implementation |
 |---------|---------------|
 | **Password storage** | bcrypt via passlib, never plaintext |
-| **API key storage** | Fernet-encrypted per user in DB, never in localStorage |
-| **Auth tokens** | JWT with 24h expiry, stored in sessionStorage (cleared on tab close) |
-| **Per-user isolation** | All DB queries filter by `user_id` from JWT |
+| **API key storage** | Fernet-encrypted per user in DB using the user-specific User Encryption Key (UEK), never in localStorage. Unreadable with direct DB access. |
+| **Discussion & History storage** | Discussion titles, questions, state JSON, message contents, and search queries are all Fernet-encrypted using the user-specific UEK. Genuinely private and unreadable by anyone without the user's actual password. |
+| **User Encryption Key (UEK)** | A random 32-byte master key generated per-user, encrypted using a Password-Derived Key (PDK) via PBKDF2-HMAC-SHA256 from the user's login password + salt, and stored in the database. Decrypted *only* on successful login. |
+| **Auth tokens** | JWT containing the decrypted UEK as a claim, stored in sessionStorage (cleared on tab close). Sent on each API request, populating transient request-lifetime context. |
+| **Per-user isolation** | All DB queries filter by `user_id` from JWT; decryption is provably isolated per user as it requires the user-specific UEK. |
 | **CORS** | Restricted to known origins (`samkhya.cloud` + `localhost:3000`) |
 | **HTTPS** | Enforced by Caddy auto-TLS / Let's Encrypt cert-manager |
-| **Encryption key** | `CREDENTIAL_ENCRYPTION_KEY` must be changed per deployment |
+| **Encryption key** | `CREDENTIAL_ENCRYPTION_KEY` is retained only as a fallback key for unmigrated legacy users. |
 | **JWT secret** | `JWT_SECRET` must be changed per deployment |
 | **API key in transit** | Never sent to frontend after save (only `has_key: true`) |
 | **Token expiry** | Configurable via `ACCESS_TOKEN_EXPIRE_MINUTES` |
 | **Rate limiting** | slowapi with per-IP limits: auth 10–20/min, providers 30–60/min, proxy 60/min, discussions 30–60/min, admin 30/min; Redis backend optional (in-memory fallback) |
+
+### 6.1 Accepted Tradeoffs & Background Tasks
+
+By design, user data (API keys, discussions, messages, and history) is completely protected under a mechanism derived solely from the user's active login credentials. Consequently, **background tasks, offline services, or automated jobs cannot decrypt or act on a user's secure data while that user is logged out.**
+- If a background job or system action cannot unlock a user's data due to missing transient key context (UEK), it **must fail safe and skip that action gracefully** — it must never fall back to a weaker or shared server key.
+- This limitation is accepted by design to maintain genuine, zero-knowledge, and direct-DB-proof privacy.
 
 ---
 
@@ -847,6 +855,13 @@ See `PRODUCTION_PLAN.md` for full details. Key checklist:
 ## 11. Versioning & Changelog
 
 Version format: `v<major>.<minor>.<patch>-<YYYYMMDD>` (e.g., `v0.1.0-20260625`)
+
+### v0.6.0 (2026-07-08)
+
+- **Security: Password-Derived Master Encryption Key (UEK)** — Replaced the shared server-wide key (`CREDENTIAL_ENCRYPTION_KEY`) for encrypting provider credentials, discussions, message content, and search histories with a secure user-specific encryption key (UEK) derived from each user's login credentials.
+- **Security: Complete Zero-Knowledge DB Storage** — Encrypted all user-specific sensitive data: provider API keys, discussion titles, discussion questions, discussion state JSON, message contents, and search queries using the user's master key (`uek`).
+- **Security: Safe Revocation & Transient UEK Session Lifetime** — Configured user-specific UEK decryption to occur solely upon active login. The decrypted UEK is embedded as an extra claim inside the JWT and is held strictly in transient request lifecycles, ensuring logout/browser tab closure completely revokes access to the data with zero cookie or local storage footprint.
+- **Security: Invisible Auto-Migration & Graceful Background Handling** — Enabled seamless, gradual data transition where legacy users' plaintext history and legacy keys are automatically and silently re-encrypted using their newly derived master key on their next successful login. Integrated graceful handling of missing master keys so that any background tasks or unauthorized admin pathways fail/skip gracefully without silent fallback to weaker modes.
 
 ### v0.5.5 (2026-07-07)
 

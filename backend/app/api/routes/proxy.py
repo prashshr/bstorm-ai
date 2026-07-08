@@ -39,7 +39,7 @@ async def proxy_chat(
 
     client = get_provider_client(payload.provider)
     endpoint = normalize_endpoint(payload.endpoint or cred.endpoint or "")
-    api_key = decrypt_secret(cred.api_key_encrypted)
+    api_key = decrypt_secret(cred.api_key_encrypted, key=getattr(current_user, "uek", None))
 
     try:
         output = await client.chat(

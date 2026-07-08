@@ -33,6 +33,18 @@ def init_db() -> None:
             db.commit()
         except Exception:
             db.rollback()
+
+        try:
+            db.execute(text("ALTER TABLE users ADD COLUMN encryption_salt TEXT"))
+            db.commit()
+        except Exception:
+            db.rollback()
+
+        try:
+            db.execute(text("ALTER TABLE users ADD COLUMN master_key_encrypted TEXT"))
+            db.commit()
+        except Exception:
+            db.rollback()
         finally:
             db.close()
 

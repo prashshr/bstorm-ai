@@ -12,6 +12,7 @@ from app.schemas.discussion import (
     MessageCreateRequest,
     MessageResponse,
 )
+from app.core.crypto import encrypt_field, decrypt_field_or_plaintext
 
 
 router = APIRouter()
@@ -25,20 +26,30 @@ def create_discussion(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> DiscussionResponse:
+    uek = getattr(current_user, "uek", None)
+    if not uek:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User Encryption Key (UEK) is missing. Cannot create discussion."
+        )
+
+    encrypted_title = encrypt_field(payload.title, uek)
+    encrypted_question = encrypt_field(payload.question, uek)
+
     discussion = Discussion(
         user_id=current_user.id,
-        title=payload.title,
-        question=payload.question,
+        title=encrypted_title,
+        question=encrypted_question,
         status="new",
     )
     db.add(discussion)
-    db.add(SearchHistory(user_id=current_user.id, query=payload.question))
+    db.add(SearchHistory(user_id=current_user.id, query=encrypted_question))
     db.commit()
     db.refresh(discussion)
     return DiscussionResponse(
         id=discussion.id,
-        title=discussion.title,
-        question=discussion.question,
+        title=payload.title,
+        question=payload.question,
         status=discussion.status,
         created_at=discussion.created_at,
     )
@@ -61,21 +72,28 @@ def update_discussion(
     if not discussion:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Discussion not found")
 
+    uek = getattr(current_user, "uek", None)
+    if not uek:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User Encryption Key (UEK) is missing. Cannot update discussion."
+        )
+
     if payload.status is not None:
         discussion.status = payload.status
     if payload.state_json is not None:
-        discussion.state_json = payload.state_json
+        discussion.state_json = encrypt_field(payload.state_json, uek)
     if payload.title is not None:
-        discussion.title = payload.title
+        discussion.title = encrypt_field(payload.title, uek)
 
     db.commit()
     db.refresh(discussion)
     return DiscussionResponse(
         id=discussion.id,
-        title=discussion.title,
-        question=discussion.question,
+        title=decrypt_field_or_plaintext(discussion.title, uek),
+        question=decrypt_field_or_plaintext(discussion.question, uek),
         status=discussion.status,
-        state_json=discussion.state_json,
+        state_json=decrypt_field_or_plaintext(discussion.state_json, uek),
         created_at=discussion.created_at,
     )
 
@@ -93,13 +111,14 @@ def list_discussions(
         .order_by(Discussion.created_at.desc())
         .all()
     )
+    uek = getattr(current_user, "uek", None)
     return [
         DiscussionResponse(
             id=r.id,
-            title=r.title,
-            question=r.question,
+            title=decrypt_field_or_plaintext(r.title, uek),
+            question=decrypt_field_or_plaintext(r.question, uek),
             status=r.status,
-            state_json=r.state_json,
+            state_json=decrypt_field_or_plaintext(r.state_json, uek),
             created_at=r.created_at,
         )
         for r in rows
@@ -121,12 +140,13 @@ def get_discussion(
     )
     if not discussion:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Discussion not found")
+    uek = getattr(current_user, "uek", None)
     return DiscussionResponse(
         id=discussion.id,
-        title=discussion.title,
-        question=discussion.question,
+        title=decrypt_field_or_plaintext(discussion.title, uek),
+        question=decrypt_field_or_plaintext(discussion.question, uek),
         status=discussion.status,
-        state_json=discussion.state_json,
+        state_json=decrypt_field_or_plaintext(discussion.state_json, uek),
         created_at=discussion.created_at,
     )
 
@@ -174,6 +194,7 @@ def list_messages(
         .order_by(Message.created_at.asc())
         .all()
     )
+    uek = getattr(current_user, "uek", None)
     return [
         MessageResponse(
             id=r.id,
@@ -181,7 +202,7 @@ def list_messages(
             round_number=r.round_number,
             model=r.model,
             role=r.role,
-            content=r.content,
+            content=decrypt_field_or_plaintext(r.content, uek),
             created_at=r.created_at,
         )
         for r in rows
@@ -204,13 +225,20 @@ def create_message(
     if not discussion:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Discussion not found")
 
+    uek = getattr(current_user, "uek", None)
+    if not uek:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User Encryption Key (UEK) is missing. Cannot create message."
+        )
+
     message = Message(
         discussion_id=payload.discussion_id,
         user_id=current_user.id,
         round_number=payload.round_number,
         model=payload.model,
         role=payload.role,
-        content=payload.content,
+        content=encrypt_field(payload.content, uek),
     )
     db.add(message)
     db.commit()
@@ -222,6 +250,6 @@ def create_message(
         round_number=message.round_number,
         model=message.model,
         role=message.role,
-        content=message.content,
+        content=payload.content,
         created_at=message.created_at,
     )
