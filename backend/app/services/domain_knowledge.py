@@ -7,7 +7,8 @@ with weighted category scoring. The top-matching topic's domains are appended
 as site: filters to improve search result quality.
 """
 
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
+import logging
 import re
 
 
@@ -1219,7 +1220,7 @@ def classify_query(query: str) -> Tuple[str, float, TopicDomain]:
         Tuple of (topic_name, confidence_score, TopicDomain object)
     """
     query_lower = query.lower()
-    best_topic = TOPIC_DATABASE[8] if False else None
+    best_topic: Optional[TopicDomain] = None
     best_score = 0.0
 
     for topic in TOPIC_DATABASE:
@@ -1239,6 +1240,9 @@ def classify_query(query: str) -> Tuple[str, float, TopicDomain]:
         if score > best_score:
             best_score = score
             best_topic = topic
+
+    if best_topic is None:
+        return ("general", best_score, None)
 
     return (best_topic.name, best_score, best_topic)
 
@@ -1261,7 +1265,7 @@ def enrich_query_with_domains(query: str) -> str:
     topic_name, confidence, topic = classify_query(query)
     logger = logging.getLogger("ai_ensemble.rag")
 
-    if confidence < 3 or not topic.domains:
+    if confidence < 3 or topic is None or not topic.domains:
         logger.info(f"[RAG] Query enrichment: no topic match (confidence={confidence}), using raw query")
         return query
 
