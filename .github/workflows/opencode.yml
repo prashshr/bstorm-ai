@@ -31,4 +31,4 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.MAMMOUTH_API_KEY }}
           OPENAI_BASE_URL: https://api.mammouth.ai/v1
         with:
-          model: openai/deepseek-v4-flash
+          model: deepseek-v4-flash
