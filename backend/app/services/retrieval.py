@@ -140,31 +140,44 @@ async def search_web(queries: List[str]) -> List[Dict]:
     unique_urls = set()
 
     for query in queries:
-        search_chain = [
-            ("Tavily", _search_tavily(query)),
-            ("SearXNG", _search_searxng(query)),
-            ("DuckDuckGo", _search_duckduckgo(query)),
-        ]
+        enriched = enrich_query_with_domains(query)
 
-        for name, coro in search_chain:
-            if len(all_results) >= 10:
-                break
-            try:
-                results = await coro
-            except Exception as e:
-                logger.error(f"[RAG] {name} search error: {e}")
+        engines = {
+            "Tavily": _search_tavily(enriched),
+            "SearXNG": _search_searxng(enriched),
+            "DuckDuckGo": _search_duckduckgo(enriched),
+        }
+
+        results_by_engine = await asyncio.gather(*engines.values(), return_exceptions=True)
+
+        for (name, _), results in zip(engines.items(), results_by_engine):
+            if isinstance(results, Exception):
+                logger.error(f"[RAG] Engine '{name}' failed: {results}")
+                continue
+            if not results:
+                logger.info(f"[RAG] Engine '{name}' returned 0 results")
                 continue
 
+            count = 0
             for r in results:
                 url = r.get("url", "")
                 if url and url not in unique_urls:
                     unique_urls.add(url)
+                    r["_source"] = name
                     all_results.append(r)
+                    count += 1
+            logger.info(f"[RAG] Engine '{name}' contributed {count}/{len(results)} unique results")
 
-        if len(all_results) >= 10:
+        if len(all_results) >= 15:
             break
 
-    return all_results[:10]
+    total = len(all_results)
+    summary = ", ".join(
+        f"{e}: {sum(1 for r in all_results if r.get('_source') == e)}"
+        for e in ["Tavily", "SearXNG", "DuckDuckGo"]
+    )
+    logger.info(f"[RAG] Combined {total} results from engines: {summary}")
+    return all_results[:15]
 
 
 async def extract_content_from_urls(urls: List[str]) -> str:
@@ -213,7 +226,13 @@ async def get_retrieved_context(user_prompt: str) -> Optional[str]:
             logger.warning("[RAG] No content extracted from any URL")
             return None
 
-        sources = "\n".join(f"- {r['title']}: {r['url']}" for r in search_results)
+        sources_lines = []
+        for r in search_results:
+            engine = r.get("_source", "web")
+            title = r.get("title", "")
+            url = r.get("url", "")
+            sources_lines.append(f"- [{engine}] {title}: {url}")
+        sources = "\n".join(sources_lines)
         context = (
             "LIVE WEB RESEARCH CONTEXT — This information was retrieved from the internet "
             "just now via web search. Treat this as factual, up-to-date data for answering "

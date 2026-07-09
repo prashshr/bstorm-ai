@@ -811,6 +811,8 @@
         .badge-connecting { color: var(--accent); animation: pulse 1.5s infinite; }
 
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+        @keyframes ragShimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+        .rag-loading-bar { height: 2px; background: linear-gradient(90deg, var(--accent) 25%, var(--accent-hover, #7c3aed) 50%, var(--accent) 75%); background-size: 200% 100%; animation: ragShimmer 1.5s ease-in-out infinite; border-radius: 1px; margin-top: 6px; }
 
         .model-response {
             background: var(--bg-secondary);
@@ -1581,6 +1583,7 @@
                                 <div id="ragStatusDisplay" style="display:none; margin-top: 8px; font-size: 12px;">
                                     <span id="ragStatusDot" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px;"></span>
                                     <span id="ragStatusText"></span>
+                                    <div id="ragLoadingBar" class="rag-loading-bar" style="display:none;"></div>
                                 </div>
                                 <div id="instructionsDisplay" style="display:none; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border);">
                                     <div style="font-size: 13px; font-weight: 500; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Instructions</div>
@@ -3627,7 +3630,12 @@
             if (!question) { showStatus('Please enter a question', 'error'); return; }
             if (selectedModels.length < 2 || selectedModels.length > 5) { showStatus('Select 2-5 models', 'error'); return; }
 
-            // If logged in, create the discussion on the server first
+            if (useRag) {
+                document.getElementById('questionDisplayText').textContent = question;
+                document.getElementById('questionDisplay').style.display = 'block';
+                setRagLoading(true);
+            }
+
             let initialRetrievedContext = null;
             if (authToken) {
                 try {
@@ -3653,6 +3661,7 @@
                     log(`Error creating backend discussion: ${err.message}`);
                     discussionId = 'disc_' + Date.now();
                 }
+                if (useRag) setRagLoading(false);
             } else {
                 discussionId = 'disc_' + Date.now();
             }
@@ -4660,10 +4669,30 @@
             statusMsg.style.display = 'block';
         }
 
+        function setRagLoading(loading) {
+            const ragStatusDisplay = document.getElementById('ragStatusDisplay');
+            const ragStatusDot = document.getElementById('ragStatusDot');
+            const ragStatusText = document.getElementById('ragStatusText');
+            const ragLoadingBar = document.getElementById('ragLoadingBar');
+            if (loading) {
+                ragStatusDisplay.style.display = 'block';
+                ragStatusDot.style.background = 'var(--accent)';
+                ragStatusDot.style.animation = 'pulse 1.2s ease-in-out infinite';
+                ragStatusText.textContent = 'Searching the web...';
+                ragLoadingBar.style.display = 'block';
+            } else {
+                ragStatusDot.style.animation = '';
+                ragLoadingBar.style.display = 'none';
+            }
+        }
+
         function updateRagStatusDisplay() {
             const ragStatusDisplay = document.getElementById('ragStatusDisplay');
             const ragStatusDot = document.getElementById('ragStatusDot');
             const ragStatusText = document.getElementById('ragStatusText');
+            const ragLoadingBar = document.getElementById('ragLoadingBar');
+            ragLoadingBar.style.display = 'none';
+            ragStatusDot.style.animation = '';
             if (discussionData.retrieved_context) {
                 ragStatusDisplay.style.display = 'block';
                 ragStatusDot.style.background = '#22c55e';
