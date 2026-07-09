@@ -28,7 +28,6 @@ jobs:
       - name: Run opencode
         uses: anomalyco/opencode/github@latest
         env:
-          OPENAI_API_KEY: ${{ secrets.MAMMOUTH_API_KEY }}
-          OPENAI_BASE_URL: https://api.mammouth.ai/v1
+          MAMMOUTH_API_KEY: ${{ secrets.MAMMOUTH_API_KEY }}
         with:
-          model: deepseek-v4-flash
+          model: mammouth-ai/deepseek-v4-flash
