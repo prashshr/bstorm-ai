@@ -1,0 +1,16 @@
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "auth: authentication tests",
+    "providers: provider credential tests",
+    "discussions: discussion CRUD tests",
+    "proxy: proxy chat tests",
+    "rag: RAG pipeline tests",
+    "security: data isolation and encryption tests",
+    "domain: domain knowledge classifier tests",
+    "slow: tests that take longer (e.g. external API calls)",
+]
