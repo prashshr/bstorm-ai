@@ -39,6 +39,7 @@ class Discussion(Base):
     question: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(50), default="new")
     state_json: Mapped[str] = mapped_column(Text, default="")  # Full discussion state
+    retrieved_context_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     messages = relationship("Message", back_populates="discussion", cascade="all, delete-orphan")

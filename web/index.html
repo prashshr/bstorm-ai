@@ -1490,6 +1490,19 @@
                                             </div>
                                         </div>
 
+                                        <div class="form-row" style="margin-top: -10px; margin-bottom: 15px;">
+                                            <div class="form-group" style="grid-column: 1 / -1; display: flex; flex-direction: column; gap: 8px;">
+                                                <div class="model-checkbox" style="padding: 10px 14px;">
+                                                    <input type="checkbox" id="useRagCheckbox" onchange="document.getElementById('deepResearchCheckbox').disabled = !this.checked; if(!this.checked) document.getElementById('deepResearchCheckbox').checked = false;" style="width: auto; cursor: pointer; margin-right: 10px; accent-color: var(--accent);">
+                                                    <label for="useRagCheckbox" style="font-size: 13px; font-weight: 500; color: var(--text-primary); text-transform: none; letter-spacing: 0; cursor: pointer; margin-bottom: 0;">Use Live Web Search (RAG)</label>
+                                                </div>
+                                                <div class="model-checkbox" style="padding: 10px 14px; margin-left: 20px;">
+                                                    <input type="checkbox" id="deepResearchCheckbox" disabled style="width: auto; cursor: pointer; margin-right: 10px; accent-color: var(--accent);">
+                                                    <label for="deepResearchCheckbox" style="font-size: 12px; font-weight: 400; color: var(--text-secondary); text-transform: none; letter-spacing: 0; cursor: pointer; margin-bottom: 0;">Deep Research Mode (Re-search before each round)</label>
+                                                </div>
+                                            </div>
+                                        </div>
+
                                         <div class="form-row">
                                             <div class="form-group" style="grid-column: 1 / -1;">
                                                 <label for="responseFormat">Response Format</label>
@@ -2865,7 +2878,8 @@
                             timestamp: parseDbDate(d.created_at),
                             question: d.question || '',
                             status: d.status || 'new',
-                            ...parsedState
+                            ...parsedState,
+                            retrieved_context: d.retrieved_context || parsedState.retrieved_context || null
                         };
                     });
                     saveHistory();
@@ -3595,6 +3609,8 @@
             const summaryInstructions = document.getElementById('summaryInstructions') ? document.getElementById('summaryInstructions').value.trim() : '';
             const timeout = parseInt(document.getElementById('timeout').value);
             const maxTokens = parseInt(document.getElementById('maxTokens').value) || 6000;
+            const useRag = document.getElementById('useRagCheckbox').checked;
+            const deepResearch = document.getElementById('deepResearchCheckbox').checked;
 
             let endpoint = '';
             try {
@@ -3608,6 +3624,7 @@
             if (selectedModels.length < 2 || selectedModels.length > 5) { showStatus('Select 2-5 models', 'error'); return; }
 
             // If logged in, create the discussion on the server first
+            let initialRetrievedContext = null;
             if (authToken) {
                 try {
                     const res = await authFetch('/api/discussions', {
@@ -3615,12 +3632,15 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             question: question,
-                            title: question.substring(0, 50)
+                            title: question.substring(0, 50),
+                            use_rag: useRag,
+                            deep_research: deepResearch
                         })
                     });
                     if (res.ok) {
                         const d = await res.json();
                         discussionId = d.id;
+                        initialRetrievedContext = d.retrieved_context || null;
                     } else {
                         log(`Server error creating discussion: ${res.status}`);
                         discussionId = 'disc_' + Date.now();
@@ -3664,7 +3684,10 @@
                 summaryInstructions,
                 attachments: attachedFiles.map(f => ({ name: f.name, size: f.size, type: f.type })),
                 status: 'in_progress',
-                totalRounds
+                totalRounds,
+                use_rag: useRag,
+                deep_research: deepResearch,
+                retrieved_context: initialRetrievedContext
             };
 
             for (let i = 1; i <= totalRounds; i++) {
@@ -3794,9 +3817,36 @@
             container.appendChild(btnDiv);
         }
 
-        function proceedToNextRound(roundNum) {
+        async function proceedToNextRound(roundNum) {
             currentRoundNum = roundNum;
             document.querySelector('.next-round-button')?.remove();
+
+            // If deep research is active and we are logged in, trigger deep research before continuing
+            if (discussionData.deep_research && authToken && typeof discussionData.id === 'number') {
+                log(`Triggering Deep Research before Round ${roundNum}...`);
+                const statusDiv = document.getElementById('roundStatus');
+                const statusInfo = document.getElementById('roundStatusInfo');
+                if (statusDiv && statusInfo) {
+                    statusDiv.style.display = 'block';
+                    statusInfo.textContent = `🔍 Re-searching and gathering context for Round ${roundNum}...`;
+                }
+
+                try {
+                    const res = await authFetch(`/api/discussions/${discussionData.id}/research`, {
+                        method: 'POST'
+                    });
+                    if (res.ok) {
+                        const d = await res.json();
+                        discussionData.retrieved_context = d.retrieved_context || null;
+                        log(`Deep Research success: gathered ${discussionData.retrieved_context ? discussionData.retrieved_context.length : 0} characters of context.`);
+                    } else {
+                        log(`Deep Research failed with status ${res.status}. Proceeding with existing context...`);
+                    }
+                } catch (err) {
+                    log(`Deep Research failed: ${err.message}. Proceeding with existing context...`);
+                }
+            }
+
             runRound(roundNum, totalRounds, storedEndpoint, storedTimeout, storedMaxTokens);
         }
 
@@ -4062,7 +4112,11 @@
             const activeDateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
             const dateContext = `[SYSTEM NOTICE: Today's date is ${activeDateStr}. Treat today as the absolute present moment for your temporal grounding. If you have search, browsing, or real-time web-access capabilities, you must actively perform live internet search queries to retrieve and incorporate the latest, up-to-the-minute information from the most authoritative, reliable, and primary online sources before formulating your analysis, recommendations, or data picks. Do not work on pre-training cutoff or stale offline data.]`;
 
-            let userMessage = `${dateContext}\n\n${discussionData.question}`;
+            let userMessage = `${dateContext}\n\n`;
+            if (discussionData.retrieved_context) {
+                userMessage += `# Retrieved Web Search Context\n${discussionData.retrieved_context}\n\n`;
+            }
+            userMessage += `${discussionData.question}`;
             if (roundNum === 1 && discussionData.instructions) {
                 userMessage += `\n\n## Instructions / Response Format:\n${discussionData.instructions}`;
             }
@@ -4070,6 +4124,9 @@
                 const contextParts = [`# Original Question\n"${discussionData.question}"\n`];
                 if (discussionData.instructions) {
                     contextParts.push(`\n## Instructions\n${discussionData.instructions}\n`);
+                }
+                if (discussionData.retrieved_context) {
+                    contextParts.push(`\n# Retrieved Web Search Context\n${discussionData.retrieved_context}\n`);
                 }
                 for (let r = 1; r < roundNum; r++) {
                     contextParts.push(`\n## Round ${r} Responses\n`);

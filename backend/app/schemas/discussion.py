@@ -7,6 +7,8 @@ from pydantic import BaseModel, Field
 class DiscussionCreateRequest(BaseModel):
     question: str = Field(min_length=1)
     title: str = ""
+    use_rag: bool = False
+    deep_research: bool = False
 
 
 class DiscussionUpdateRequest(BaseModel):
@@ -29,6 +31,7 @@ class DiscussionResponse(BaseModel):
     question: str
     status: str
     state_json: str = ""
+    retrieved_context: Optional[str] = None
     created_at: datetime
 
 
