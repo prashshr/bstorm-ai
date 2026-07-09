@@ -2,6 +2,27 @@
 
 Multi-model discussion and consensus system. Compare and synthesize answers from multiple AI providers in structured rounds with automated web research (RAG).
 
+## Quick Start
+
+```bash
+# Prerequisites: Python 3.12, API keys from providers
+cp .env.example .env          # Configure your secrets
+cd backend && pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8080  # Start API
+```
+
+**New to Ensemble?** Read the [User Guide](docs/user-guide.md) for a step-by-step walkthrough with diagrams.
+
+**Developer?** Read the [Architecture](docs/architecture.md) for the full technical reference.
+
+## Documentation
+
+| Document | For | What it covers |
+|----------|-----|---------------|
+| [User Guide](docs/user-guide.md) | Everyone | How Ensemble works with diagrams, step-by-step walkthrough |
+| [Architecture](docs/architecture.md) | Developers | Full technical reference: code, data flow, security, deployment |
+| [Production Plan](docs/production-plan.md) | Ops/DevOps | Production readiness, scaling, deployment checklist |
+
 ## Directory Structure
 
 ```
