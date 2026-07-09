@@ -369,8 +369,7 @@ The frontend is a **single-page application** containing all CSS, HTML, and Java
 
 | File | Purpose |
 |------|---------|
-| `frontend/index.html` | Main SPA served in production (approx. 3300 lines after layout enhancements) |
-| `frontend/ai-ensemble-v5.html` | Standalone template prototype in sync with main entrypoint |
+| `frontend/index.html` | Main SPA served in production (approx. 5000 lines) |
 
 #### Advanced Multi-Column Dashboard Layout
 The dashboard layout is designed to maximize screen real estate and mimic a high-performance IDE/control center:
@@ -834,7 +833,7 @@ If you decide to interrupt or end the discussion early:
 
 ## 9. Development Guide
 
-### ⚠️ Mandatory Rule: ARCHITECTURE.md Is the Source of Truth
+### ⚠️ Mandatory Rule: `docs/architecture.md` Is the Source of Truth
 
 **Every AI coding agent, LLM, or developer working on this project MUST:**
 
@@ -904,17 +903,19 @@ Currently using SQLAlchemy `create_all()` on startup. For schema changes:
 
 ## 10. Production Readiness
 
-See `PRODUCTION_PLAN.md` for full details. Key checklist:
+See `docs/production-plan.md` for full details. Key checklist:
 
 - [x] Auth with per-user isolation
-- [x] Encrypted API key storage
-- [x] HTTPS with Let's Encrypt
+- [x] Encrypted API key storage (UEK + Fernet)
+- [x] HTTPS with Let's Encrypt (cert-manager)
 - [x] Rate limiting (slowapi, per-IP, all routes)
+- [x] 89-passing test suite (unit, integration, E2E)
+- [x] Version-tracked test reports
+- [x] Semantic versioning (16 releases)
+- [x] GHCR image registry with pull secrets
 - [ ] Audit logging (not implemented)
-- [ ] CSP headers (partial — Caddy adds HSTS etc.)
-- [ ] Input sanitization (not implemented)
+- [ ] CSP headers (partial — Traefik adds HSTS etc.)
 - [ ] Regular DB backups (not configured)
-- [ ] Resource monitoring (not configured)
 - [ ] CI/CD pipeline (not configured)
 
 ---
@@ -1046,7 +1047,7 @@ Version format: `v<major>.<minor>.<patch>-<YYYYMMDD>` (e.g., `v0.1.0-20260625`)
 
 ### v0.2.1 (2026-06-25)
 
-- Strengthened "Source of Truth" mandate: explicit instruction that every AI agent/developer must read ARCHITECTURE.md first and update it with every change
+- Strengthened "Source of Truth" mandate: explicit instruction that every AI agent/developer must read `docs/architecture.md` first and update it with every change
 - Removed inline auth panel from setup tab (login now exclusively via full-screen overlay)
 - Added persistent logout button in header area for switching users
 - Removed default credential hint from login overlay

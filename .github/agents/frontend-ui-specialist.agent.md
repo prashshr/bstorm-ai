@@ -56,7 +56,7 @@ The dashboard is a single-page layout with these sections:
 - When asked to apply the "ps-xai-orange" theme, use `data-theme="ps-xai-orange"` on `<html>` with the dark-base, orange-accent CSS variable set defined above
 
 ## Approach
-1. Read the existing `web/index.html` to understand current structure, theme, and JS patterns
+1. Read the existing `frontend/index.html` to understand current structure, theme, and JS patterns
 2. Create or modify the HTML/CSS/JS for the new layout components
 3. Verify the changes preserve the theme and work in both dark and light mode
 4. Run the dev server to test visually if needed
