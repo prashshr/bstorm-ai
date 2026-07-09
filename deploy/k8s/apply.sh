@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-cd "$PROJECT_ROOT"
+MANIFEST_DIR="deploy/k8s"
 
 echo "Deploying ai-ensemble to Kubernetes..."
 
@@ -19,20 +19,20 @@ fi
 echo "Applying manifests in order..."
 
 echo "1. Creating namespace..."
-kubectl apply -f kube-manifests/namespace.yaml
+kubectl apply -f $MANIFEST_DIR/namespace.yaml
 
 echo "2. Creating secrets from .env file..."
-if ! bash kube-manifests/create-secret.sh; then
+if ! bash $MANIFEST_DIR/create-secret.sh; then
   echo "ERROR: Failed to create secrets from .env file"
   exit 1
 fi
 
 echo "3. Creating config..."
-kubectl apply -f kube-manifests/configmap.yaml
+kubectl apply -f $MANIFEST_DIR/configmap.yaml
 
 echo "4. Deploying SearXNG (self-hosted search)..."
-kubectl apply -f kube-manifests/searxng-settings-configmap.yaml
-kubectl apply -f kube-manifests/searxng-deployment.yaml
+kubectl apply -f $MANIFEST_DIR/searxng-settings-configmap.yaml
+kubectl apply -f $MANIFEST_DIR/searxng-deployment.yaml
 
 echo "5. Creating GHCR pull secret..."
 kubectl create secret docker-registry ghcr-pull-secret \
@@ -43,22 +43,22 @@ kubectl create secret docker-registry ghcr-pull-secret \
   --dry-run=client -o yaml | kubectl apply -f - || echo "WARNING: GHCR pull secret not configured - set GHCR_PAT in environment"
 
 echo "6. Creating api deployment..."
-kubectl apply -f kube-manifests/deployment.yaml
+kubectl apply -f $MANIFEST_DIR/deployment.yaml
 
 echo "7. Creating api service..."
-kubectl apply -f kube-manifests/service.yaml
+kubectl apply -f $MANIFEST_DIR/service.yaml
 
 echo "8. Creating web deployment..."
-kubectl apply -f kube-manifests/web-deployment.yaml
+kubectl apply -f $MANIFEST_DIR/web-deployment.yaml
 
 echo "9. Creating web service..."
-kubectl apply -f kube-manifests/web-service.yaml
+kubectl apply -f $MANIFEST_DIR/web-service.yaml
 
 echo "10. Creating certificate..."
-kubectl apply -f kube-manifests/cert.yaml || echo "WARNING: cert apply failed (cert-manager may not be installed) - continuing..."
+kubectl apply -f $MANIFEST_DIR/cert.yaml || echo "WARNING: cert apply failed (cert-manager may not be installed) - continuing..."
 
 echo "11. Creating ingress..."
-kubectl apply -f kube-manifests/ingress.yaml
+kubectl apply -f $MANIFEST_DIR/ingress.yaml
 
 echo ""
 echo "Deployment complete"

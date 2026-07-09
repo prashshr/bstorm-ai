@@ -30,6 +30,7 @@ kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -
 kubectl -n "$NAMESPACE" delete secret "$SECRET_NAME" --ignore-not-found
 kubectl -n "$NAMESPACE" create secret generic "$SECRET_NAME" \
   --from-literal=JWT_SECRET="$JWT_SECRET" \
-  --from-literal=CREDENTIAL_ENCRYPTION_KEY="$CREDENTIAL_ENCRYPTION_KEY"
+  --from-literal=CREDENTIAL_ENCRYPTION_KEY="$CREDENTIAL_ENCRYPTION_KEY" \
+  --from-literal=TAVILY_API_KEY="${TAVILY_API_KEY:-}"
 
 echo "Secret $SECRET_NAME updated in namespace $NAMESPACE"

@@ -6,10 +6,9 @@ HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-3000}"
 LOG_FILE="${LOG_FILE:-/tmp/ai-ensemble-dev.log}"
 
-cd "$ROOT_DIR"
+cd "$ROOT_DIR/frontend"
 
 echo "Starting AI Ensemble dev server"
-echo "Root: $ROOT_DIR"
 echo "URL:  http://$HOST:$PORT/"
 echo "Log:  $LOG_FILE"
 

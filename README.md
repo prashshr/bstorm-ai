@@ -1,194 +1,121 @@
 # AI Ensemble
 
-AI Ensemble is a multi-model discussion UI for comparing and synthesizing answers from multiple AI providers.
+Multi-model discussion and consensus system. Compare and synthesize answers from multiple AI providers in structured rounds with automated web research (RAG).
 
-## Current State
+## Directory Structure
 
-This project is currently a prototype front-end in `ai-ensemble-v5.html` served as static content.
-It is not yet production-ready for public internet use.
-
-## Repository Layout
-
-- `ai-ensemble-v5.html` - main prototype app
-- `scripts/run-dev.sh` - consolidated local dev server script
-- `README.md` - primary project documentation
-- `README_REVIEW.md`, `REVIEW_SUMMARY.md`, `PRODUCTION_READINESS_REVIEW.md`, `IMPROVEMENTS_CODE_GUIDE.md`, `ACTION_PLAN.md` - review and planning documents
-
-## Local Development
-
-Run a local HTTP server on `127.0.0.1:3000`:
-
-```bash
-./scripts/run-dev.sh
+```
+ai-ensemble/
+├── backend/                  # FastAPI backend (Python 3.12)
+│   ├── app/                  # Application code
+│   │   ├── api/              # API routes (auth, providers, discussions, proxy)
+│   │   ├── core/             # Config, crypto, security, rate limiting
+│   │   ├── db/               # Database session
+│   │   ├── models/           # SQLAlchemy models
+│   │   ├── schemas/          # Pydantic request/response schemas
+│   │   └── services/         # Business logic (providers, RAG, domain knowledge)
+│   ├── migrations/           # Alembic database migrations
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   └── alembic.ini
+├── frontend/                 # Single-page HTML/CSS/JS app (served by nginx)
+│   └── index.html
+├── deploy/
+│   ├── compose/
+│   │   └── docker-compose.yml     # Docker Compose (dev/staging)
+│   └── k8s/                       # Kubernetes manifests (prod)
+│       ├── deployment.yaml
+│       ├── service.yaml
+│       ├── ingress.yaml
+│       ├── web-deployment.yaml
+│       ├── web-service.yaml
+│       ├── searxng-deployment.yaml
+│       ├── configmap.yaml
+│       ├── cert.yaml
+│       └── apply.sh
+├── docs/
+│   ├── architecture.md            # Full architecture documentation
+│   └── production-plan.md         # Production readiness plan
+├── testing/
+│   ├── backend/
+│   │   ├── unit/                  # Unit tests (89 total)
+│   │   ├── integration/           # Integration tests
+│   │   ├── e2e/                   # Playwright browser tests
+│   │   ├── conftest.py            # Shared fixtures
+│   │   └── pyproject.toml         # Pytest configuration
+│   ├── scripts/
+│   │   └── run-tests.py           # Test runner & report generator
+│   └── README.md                  # Testing guide
+├── scripts/
+│   ├── deploy-prod.sh             # Production deployment
+│   └── run-dev.sh                 # Local development
+├── .github/
+│   ├── agents/                    # AI agent configurations
+│   └── workflows/                 # GitHub Actions
+├── .env.example                   # Environment variable template
+├── .gitignore
+└── README.md
 ```
 
-Open: `http://127.0.0.1:3000/`
+## Quick Start
 
-## Production-Ready Architecture Plan
-
-### 1. Reverse Proxy + TLS + Domain
-
-Target domain: `https://ai-ensemble.samkhya.cloud`
-
-Use a reverse proxy with automatic Let's Encrypt certificate management:
-
-- Option A: Caddy (simplest automatic TLS)
-- Option B: Nginx + certbot
-- Option C: Traefik (if already using container/k8s stack)
-
-Recommended ports and exposure:
-
-- Expose only `80` and `443` publicly
-- Bind application service to loopback/private network only (for example `127.0.0.1:8080`)
-- Deny direct access to admin/debug routes
-
-### 2. App Backend (required)
-
-Move provider API calls from browser to backend.
-
-Why:
-
-- Avoid exposing provider API keys to browser/localStorage
-- Enforce per-user authorization and quotas
-- Add audit logs and abuse controls
-
-Suggested stack:
-
-- FastAPI or Flask backend
-- SQLite/PostgreSQL for users, sessions, provider configs, discussion history
-- Server-side encrypted storage for provider keys
-
-### 3. Authentication and User Isolation
-
-Implement local user accounts with password auth:
-
-- Table: users
-- Table: sessions (server-issued, HTTP-only secure cookies)
-- Table: provider_keys (user-scoped, encrypted at rest)
-- Table: discussions (user_id foreign key)
-- Table: messages / rounds (user_id + discussion_id)
-
-Security requirements:
-
-- Password hashing with Argon2 or bcrypt
-- CSRF protection for cookie-based auth
-- Strict per-request authorization checks by `user_id`
-- No raw provider keys returned to frontend
-
-### 4. Provider Abstraction (multi-provider)
-
-Create a provider adapter layer to support:
-
-- OpenAI
-- Anthropic
-- Google Gemini
-- OpenRouter
-- Azure OpenAI
-- Any OpenAI-compatible endpoint
-
-Design notes:
-
-- Unified request/response schema in backend
-- Provider-specific adapters map to each API format
-- Per-user default provider/model preferences
-- Optional fallback chain and retry policy
-
-### 5. Minimize Exposure
-
-Do not expose:
-
-- Debug endpoints
-- Internal metrics unauthenticated
-- Raw trace/log dumps
-- Environment or config files
-
-Hardening:
-
-- Rate limiting by IP and user
-- Request body limits
-- Security headers (CSP, HSTS, X-Frame-Options, Referrer-Policy)
-- Centralized structured logging
-
-## Suggested Implementation Milestones
-
-1. Backend foundation: auth, DB models, basic API
-2. Move current frontend calls to backend endpoints
-3. Add provider adapters and key vault/encryption
-4. Add user history and search history endpoints
-5. Deploy behind Caddy/Nginx with TLS for `ai-ensemble.samkhya.cloud`
-6. Add tests (auth, data isolation, provider routing)
-
-## Git Hygiene Rules Applied
-
-The repository now ignores:
-
-- `debugging/`
-- `QUICK_REFERENCE.txt`
-- `.reasonix/`
-- local env/log/db/runtime files
-
-If these files are already tracked, remove from git index while preserving local files:
+### Local Development
 
 ```bash
-git rm -r --cached debugging .reasonix QUICK_REFERENCE.txt
+# Backend
+cd backend
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8080
+
+# Frontend (separate terminal)
+cd frontend
+python -m http.server 3000
 ```
 
-## Next Recommended Deliverables
-
-- `backend/` service with auth + DB models
-- `docker-compose.yml` for app + reverse proxy
-- production deploy docs for DNS + TLS + firewall
-- migration notes from prototype localStorage data to user-scoped DB
-
-## Production Deployment (Live Domain + Let's Encrypt)
-
-This repo now includes:
-
-- FastAPI backend with local user auth (`/api/auth/register`, `/api/auth/login`)
-- User-scoped SQLite persistence for users, provider keys, discussions, messages, and search history
-- Caddy reverse proxy with automatic Let's Encrypt certificates for `ai-ensemble.samkhya.cloud`
-
-### Prerequisites
-
-1. DNS `A`/`AAAA` for `ai-ensemble.samkhya.cloud` points to this server
-2. Ports `80` and `443` open inbound
-3. Docker Engine + Docker Compose plugin installed
-4. Nothing else bound to `80/443`
-
-### Configure Secrets
-
-Copy and edit env file:
+### Docker Compose
 
 ```bash
-cp .env.example .env
+docker compose -f deploy/compose/docker-compose.yml up -d
 ```
 
-Set strong values in `.env`:
-
-- `JWT_SECRET` (long random secret)
-- `CREDENTIAL_ENCRYPTION_KEY` (32+ chars)
-
-### Deploy
+### Kubernetes (Production)
 
 ```bash
-./scripts/deploy-prod.sh
+./deploy/k8s/apply.sh
 ```
 
-### Verify
+## Testing
 
 ```bash
-docker compose ps
-docker compose logs -f web api
+# Run all backend tests
+python testing/scripts/run-tests.py
+
+# With coverage
+python testing/scripts/run-tests.py --coverage
+
+# View latest test report
+python testing/scripts/run-tests.py --view
 ```
 
-Expected endpoints:
+## API Overview
 
-- App: `https://ai-ensemble.samkhya.cloud`
-- API health: `https://ai-ensemble.samkhya.cloud/health`
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/api/auth/register` | POST | No | Register new user |
+| `/api/auth/login` | POST | No | Login, get bearer token |
+| `/api/providers` | GET/POST | Bearer | List/save provider credentials |
+| `/api/providers/{provider}/models` | GET | Bearer | Discover models |
+| `/api/discussions` | GET/POST | Bearer | List/create discussions |
+| `/api/discussions/{id}/messages` | GET | Bearer | List messages in discussion |
+| `/api/discussions/messages` | POST | Bearer | Add message to discussion |
+| `/api/proxy/chat` | POST | Bearer | Proxy chat to provider |
+| `/health` | GET | No | Health check |
 
-### Auth API (Local Login Enabled)
+## Key Features
 
-- Register: `POST /api/auth/register`
-- Login: `POST /api/auth/login`
-
-These issue bearer tokens for authenticated user-scoped API access.
+- **Multi-provider**: OpenAI, Anthropic, Gemini, OpenRouter, Perplexity, Vertex, any OpenAI-compatible endpoint
+- **RAG Pipeline**: 3-tier web search (Tavily → self-hosted SearXNG → DuckDuckGo fallback)
+- **Domain-aware search**: Topic-based site: filtering for 17 categories (finance, shopping, tech, health, etc.)
+- **Encrypted storage**: Provider keys and RAG context encrypted at rest with per-user encryption keys (UEK)
+- **K3s deployment**: Production on Kubernetes with GHCR images, Let's Encrypt TLS, and Traefik ingress

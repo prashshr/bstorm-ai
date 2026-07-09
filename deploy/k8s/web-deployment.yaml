@@ -41,5 +41,5 @@ spec:
       volumes:
       - name: web-content
         hostPath:
-          path: /arbeit/ai-welt/projects/ai-ensemble/web
+          path: /arbeit/ai-welt/projects/ai-ensemble/frontend
           type: Directory

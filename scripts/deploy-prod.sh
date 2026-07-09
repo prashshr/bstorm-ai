@@ -22,13 +22,13 @@ if [[ -z "${CREDENTIAL_ENCRYPTION_KEY:-}" || "$CREDENTIAL_ENCRYPTION_KEY" == "re
 fi
 
 cd "$ROOT_DIR"
-docker compose pull web || true
-docker compose build api
-docker compose up -d
+docker compose -f deploy/compose/docker-compose.yml pull web || true
+docker compose -f deploy/compose/docker-compose.yml build api
+docker compose -f deploy/compose/docker-compose.yml up -d
 
 echo "Deployment started."
-echo "Check status: docker compose ps"
-echo "Check logs:   docker compose logs -f web api"
+echo "Check status: docker compose -f deploy/compose/docker-compose.yml ps"
+echo "Check logs:   docker compose -f deploy/compose/docker-compose.yml logs -f web api"
 
 echo "IMPORTANT DNS/FIREWALL CHECKS"
 echo "1) A/AAAA record for ai-ensemble.samkhya.cloud points to this server"

@@ -362,15 +362,15 @@ When `ChatRequest.include_rag_context` is `true` and `discussion_id` is provided
 
 ### 4.1 File Layout & Serving
 
-**In k3s deployment:** `web/index.html` is served by nginx from `/usr/share/nginx/html/`
-**In Docker Compose:** `web/` directory is served by Caddy from `/srv/`
+**In k3s deployment:** `frontend/index.html` is served by nginx from `/usr/share/nginx/html/`
+**In Docker Compose:** `frontend/` directory is served by Caddy from `/srv/`
 
 The frontend is a **single-page application** containing all CSS, HTML, and JavaScript in one file.
 
 | File | Purpose |
 |------|---------|
-| `web/index.html` | Main SPA served in production (approx. 3300 lines after layout enhancements) |
-| `web/ai-ensemble-v5.html` | Standalone template prototype in sync with main entrypoint |
+| `frontend/index.html` | Main SPA served in production (approx. 3300 lines after layout enhancements) |
+| `frontend/ai-ensemble-v5.html` | Standalone template prototype in sync with main entrypoint |
 
 #### Advanced Multi-Column Dashboard Layout
 The dashboard layout is designed to maximize screen real estate and mimic a high-performance IDE/control center:
@@ -509,7 +509,7 @@ discussionData = {
 
 **Namespace:** `ai-ensemble`
 
-**Manifests** in `kube-manifests/`:
+**Manifests** in `deploy/k8s/`:
 
  | Manifest | Resource | Details |
 |----------|----------|---------|
@@ -866,7 +866,7 @@ docker build -t ghcr.io/prashshr/ai-ensemble:latest ./backend
 docker push ghcr.io/prashshr/ai-ensemble:latest
 
 # Deploy
-cd kube-manifests
+cd deploy/k8s
 kubectl create ns ai-ensemble --dry-run=client -o yaml | kubectl apply -f -
 bash create-secret.sh
 kubectl apply -f configmap.yaml
@@ -951,12 +951,12 @@ Version format: `v<major>.<minor>.<patch>-<YYYYMMDD>` (e.g., `v0.1.0-20260625`)
 
 ### v0.5.4 (2026-07-06)
 
-- **Infrastructure: Ingress Cleanup & Traefik Restoration** — Purged invalid Traefik timeout annotations from `/kube-manifests/ingress.yaml` which were unrecognized by the ingress provider, instantly restoring full ingress routing and resolving the 404 Page Not Found block.
+- **Infrastructure: Ingress Cleanup & Traefik Restoration** — Purged invalid Traefik timeout annotations from `/deploy/k8s/ingress.yaml` which were unrecognized by the ingress provider, instantly restoring full ingress routing and resolving the 404 Page Not Found block.
 - **Backend: Patient HTTPX Timeout Tuning** — Kept the increased client-side HTTPX timeouts (120s/150s) on the backend as the primary and highly stable remedy, ensuring the proxy waits gracefully for deep multi-agent reasoning tasks while Traefik handles streaming/long-polling with no default timeout limits.
 
 ### v0.5.3 (2026-07-06)
 
-- **Infrastructure: Traefik Ingress Timeout Expansion** — Configured Ingress annotations `traefik.ingress.kubernetes.io/router.timeout: 180s` and `traefik.ingress.kubernetes.io/service.response-timeout: 180s` on `/arbeit/ai-welt/projects/ai-ensemble/kube-manifests/ingress.yaml` to ensure the gateway connection remains open for complex multi-agent queries.
+- **Infrastructure: Traefik Ingress Timeout Expansion** — Configured Ingress annotations `traefik.ingress.kubernetes.io/router.timeout: 180s` and `traefik.ingress.kubernetes.io/service.response-timeout: 180s` on `/arbeit/ai-welt/projects/ai-ensemble/deploy/k8s/ingress.yaml` to ensure the gateway connection remains open for complex multi-agent queries.
 - **Backend: Patient Client Timeout Scaling** — Upgraded HTTPX client timeouts in all backend provider clients (`perplexity.py`, `anthropic.py`, `gemini.py`, `openai_compatible.py`, and `vertex.py`) from 60 seconds to 120/150 seconds to gracefully wait for web search and deep-reasoning completions, completely resolving Cloudflare/Traefik 502 prematurely closed connection blocks.
 
 ### v0.5.2 (2026-07-06)
