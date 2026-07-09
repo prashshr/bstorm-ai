@@ -3671,8 +3671,13 @@
             }
         }
 
+        let _startingDiscussion = false;
+
         async function startDiscussion() {
-            if (!requireAuth('start a discussion')) return;
+            if (_startingDiscussion) return;
+            _startingDiscussion = true;
+            try {
+                if (!requireAuth('start a discussion')) return;
             const question = document.getElementById('question').value.trim();
             const instructions = document.getElementById('instructions').value.trim();
             totalRounds = parseInt(document.getElementById('rounds').value);
@@ -3698,9 +3703,15 @@
             if (useRag) {
                 document.getElementById('questionDisplayText').textContent = question;
                 document.getElementById('questionDisplay').style.display = 'block';
-                setRagLoading(true);
+                document.getElementById('setupSection').style.display = 'none';
+                document.getElementById('discussionSection').className = 'discussion-section active running';
+                document.getElementById('modelsRound1').innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-tertiary);font-size:14px;">Searching the web for relevant context...<div class="rag-loading-bar" style="display:block;margin-top:12px;"></div></div>';
+                switchMainTab('current');
+            } else {
+                document.getElementById('setupSection').style.display = 'none';
+                document.getElementById('discussionSection').className = 'discussion-section active running';
+                switchMainTab('current');
             }
-
             let initialRetrievedContext = null;
             if (authToken) {
                 try {
@@ -3801,6 +3812,9 @@
             
             log(`Starting discussion with ${selectedModels.length} models, ${totalRounds} rounds, ${timeout}s timeout, ${maxTokens} max tokens`);
             await runRound(1, totalRounds, endpoint, timeout, maxTokens);
+            } finally {
+                _startingDiscussion = false;
+            }
         }
 
         function renderRoundTimeline(totalRoundsNum) {
