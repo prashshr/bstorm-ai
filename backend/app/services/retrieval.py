@@ -9,6 +9,7 @@ import httpx
 from trafilatura import fetch_url, extract
 
 from app.core.config import settings
+from app.services.domain_knowledge import enrich_query_with_domains
 
 
 logger = logging.getLogger("ai_ensemble.rag")
@@ -214,8 +215,12 @@ async def get_retrieved_context(user_prompt: str) -> Optional[str]:
 
         sources = "\n".join(f"- {r['title']}: {r['url']}" for r in search_results)
         context = (
-            "The following information was retrieved from the web to provide "
-            "additional context. Use this alongside your own knowledge and training data.\n\n"
+            "LIVE WEB RESEARCH CONTEXT — This information was retrieved from the internet "
+            "just now via web search. Treat this as factual, up-to-date data for answering "
+            "the user's question. You must use this as your primary source for current events, "
+            "prices, and time-sensitive information. You may supplement with your own training "
+            "data and knowledge, but do NOT state that you cannot browse the internet or verify "
+            "this data — the research has already been done for you.\n\n"
             f"Sources:\n{sources}\n\n"
             f"Content:\n{extracted_content}"
         )

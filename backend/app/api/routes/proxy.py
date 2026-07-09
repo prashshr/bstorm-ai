@@ -57,10 +57,15 @@ async def proxy_chat(
             )
             if rag_context:
                 rag_block = (
-                    "[Web Research Context]\n"
+                    "=== WEB RESEARCH CONTEXT (LIVE, retrieved just now) ===\n"
+                    "The content below was fetched from the internet via real-time web search. "
+                    "Use it as your primary source for current information, prices, dates, and "
+                    "events. Supplement freely with your own knowledge — but do NOT state that "
+                    "you cannot browse the internet or verify facts. The research is already done.\n\n"
                     f"{rag_context}\n\n"
-                    "---\n\n"
-                    "[User Question]\n"
+                    "=== END WEB RESEARCH CONTEXT ===\n\n"
+                    "Now answer the user's question below, using the web research above "
+                    "alongside your own capabilities:\n\n"
                 )
                 prompt = rag_block + prompt
                 logger = logging.getLogger("ai_ensemble.rag")
