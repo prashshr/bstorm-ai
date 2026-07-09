@@ -30,22 +30,34 @@ fi
 echo "3. Creating config..."
 kubectl apply -f kube-manifests/configmap.yaml
 
-echo "4. Creating api deployment..."
+echo "4. Deploying SearXNG (self-hosted search)..."
+kubectl apply -f kube-manifests/searxng-settings-configmap.yaml
+kubectl apply -f kube-manifests/searxng-deployment.yaml
+
+echo "5. Creating GHCR pull secret..."
+kubectl create secret docker-registry ghcr-pull-secret \
+  --namespace=ai-ensemble \
+  --docker-server=ghcr.io \
+  --docker-username="prashshr" \
+  --docker-password="${GHCR_PAT:-}" \
+  --dry-run=client -o yaml | kubectl apply -f - || echo "WARNING: GHCR pull secret not configured - set GHCR_PAT in environment"
+
+echo "6. Creating api deployment..."
 kubectl apply -f kube-manifests/deployment.yaml
 
-echo "5. Creating api service..."
+echo "7. Creating api service..."
 kubectl apply -f kube-manifests/service.yaml
 
-echo "6. Creating web deployment..."
+echo "8. Creating web deployment..."
 kubectl apply -f kube-manifests/web-deployment.yaml
 
-echo "7. Creating web service..."
+echo "9. Creating web service..."
 kubectl apply -f kube-manifests/web-service.yaml
 
-echo "8. Creating certificate..."
+echo "10. Creating certificate..."
 kubectl apply -f kube-manifests/cert.yaml || echo "WARNING: cert apply failed (cert-manager may not be installed) - continuing..."
 
-echo "9. Creating ingress..."
+echo "11. Creating ingress..."
 kubectl apply -f kube-manifests/ingress.yaml
 
 echo ""

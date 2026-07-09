@@ -9,7 +9,9 @@ class Settings(BaseSettings):
     jwt_secret: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24
-    credential_encryption_key: str = "change-me-32-byte-key-change-me-32"  # 32 bytes required
+    credential_encryption_key: str = "change-me-32-byte-key-change-me-32"
+    tavily_api_key: str = ""
+    searxng_url: str = "http://searxng-svc:8080"
 
 
 settings = Settings()

@@ -1,7 +1,7 @@
 # AI Ensemble — Architecture Document
 
-> **Version:** 0.6.0  
-> **Last Updated:** 2026-07-08  
+> **Version:** 0.7.0  
+> **Last Updated:** 2026-07-09  
 > **Source of Truth:** This document defines the authoritative architecture of the AI Ensemble project. Every component, data flow, security boundary, and deployment detail is recorded here. **Any LLM, AI coding agent, or developer working on this project MUST read this document first and follow all rules, conventions, and architectural decisions defined herein.** Keep this in sync with all code changes — updating this file is a mandatory part of every feature or fix.
 
 ---
@@ -62,10 +62,13 @@
 | **Auth** | JWT (python-jose) + bcrypt (passlib) |
 | **Encryption** | Fernet (symmetric via `cryptography`) |
 | **HTTP Client** | httpx (async) |
+| **Web Search (RAG)** | Tavily API (primary) → Self-hosted SearXNG (secondary) → DuckDuckGo HTML (fallback) |
+| **Content Extraction** | trafilatura |
 | **Frontend** | Vanilla HTML/CSS/JS, single-page app |
 | **Markdown Rendering** | marked.js (CDN) |
 | **Reverse Proxy** | Caddy 2 (Docker Compose) / Traefik (k3s) |
 | **Containerization** | Docker, k3s (Kubernetes) |
+| **Container Registry** | GHCR (ghcr.io/prashshr/ai-ensemble) |
 | **TLS** | Let's Encrypt via cert-manager |
 
 ---
@@ -130,6 +133,8 @@
   - `jwt_algorithm`: `HS256`
   - `access_token_expire_minutes`: 1440 (24 hours)
   - `credential_encryption_key`: default `"change-me-32-byte-key-change-me-32"`
+  - `tavily_api_key`: optional, for Tavily web search
+  - `searxng_url`: default `"http://searxng-svc:8080"`
 
 ### 3.2 Database Layer
 
@@ -150,7 +155,7 @@
 |-------|-------|------------|---------------|
 | **User** | `users` | `id` (PK), `email` (unique, indexed), `password_hash`, `created_at` | — |
 | **ProviderCredential** | `provider_credentials` | `id` (PK), `user_id` (FK→users), `provider`, `endpoint`, `api_key_encrypted`, `created_at` | Unique constraint on `(user_id, provider)` |
-| **Discussion** | `discussions` | `id` (PK), `user_id` (FK→users), `title`, `question`, `status`, `created_at` | `messages` relationship (cascade delete) |
+| **Discussion** | `discussions` | `id` (PK), `user_id` (FK→users), `title`, `question`, `status`, `state_json`, `retrieved_context_encrypted`, `created_at` | `messages` relationship (cascade delete) |
 | **Message** | `messages` | `id` (PK), `discussion_id` (FK→discussions), `user_id` (FK→users), `round_number`, `model`, `role`, `content`, `created_at` | `discussion` back_populates |
 | **SearchHistory** | `search_history` | `id` (PK), `user_id` (FK→users), `query`, `created_at` | — |
 
@@ -168,13 +173,13 @@ All user-owned data uses `user_id` foreign keys with `ondelete="CASCADE"` to ens
 - `ProviderCredentialResponse`: `provider`, `endpoint`, `has_key` (bool)
 
 **Provider Proxy (`backend/app/schemas/provider_proxy.py`):**
-- `ChatRequest`: `provider`, `model`, `prompt`, `endpoint` (optional), `max_tokens` (default 1000), `temperature` (default 0.7)
+- `ChatRequest`: `provider`, `model`, `prompt`, `endpoint` (optional), `max_tokens` (default 1000), `temperature` (default 0.7), `discussion_id` (optional), `include_rag_context` (default false)
 - `ChatResponse`: `provider`, `model`, `output`
 
 **Discussion (`backend/app/schemas/discussion.py`):**
-- `DiscussionCreateRequest`: `question` (min 1), `title` (optional)
+- `DiscussionCreateRequest`: `question` (min 1), `title` (optional), `use_rag` (default false), `deep_research` (default false)
 - `MessageCreateRequest`: `discussion_id`, `round_number` (default 1), `model`, `role` (default "assistant"), `content`
-- `DiscussionResponse`: `id`, `title`, `question`, `status`, `created_at`
+- `DiscussionResponse`: `id`, `title`, `question`, `status`, `state_json`, `retrieved_context` (optional), `created_at`
 - `MessageResponse`: `id`, `discussion_id`, `round_number`, `model`, `role`, `content`, `created_at`
 
 ### 3.5 Auth & Security
@@ -290,6 +295,66 @@ ProviderClient (ABC)          ← base.py
 - `list_models`: returns `[]` (no stable API)
 - `chat`: POST `{endpoint}/v1/messages` with Anthropic headers and payload, extracts `content[0].text`
 - Falls back to `https://api.anthropic.com`
+
+### 3.8 RAG / Web Search Service
+
+**File:** `backend/app/services/retrieval.py`
+
+The RAG pipeline provides web-retrieved context that is injected into LLM prompts as **supplementary information** — models are never restricted to only using RAG data. They may use their own training data, built-in browsing capabilities, or any other knowledge sources.
+
+**3-Tier Search Architecture (in priority order):**
+
+| Tier | Engine | Auth Required | Quality | Notes |
+|------|--------|---------------|---------|-------|
+| 1 | **Tavily API** | `TAVILY_API_KEY` | Highest | Purpose-built for AI RAG, returns clean parsed content. Free tier: 1,000 queries/month. |
+| 2 | **Self-hosted SearXNG** | None (in-cluster) | High | Deployed as a pod in the same K3s namespace. No rate limits, full control over engines. |
+| 3 | **DuckDuckGo HTML** | None | Medium | Public fallback. Scrapes HTML search results. No API key needed. |
+
+**Pipeline flow:**
+
+```
+get_retrieved_context(user_prompt)
+  │
+  ├─ Tier 1: _search_tavily(query)
+  │   POST https://api.tavily.com/search
+  │   Returns: 5 results with title, url, content
+  │   On failure → Tier 2
+  │
+  ├─ Tier 2: _search_searxng(query)
+  │   GET http://searxng-svc:8080/search?format=json
+  │   Returns: up to 39 results with title, url, content
+  │   On failure → Tier 3
+  │
+  ├─ Tier 3: _search_duckduckgo(query)
+  │   GET https://html.duckduckgo.com/html/
+  │   Parses HTML with lxml, extracts real URLs from redirect wrappers
+  │   Returns: up to 10 results
+  │
+  └─ extract_content_from_urls(urls)
+       Uses trafilatura.fetch_url + trafilatura.extract (offloaded to thread pool via asyncio.to_thread)
+       Returns: concatenated text content from up to 10 URLs
+
+**Key design decisions:**
+- **10 results per query**: Tavily configured for 10 results; the pipeline extracts content from all 10 URLs for comprehensive coverage
+- **Multiple queries**: If the user prompt can be split into multiple search queries, each generates up to 10 results (deduplicated)
+- **Additive context**: Retrieved context is prefixed with `"[Web Research Context]\n...\n\n[User Question]\n"` — models are NOT restricted to RAG data
+- **Async-safe extraction**: `trafilatura` calls are wrapped in `asyncio.to_thread()` to avoid blocking the event loop
+- **URL deduplication**: Each tier tracks `unique_urls` to avoid duplicate content
+- **Graceful degradation**: If all 3 tiers fail, `get_retrieved_context` returns `None` and the discussion proceeds without web context
+- **Debug logging**: All pipeline steps log to `ai_ensemble.rag` logger at INFO/DEBUG level with `[RAG]` prefix
+
+**RAG context injection in proxy chat:**
+When `ChatRequest.include_rag_context` is `true` and `discussion_id` is provided, the proxy endpoint (`backend/app/api/routes/proxy.py`) fetches the discussion's `retrieved_context_encrypted`, decrypts it, and prepends it to the user's prompt:
+
+```
+[Web Research Context]
+{retrieved_context}
+
+---
+
+[User Question]
+{original_prompt}
+```
 
 ---
 
@@ -446,26 +511,30 @@ discussionData = {
 
 **Manifests** in `kube-manifests/`:
 
-| Manifest | Resource | Details |
+ | Manifest | Resource | Details |
 |----------|----------|---------|
 | `namespace.yaml` | Namespace | `ai-ensemble` |
-| `configmap.yaml` | ConfigMap | Non-sensitive env vars (JWT_ALGORITHM, DB URL, CORS) |
+| `configmap.yaml` | ConfigMap | Non-sensitive env vars (JWT_ALGORITHM, DB URL, CORS, SEARXNG_URL) |
 | `secret.yaml.example` | Template | Template for k8s Secret |
-| `deployment.yaml` | Deployment | API backend: 1 replica, port 8080, hostPath volume for data |
+| `searxng-settings-configmap.yaml` | ConfigMap | SearXNG internal configuration (JSON API enabled, rate limiting disabled) |
+| `searxng-deployment.yaml` | Deployment+Service | Self-hosted SearXNG: 1 replica, port 8080, custom settings.yml via ConfigMap |
+| `deployment.yaml` | Deployment | API backend: 1 replica, port 8080, GHCR image, hostPath volume for data |
 | `service.yaml` | Service | ClusterIP on port 8080 |
 | `web-deployment.yaml` | Deployment | nginx: 1 replica, port 80, hostPath for web files |
 | `web-service.yaml` | Service | ClusterIP on port 80 |
 | `cert.yaml` | Certificate | Let's Encrypt TLS cert for `ai-ensemble.samkhya.cloud` |
-| `ingress.yaml` | Ingress | Traefik ingress: `/api` → backend, `/` → web, TLS |
+| `ingress.yaml` | Ingress | Traefik ingress: `/api` → backend, `/health` → backend, `/` → web, TLS |
 | `apply.sh` | Script | Orchestrates `kubectl apply` in correct order |
 | `create-secret.sh` | Script | Reads `.env`, creates k8s Secret |
 
 **Backend deployment spec:**
-- Image: `ai-ensemble:local` (built locally, loaded into k3s containerd)
+- Image: `ghcr.io/prashshr/ai-ensemble:latest` (pushed to GitHub Container Registry)
+- Image pull policy: `Always`
+- Image pull secret: `ghcr-pull-secret` (docker-registry type for GHCR auth)
 - Liveness probe: HTTP `/health`, 20s initial delay
 - Readiness probe: HTTP `/health`, 10s initial delay
 - Resources: request 200m CPU / 384Mi RAM, limit 1000m CPU / 1Gi RAM
-- Env from ConfigMap + Secret
+- Env from ConfigMap + Secret (includes `TAVILY_API_KEY` for web search)
 - Volume: hostPath at `/arbeit/ai-welt/projects/ai-ensemble/data`
 
 ### 5.2 Docker Compose Deployment
@@ -493,8 +562,9 @@ Two services:
 
 **In k3s:**
 - Secret `ai-ensemble-secrets` created by `create-secret.sh` from `.env` file
-- Contains `JWT_SECRET` and `CREDENTIAL_ENCRYPTION_KEY`
+- Contains `JWT_SECRET`, `CREDENTIAL_ENCRYPTION_KEY`, and `TAVILY_API_KEY`
 - Applied before deployments via `apply.sh`
+- A separate `ghcr-pull-secret` (docker-registry type) is created manually for GHCR image pulls
 
 **In Docker Compose:**
 - Environment variables passed directly to `api` service
@@ -791,20 +861,17 @@ python3 -m http.server 3000
 ### Docker Build & Deploy (k3s)
 
 ```bash
-# Build backend image
-docker build -t ai-ensemble:local ./backend
-
-# Load into k3s
-ctr -n k8s.io images import /path/to/image.tar
-
-# Or use the helper
-docker save ai-ensemble:local | ctr -n k8s.io images import -
+# Build backend image and push to GHCR
+docker build -t ghcr.io/prashshr/ai-ensemble:latest ./backend
+docker push ghcr.io/prashshr/ai-ensemble:latest
 
 # Deploy
 cd kube-manifests
 kubectl create ns ai-ensemble --dry-run=client -o yaml | kubectl apply -f -
 bash create-secret.sh
 kubectl apply -f configmap.yaml
+kubectl apply -f searxng-settings-configmap.yaml
+kubectl apply -f searxng-deployment.yaml
 kubectl apply -f deployment.yaml
 kubectl apply -f service.yaml
 kubectl apply -f web-deployment.yaml
@@ -862,6 +929,18 @@ Version format: `v<major>.<minor>.<patch>-<YYYYMMDD>` (e.g., `v0.1.0-20260625`)
 - **Security: Complete Zero-Knowledge DB Storage** — Encrypted all user-specific sensitive data: provider API keys, discussion titles, discussion questions, discussion state JSON, message contents, and search queries using the user's master key (`uek`).
 - **Security: Safe Revocation & Transient UEK Session Lifetime** — Configured user-specific UEK decryption to occur solely upon active login. The decrypted UEK is embedded as an extra claim inside the JWT and is held strictly in transient request lifecycles, ensuring logout/browser tab closure completely revokes access to the data with zero cookie or local storage footprint.
 - **Security: Invisible Auto-Migration & Graceful Background Handling** — Enabled seamless, gradual data transition where legacy users' plaintext history and legacy keys are automatically and silently re-encrypted using their newly derived master key on their next successful login. Integrated graceful handling of missing master keys so that any background tasks or unauthorized admin pathways fail/skip gracefully without silent fallback to weaker modes.
+
+### v0.7.0 (2026-07-09)
+
+- **Feature: 3-Tier RAG (Web Search) Pipeline** — Implemented a comprehensive RAG system with three search tiers: Tavily API (primary, purpose-built for AI), self-hosted SearXNG (secondary, deployed in-cluster), and DuckDuckGo HTML (tertiary fallback). Each tier falls through gracefully on failure.
+- **Feature: Tavily Web Search Integration** — Added Tavily API as the primary search engine, returning up to 10 rich results with content per query. Configured via `TAVILY_API_KEY` environment variable. Free tier: 1,000 queries/month.
+- **Feature: Self-hosted SearXNG** — Deployed SearXNG as a pod in the K3s cluster (searxng/searxng:latest), configured with JSON API enabled, rate limiting disabled, and custom settings.yml via ConfigMap. Accessible internally at `http://searxng-svc:8080`.
+- **Feature: RAG Context Injection in Proxy Chat** — Added `discussion_id` and `include_rag_context` fields to `ChatRequest`. When enabled, the proxy endpoint fetches the discussion's encrypted RAG context, decrypts it, and prepends it to the LLM prompt as supplementary context — models remain free to use their own training data and capabilities.
+- **Feature: UI RAG Status Indicator** — Added a green/red dot indicator next to the question display showing whether RAG context was retrieved and how many KB of context is available.
+- **Infrastructure: GHCR Image Publishing** — Docker images are now built, tagged, and pushed to `ghcr.io/prashshr/ai-ensemble:latest` with `imagePullPolicy: Always`. Added `ghcr-pull-secret` for GHCR authentication in K3s.
+- **Infrastructure: Database Schema Migration** — Added `retrieved_context_encrypted` TEXT column to the `discussions` table for storing encrypted RAG context.
+- **Debugging: RAG Pipeline Logging** — Added comprehensive debug logging to the `ai_ensemble.rag` logger at INFO/DEBUG level, with clear `[RAG]` prefix on all pipeline steps. Logs show which search engine fired, how many results, extraction progress, and final context size.
+- **Improvement: Async-safe Content Extraction** — Wrapped `trafilatura.fetch_url` and `trafilatura.extract` in `asyncio.to_thread()` to prevent event loop blocking during HTML content extraction.
 
 ### v0.5.5 (2026-07-07)
 

@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: searxng
+  namespace: ai-ensemble
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: searxng
+  template:
+    metadata:
+      labels:
+        app: searxng
+    spec:
+      containers:
+      - name: searxng
+        image: searxng/searxng:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        env:
+        - name: SEARXNG_BASE_URL
+          value: "http://localhost:8080"
+        - name: INSTANCE_NAME
+          value: "ai-ensemble"
+        - name: BIND_ADDRESS
+          value: "0.0.0.0:8080"
+        - name: LIMITER_ENABLED
+          value: "false"
+        - name: DISABLE_REGISTRATION
+          value: "true"
+        volumeMounts:
+        - name: settings
+          mountPath: /etc/searxng/settings.yml
+          subPath: settings.yml
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+        securityContext:
+          runAsNonRoot: false
+          allowPrivilegeEscalation: false
+      volumes:
+      - name: settings
+        configMap:
+          name: searxng-settings
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: searxng-svc
+  namespace: ai-ensemble
+spec:
+  type: ClusterIP
+  selector:
+    app: searxng
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+    protocol: TCP

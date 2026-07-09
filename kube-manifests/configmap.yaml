@@ -8,3 +8,4 @@ data:
   ACCESS_TOKEN_EXPIRE_MINUTES: "1440"
   DATABASE_URL: "sqlite:////data/ai_ensemble.db"
   CORS_ORIGINS: '["https://ai-ensemble.samkhya.cloud"]'
+  SEARXNG_URL: "http://searxng-svc:8080"

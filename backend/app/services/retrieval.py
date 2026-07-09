@@ -1,105 +1,227 @@
-
 import asyncio
-import httpx
-from trafilatura import fetch_url, extract
-from fastapi import HTTPException
+import logging
 import json
 from typing import List, Dict, Optional
+from urllib.parse import urlparse, parse_qs, unquote
 
-# A simple cache for search results to avoid repeated searches for the same query during a session
-search_cache = {}
+import httpx
 
-async def generate_search_queries(user_prompt: str, llm_assistant_model: str = "gemini-1.5-flash-latest") -> List[str]:
-    """
-    Uses a fast LLM to analyze a user prompt and generate a list of 3-5 diverse,
-    keyword-focused search queries.
-    """
-    # This is a placeholder. In a real implementation, this would use an LLM
-    # to generate more sophisticated queries.
-    # For now, we'll just use the user's prompt as a single query.
-    print(f"Generated search query for: {user_prompt}")
-    return [user_prompt]
+from trafilatura import fetch_url, extract
 
-async def search_with_searxng(queries: List[str]) -> List[Dict]:
-    """
-    Performs a search for each query using a public SearxNG instance
-    and returns a list of unique search result dictionaries.
-    """
+from app.core.config import settings
+
+
+logger = logging.getLogger("ai_ensemble.rag")
+
+SEARXNG_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (compatible; AI-Ensemble/1.0; +https://ai-ensemble.samkhya.cloud)",
+    "Accept": "application/json",
+}
+
+
+def _extract_ddg_url(redirect_url: str) -> str:
+    if "uddg=" in redirect_url:
+        parsed = urlparse(redirect_url)
+        encoded = parse_qs(parsed.query).get("uddg", [None])[0]
+        if encoded:
+            return unquote(encoded)
+    return redirect_url
+
+
+async def _search_tavily(query: str) -> List[Dict]:
+    api_key = settings.tavily_api_key
+    if not api_key:
+        logger.warning("[RAG] Tavily API key not configured, skipping")
+        return []
+
+    logger.info(f"[RAG] Tavily search for: {query[:80]}...")
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        try:
+            resp = await client.post(
+                "https://api.tavily.com/search",
+                json={
+                    "api_key": api_key,
+                    "query": query,
+                    "search_depth": "advanced",
+                    "include_answer": False,
+                    "max_results": 10,
+                },
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                results = data.get("results", [])
+                logger.info(f"[RAG] Tavily returned {len(results)} results")
+                return [
+                    {
+                        "url": r.get("url", ""),
+                        "title": r.get("title", ""),
+                        "content": r.get("content", ""),
+                    }
+                    for r in results
+                    if r.get("url")
+                ]
+            else:
+                logger.warning(f"[RAG] Tavily returned {resp.status_code}: {resp.text[:200]}")
+                return []
+        except Exception as e:
+            logger.error(f"[RAG] Tavily request failed: {e}")
+            return []
+
+
+async def _search_searxng(query: str) -> List[Dict]:
+    base_url = settings.searxng_url
     unique_urls = set()
-    all_results = []
-    
-    async with httpx.AsyncClient() as client:
-        tasks = [client.get(f"https://searx.be/search?q={q}&format=json") for q in queries]
-        responses = await asyncio.gather(*tasks, return_exceptions=True)
+    results = []
 
-    for response in responses:
-        if isinstance(response, httpx.Response) and response.status_code == 200:
-            try:
-                data = response.json()
-                for result in data.get("results", []):
-                    if result.get("url") and result["url"] not in unique_urls:
-                        unique_urls.add(result["url"])
-                        all_results.append({
-                            "url": result["url"],
-                            "title": result.get("title"),
-                            "content": result.get("content")
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        try:
+            resp = await client.get(
+                f"{base_url}/search",
+                params={"q": query, "format": "json", "language": "en", "categories": "general"},
+                headers=SEARXNG_HEADERS,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                for r in data.get("results", []):
+                    url = r.get("url")
+                    if url and url not in unique_urls:
+                        unique_urls.add(url)
+                        results.append({
+                            "url": url,
+                            "title": r.get("title"),
+                            "content": r.get("content"),
                         })
-            except json.JSONDecodeError:
-                continue # Ignore malformed JSON
-    
-    return all_results
+                logger.info(f"[RAG] SearXNG returned {len(results)} results from {base_url}")
+            else:
+                logger.warning(f"[RAG] SearXNG returned {resp.status_code} from {base_url}")
+        except Exception as e:
+            logger.warning(f"[RAG] SearXNG request to {base_url} failed: {e}")
+
+    return results
+
+
+async def _search_duckduckgo(query: str) -> List[Dict]:
+    unique_urls = set()
+    results = []
+    logger.info("[RAG] DuckDuckGo fallback search")
+
+    async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+        try:
+            resp = await client.get(
+                "https://html.duckduckgo.com/html/",
+                params={"q": query},
+                headers={**SEARXNG_HEADERS, "Accept": "text/html,application/xhtml+xml"},
+            )
+            if resp.status_code == 200:
+                from lxml import html
+                tree = html.fromstring(resp.text)
+                for result in tree.xpath("//div[contains(@class, 'result__body')]"):
+                    link_el = result.xpath(".//a[contains(@class, 'result__a')]")
+                    snippet_el = result.xpath(".//a[contains(@class, 'result__snippet')]")
+                    if link_el:
+                        real_url = _extract_ddg_url(link_el[0].get("href", ""))
+                        title = link_el[0].text_content().strip()
+                        snippet = snippet_el[0].text_content().strip() if snippet_el else ""
+                        if real_url and real_url not in unique_urls:
+                            unique_urls.add(real_url)
+                            results.append({"url": real_url, "title": title, "content": snippet})
+                logger.info(f"[RAG] DuckDuckGo returned {len(results)} results")
+            else:
+                logger.warning(f"[RAG] DuckDuckGo returned {resp.status_code}")
+        except Exception as e:
+            logger.warning(f"[RAG] DuckDuckGo failed: {e}")
+
+    return results
+
+
+async def search_web(queries: List[str]) -> List[Dict]:
+    all_results = []
+    unique_urls = set()
+
+    for query in queries:
+        search_chain = [
+            ("Tavily", _search_tavily(query)),
+            ("SearXNG", _search_searxng(query)),
+            ("DuckDuckGo", _search_duckduckgo(query)),
+        ]
+
+        for name, coro in search_chain:
+            if len(all_results) >= 10:
+                break
+            try:
+                results = await coro
+            except Exception as e:
+                logger.error(f"[RAG] {name} search error: {e}")
+                continue
+
+            for r in results:
+                url = r.get("url", "")
+                if url and url not in unique_urls:
+                    unique_urls.add(url)
+                    all_results.append(r)
+
+        if len(all_results) >= 10:
+            break
+
+    return all_results[:10]
+
 
 async def extract_content_from_urls(urls: List[str]) -> str:
-    """
-    Fetches content from a list of URLs and extracts the main text content
-    using Trafilatura.
-    """
     all_text = []
-    
-    # Download in parallel
-    documents = [fetch_url(url) for url in urls]
-    
-    for doc in documents:
-        if doc:
-            # Extract text and add a separator
-            text = extract(doc, include_comments=False, include_tables=False)
-            if text:
-                all_text.append(text)
+
+    for url in urls:
+        logger.info(f"[RAG] Fetching content from: {url}")
+        try:
+            doc = await asyncio.to_thread(fetch_url, url)
+            if doc:
+                text = await asyncio.to_thread(
+                    extract, doc, include_comments=False, include_tables=False
+                )
+                if text:
+                    logger.info(f"[RAG] Extracted {len(text)} chars from {url}")
+                    all_text.append(text)
+                else:
+                    logger.warning(f"[RAG] No text extracted from {url}")
+            else:
+                logger.warning(f"[RAG] Failed to fetch {url}")
+        except Exception as e:
+            logger.error(f"[RAG] Error processing {url}: {e}")
+
+    if not all_text:
+        logger.warning("[RAG] No content extracted from any URL")
+        return ""
 
     return "\n\n---\n\n".join(all_text)
 
+
 async def get_retrieved_context(user_prompt: str) -> Optional[str]:
-    """
-    Orchestrates the RAG pipeline: generates queries, searches, and extracts content.
-    Returns a formatted string of the retrieved context or None if it fails.
-    """
+    logger.info(f"[RAG] === Starting RAG pipeline ===")
     try:
-        # Step 1: Generate search queries
-        search_queries = await generate_search_queries(user_prompt)
+        search_results = await search_web([user_prompt])
+        logger.info(f"[RAG] Total search results: {len(search_results)}")
 
-        # Step 2: Search with SearxNG
-        search_results = await search_with_searxng(search_queries)
-        
-        # Limit to top 5 results to keep context concise
-        top_5_urls = [result["url"] for result in search_results[:5]]
-
-        if not top_5_urls:
+        if not search_results:
+            logger.warning("[RAG] No search results found, aborting")
             return None
 
-        # Step 3: Extract content from URLs
-        extracted_content = await extract_content_from_urls(top_5_urls)
+        urls = [r["url"] for r in search_results]
+        logger.info(f"[RAG] Extracting content from {len(urls)} URLs")
 
+        extracted_content = await extract_content_from_urls(urls)
         if not extracted_content:
+            logger.warning("[RAG] No content extracted from any URL")
             return None
-        
-        # Step 4: Format the final context
-        formatted_context = f"Retrieved {len(top_5_urls)} documents for context.\n\n"
-        formatted_context += extracted_content
-        
-        return formatted_context
-        
-    except Exception as e:
-        print(f"Error in RAG pipeline: {e}")
-        # In a real app, you'd want more robust logging here
-        return None
 
+        sources = "\n".join(f"- {r['title']}: {r['url']}" for r in search_results)
+        context = (
+            "The following information was retrieved from the web to provide "
+            "additional context. Use this alongside your own knowledge and training data.\n\n"
+            f"Sources:\n{sources}\n\n"
+            f"Content:\n{extracted_content}"
+        )
+        logger.info(f"[RAG] === RAG SUCCESS === Context size: {len(context)} chars")
+        return context
+
+    except Exception as e:
+        logger.error(f"[RAG] === RAG FAILED === {e}", exc_info=True)
+        return None

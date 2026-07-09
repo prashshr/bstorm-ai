@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -8,6 +10,8 @@ class ChatRequest(BaseModel):
     endpoint: str = ""
     max_tokens: int = 1000
     temperature: float = 0.7
+    discussion_id: Optional[int] = None
+    include_rag_context: bool = False
 
 
 class ChatResponse(BaseModel):

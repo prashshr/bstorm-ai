@@ -1,12 +1,14 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 import httpx
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
-from app.core.crypto import decrypt_secret
+from app.core.crypto import decrypt_secret, decrypt_field_or_plaintext
 from app.core.limiter import limiter
 from app.db.session import get_db
-from app.models.models import ProviderCredential, User
+from app.models.models import Discussion, ProviderCredential, User
 from app.schemas.provider_proxy import ChatRequest, ChatResponse
 from app.services.providers.endpoints import normalize_endpoint
 from app.services.providers.factory import get_provider_client
@@ -36,6 +38,36 @@ async def proxy_chat(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Provider credential not found for user",
         )
+
+    prompt = payload.prompt
+
+    if payload.include_rag_context and payload.discussion_id:
+        discussion = (
+            db.query(Discussion)
+            .filter(
+                Discussion.id == payload.discussion_id,
+                Discussion.user_id == current_user.id,
+            )
+            .first()
+        )
+        if discussion and discussion.retrieved_context_encrypted:
+            uek = getattr(current_user, "uek", None)
+            rag_context = decrypt_field_or_plaintext(
+                discussion.retrieved_context_encrypted, uek
+            )
+            if rag_context:
+                rag_block = (
+                    "[Web Research Context]\n"
+                    f"{rag_context}\n\n"
+                    "---\n\n"
+                    "[User Question]\n"
+                )
+                prompt = rag_block + prompt
+                logger = logging.getLogger("ai_ensemble.rag")
+                logger.info(
+                    f"[RAG] Injected {len(rag_context)} chars of context into prompt "
+                    f"for discussion {payload.discussion_id}"
+                )
 
     client = get_provider_client(payload.provider)
     endpoint = normalize_endpoint(payload.endpoint or cred.endpoint or "")

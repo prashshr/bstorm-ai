@@ -1578,6 +1578,10 @@
                             <div style="flex: 1; min-width: 0;">
                                 <div style="font-size: 13px; font-weight: 500; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Question</div>
                                 <div id="questionDisplayText" style="font-size: 14px; color: var(--text-primary); line-height: 1.6; white-space: pre-wrap; word-wrap: break-word;"></div>
+                                <div id="ragStatusDisplay" style="display:none; margin-top: 8px; font-size: 12px;">
+                                    <span id="ragStatusDot" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px;"></span>
+                                    <span id="ragStatusText"></span>
+                                </div>
                                 <div id="instructionsDisplay" style="display:none; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border);">
                                     <div style="font-size: 13px; font-weight: 500; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Instructions</div>
                                     <div id="instructionsDisplayText" style="font-size: 13px; color: var(--text-tertiary); line-height: 1.6; white-space: pre-wrap; word-wrap: break-word;"></div>
@@ -3716,6 +3720,7 @@
                 instDisplay.style.display = 'none';
             }
             document.getElementById('questionDisplay').style.display = 'block';
+            updateRagStatusDisplay();
                 renderSelectedModelsRow(selectedModels);
 
             renderRoundTimeline(totalRounds);
@@ -4655,6 +4660,23 @@
             statusMsg.style.display = 'block';
         }
 
+        function updateRagStatusDisplay() {
+            const ragStatusDisplay = document.getElementById('ragStatusDisplay');
+            const ragStatusDot = document.getElementById('ragStatusDot');
+            const ragStatusText = document.getElementById('ragStatusText');
+            if (discussionData.retrieved_context) {
+                ragStatusDisplay.style.display = 'block';
+                ragStatusDot.style.background = '#22c55e';
+                ragStatusText.textContent = `RAG: ${(discussionData.retrieved_context.length / 1000).toFixed(0)}KB context retrieved`;
+            } else if (discussionData.use_rag) {
+                ragStatusDisplay.style.display = 'block';
+                ragStatusDot.style.background = '#ef4444';
+                ragStatusText.textContent = 'RAG: No context retrieved (search failed)';
+            } else {
+                ragStatusDisplay.style.display = 'none';
+            }
+        }
+
         function loadDiscussion(id) {
             if (!requireAuth('view discussions')) return;
             const discussion = queryHistory.find(h => String(h.id) === String(id));
@@ -4795,6 +4817,7 @@
                     instDisplay.style.display = 'none';
                 }
                 document.getElementById('questionDisplay').style.display = 'block';
+                updateRagStatusDisplay();
                 renderSelectedModelsRow(selectedModels);
                 updateConsensusDropdown();
                 document.getElementById('consensusSection').classList.remove('active');
