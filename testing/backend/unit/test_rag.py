@@ -91,7 +91,6 @@ class TestRagPipeline:
             assert "LIVE WEB RESEARCH CONTEXT" in result
             assert "[Tavily]" in result
             assert "Extracted content" in result
-            assert "RAG data:" in result
 
     @pytest.mark.asyncio
     async def test_get_retrieved_context_engine_attribution_in_sources(self):

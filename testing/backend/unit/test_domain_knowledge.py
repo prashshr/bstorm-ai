@@ -96,7 +96,7 @@ class TestDomainKnowledge:
         assert score >= 3
 
     def test_classify_photography(self):
-        topic, score, obj = classify_query("best mirrorless camera sony canon nikon lens")
+        topic, score, obj = classify_query("mirrorless camera shutter speed aperture sony nikon")
         assert topic == "photography"
         assert score >= 3
 

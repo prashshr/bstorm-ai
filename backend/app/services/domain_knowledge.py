@@ -40,8 +40,11 @@ TOPIC_DATABASE: List[TopicDomain] = [
             "bargain", "sale", "clearance", "offer", "coupon", "promo",
             "shipping", "delivery", "order", "cart", "checkout",
             "under €", "under $", "under £", "under euro", "under dollar",
+            "under eur", "under usd", "under gbp", "euros", "dollars",
             "best price", "lowest price", "compare price", "price comparison",
             "preisvergleich", "günstig", "billig", "rabatt", "angebot",
+            "top 5", "top 10", "best 5", "best 10", "recommended",
+            "should i buy", "which", "best", "top",
         ],
         sub_keywords={
             "electronics": [
@@ -392,7 +395,7 @@ TOPIC_DATABASE: List[TopicDomain] = [
             "world": [
                 "ukraine", "russia", "china", "usa", "europe",
                 "middle east", "asia", "africa", "latin america",
-                "united nations", "nato", "eu", "european union",
+                "united nations", "nato", "european union",
                 "international", "global", "world affairs",
             ],
             "business": [

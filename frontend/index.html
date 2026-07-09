@@ -1641,7 +1641,8 @@
                     </div>
 
                     <div class="discussion-controls" style="justify-content: center; gap: 16px; margin-top: 24px;">
-                        <button id="stopDiscBtn" class="btn-sleek btn-stop" onclick="stopDiscussion()">⏹️ Stop & Summarize</button>
+                        <button id="stopDiscBtn" class="btn-sleek btn-stop" onclick="stopDiscussion()">⏹️ Stop and Summarize</button>
+                        <button class="btn-sleek btn-stop" style="background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-danger, #ef4444);" onclick="closeAndResetDiscussion()">✖ Close Discussion</button>
                         <button id="startNewDiscBtn" class="btn-primary" style="display: none; min-width: 180px;" onclick="resetAndNewDiscussion()">✨ Start New Discussion</button>
                     </div>
                 </div>
@@ -2940,7 +2941,7 @@
 
             let filtered = [...queryHistory];
             if (window._historyFilter === 'completed') {
-                filtered = filtered.filter(h => h.status === 'completed' || h.status === 'stopped');
+                filtered = filtered.filter(h => h.status === 'completed' || h.status === 'stopped' || h.status === 'closed');
             } else if (window._historyFilter === 'running') {
                 filtered = filtered.filter(h => h.status === 'in_progress');
             }
@@ -2983,7 +2984,8 @@
             }
 
             historyList.innerHTML = filtered.map((h, idx) => {
-                const statusIcon = h.status === 'in_progress' ? '🟡' : h.status === 'stopped' ? '⏹️' : '✅';
+                const statusDot = h.status === 'completed' ? '🟢' : h.status === 'stopped' ? '🟡' : h.status === 'closed' ? '⚪' : h.status === 'in_progress' ? '🟡' : '⚪';
+                const statusIcon = statusDot;
                 const qText = h.question || '';
                 const hTime = typeof h.timestamp === 'string' ? new Date(h.timestamp).getTime() : (h.timestamp || Date.now());
                 const formattedDateStr = new Date(hTime).toLocaleDateString();
@@ -3127,6 +3129,10 @@
 
                 if (availableModels.length === 0) {
                     throw new Error('Connection successful, but no models were returned by the endpoint.');
+                }
+
+                if (savedCredentials[PROVIDER_NAME]) {
+                    savedCredentials[PROVIDER_NAME].discovered_models = availableModels.map(m => m.id);
                 }
 
                 showStatus(`✓ Successfully discovered ${availableModels.length} models`, 'success');
@@ -3422,29 +3428,88 @@
             const prevValue = consensusSelect.value;
             consensusSelect.innerHTML = '';
             
-            if (selectedModels.length === 0) {
+            const allProviders = Object.keys(PRESET_PROVIDERS);
+            if (allProviders.length === 0 && selectedModels.length === 0) {
                 const defaultOption = document.createElement('option');
                 defaultOption.value = '';
-                defaultOption.textContent = 'Select models first...';
+                defaultOption.textContent = 'No providers configured...';
                 consensusSelect.appendChild(defaultOption);
                 return;
             }
             
-            selectedModels.forEach(comp => {
-                let mId = comp;
-                if (comp.includes('::')) mId = comp.split('::')[1];
-                const option = document.createElement('option');
-                option.value = comp;
-                option.textContent = mId.split('/').pop();
-                consensusSelect.appendChild(option);
+            // Add selected discussion models (in "provider::model" format)
+            if (selectedModels.length > 0) {
+                const groupLabel = document.createElement('option');
+                groupLabel.disabled = true;
+                groupLabel.textContent = '── Selected Models ──';
+                consensusSelect.appendChild(groupLabel);
+                
+                selectedModels.forEach(comp => {
+                    let displayId = comp;
+                    if (comp.includes('::')) {
+                        const parts = comp.split('::');
+                        displayId = `${parts[0]}/${parts[1].split('/').pop()}`;
+                    }
+                    const option = document.createElement('option');
+                    option.value = comp;
+                    option.textContent = displayId;
+                    consensusSelect.appendChild(option);
+                });
+            }
+            
+            // Add all available models from discovered providers
+            const providerModels = {};
+            const knownModels = availableModels.filter(m => m && m.id);
+            if (knownModels.length > 0) {
+                knownModels.forEach(m => {
+                    const key = `${PROVIDER_NAME}::${m.id}`;
+                    if (!selectedModels.includes(key)) {
+                        if (!providerModels[PROVIDER_NAME]) providerModels[PROVIDER_NAME] = [];
+                        providerModels[PROVIDER_NAME].push(m.id.split('/').pop());
+                    }
+                });
+            }
+            
+            // Also add models from ALL saved credentials providers
+            Object.keys(savedCredentials).forEach(provKey => {
+                const saved = savedCredentials[provKey];
+                if (saved && saved.discovered_models) {
+                    saved.discovered_models.forEach(modelId => {
+                        const key = `${provKey}::${modelId}`;
+                        if (!selectedModels.includes(key) && !(providerModels[provKey] || []).includes(modelId.split('/').pop())) {
+                            if (!providerModels[provKey]) providerModels[provKey] = [];
+                            providerModels[provKey].push(modelId.split('/').pop());
+                        }
+                    });
+                }
             });
             
-            if (discussionData && discussionData.consensusModel && selectedModels.includes(discussionData.consensusModel)) {
+            // Render provider groups
+            const providerKeys = Object.keys(providerModels);
+            if (providerKeys.length > 0) {
+                const groupLabel = document.createElement('option');
+                groupLabel.disabled = true;
+                groupLabel.textContent = '── Available Models ──';
+                consensusSelect.appendChild(groupLabel);
+                
+                providerKeys.forEach(prov => {
+                    const displayName = PRESET_PROVIDERS[prov]?.name || prov;
+                    providerModels[prov].forEach(modelId => {
+                        const option = document.createElement('option');
+                        option.value = `${prov}::${modelId}`;
+                        option.textContent = `${displayName}/${modelId}`;
+                        consensusSelect.appendChild(option);
+                    });
+                });
+            }
+            
+            if (discussionData && discussionData.consensusModel && 
+                [...selectedModels, ...consensusSelect.options].some(o => o.value === discussionData.consensusModel)) {
                 consensusSelect.value = discussionData.consensusModel;
-            } else if (prevValue && selectedModels.includes(prevValue)) {
+            } else if (prevValue && [...selectedModels].includes(prevValue)) {
                 consensusSelect.value = prevValue;
             } else {
-                consensusSelect.selectedIndex = 0;
+                consensusSelect.selectedIndex = consensusSelect.options.length > 0 ? 0 : -1;
             }
         }
 
@@ -3789,7 +3854,21 @@
                     await new Promise(resolve => setTimeout(resolve, 1500));
                 }
                 if (!discussionRunning) return;
-                await queryModel(model, roundNum, totalRoundsNum, endpoint, timeout, maxTokens);
+                try {
+                    await queryModel(model, roundNum, totalRoundsNum, endpoint, timeout, maxTokens);
+                } catch (err) {
+                    log(`Model ${model} failed: ${err.message}`);
+                    discussionData.rounds[roundNum][model] = discussionData.rounds[roundNum][model] || {};
+                    discussionData.rounds[roundNum][model].status = 'error';
+                    discussionData.rounds[roundNum][model].text = `[Error: ${err.message}]`;
+                    const card = document.querySelector(`[data-model="${model}"]`);
+                    if (card) {
+                        const badge = card.querySelector('.model-badge');
+                        if (badge) { badge.className = 'model-badge badge-error'; badge.textContent = '⚠️'; }
+                        const resp = card.querySelector('.model-response');
+                        if (resp) resp.textContent = `Error: ${err.message}`;
+                    }
+                }
                 queryIndex++;
             }
 
@@ -4127,6 +4206,15 @@
             const dateContext = `[SYSTEM NOTICE: Today's date is ${activeDateStr}. Treat today as the absolute present moment for your temporal grounding. If you have search, browsing, or real-time web-access capabilities, you must actively perform live internet search queries to retrieve and incorporate the latest, up-to-the-minute information from the most authoritative, reliable, and primary online sources before formulating your analysis, recommendations, or data picks. Do not work on pre-training cutoff or stale offline data.]`;
 
             let userMessage = `${dateContext}\n\n`;
+            if (discussionData.use_rag) {
+                userMessage += `# Data Source Status\n`;
+                if (!discussionData.retrieved_context) {
+                    userMessage += `Note: Web research (RAG) was enabled but did not return results.\n`;
+                }
+                userMessage += `Start your response with EXACTLY ONE LINE:\n`;
+                userMessage += `RAG data: [Used/Not Available] | Self Websearch: [Used/Not Available] | Training Data: [Used/Not Available]\n`;
+                userMessage += `Then proceed to answer.\n\n`;
+            }
             if (discussionData.retrieved_context) {
                 userMessage += `# Retrieved Web Search Context\n${discussionData.retrieved_context}\n\n`;
             }
@@ -4136,6 +4224,9 @@
             }
             if (roundNum > 1) {
                 const contextParts = [`# Original Question\n"${discussionData.question}"\n`];
+                if (discussionData.use_rag) {
+                    contextParts.push(`\n# Data Source Status\nStart your response with EXACTLY ONE LINE:\nRAG data: [Used/Not Available] | Self Websearch: [Used/Not Available] | Training Data: [Used/Not Available]\nThen proceed to answer.\n`);
+                }
                 if (discussionData.instructions) {
                     contextParts.push(`\n## Instructions\n${discussionData.instructions}\n`);
                 }
@@ -4584,6 +4675,26 @@
             renderHistory();
             updateStatusDot();
             debugLog('Discussion stopped and summarized', 'warn');
+        }
+
+        function closeAndResetDiscussion() {
+            if (consensusAbortController) {
+                consensusAbortController.abort();
+                consensusAbortController = null;
+            }
+            discussionRunning = false;
+            discussionData.status = 'closed';
+            saveState();
+            saveHistory();
+            renderHistory();
+            updateStatusDot();
+            document.getElementById('discussionSection').className = 'discussion-section';
+            document.getElementById('consensusSection').classList.remove('active');
+            document.getElementById('exportSection').classList.remove('active');
+            closeDiscussionSummary();
+            document.getElementById('discussionSummarySection').style.display = 'none';
+            resetAndNewDiscussion();
+            log('Discussion closed');
         }
 
         function closeDiscussionSummary() {

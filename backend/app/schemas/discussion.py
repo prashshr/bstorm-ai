@@ -30,6 +30,8 @@ class DiscussionResponse(BaseModel):
     title: str
     question: str
     status: str
+    use_rag: bool = False
+    deep_research: bool = False
     state_json: str = ""
     retrieved_context: Optional[str] = None
     created_at: datetime

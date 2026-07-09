@@ -1,3 +1,7 @@
+import json
+import logging
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -18,6 +22,17 @@ from app.services.retrieval import get_retrieved_context
 
 
 router = APIRouter()
+
+
+def _parse_state_flags(state_json: str) -> tuple:
+    try:
+        state = json.loads(state_json) if state_json else {}
+    except (json.JSONDecodeError, TypeError):
+        state = {}
+    return (
+        state.get("use_rag", False),
+        state.get("deep_research", False),
+    )
 
 
 @router.post("", response_model=DiscussionResponse)
@@ -62,6 +77,8 @@ async def create_discussion(
         title=payload.title,
         question=payload.question,
         status=discussion.status,
+        use_rag=payload.use_rag,
+        deep_research=payload.deep_research,
         retrieved_context=retrieved_context,
         created_at=discussion.created_at,
     )
@@ -100,12 +117,16 @@ def update_discussion(
 
     db.commit()
     db.refresh(discussion)
+    state_decrypted = decrypt_field_or_plaintext(discussion.state_json, uek)
+    flags = _parse_state_flags(state_decrypted) if discussion.state_json else (False, False)
     return DiscussionResponse(
         id=discussion.id,
         title=decrypt_field_or_plaintext(discussion.title, uek),
         question=decrypt_field_or_plaintext(discussion.question, uek),
         status=discussion.status,
-        state_json=decrypt_field_or_plaintext(discussion.state_json, uek),
+        state_json=state_decrypted,
+        use_rag=flags[0],
+        deep_research=flags[1],
         retrieved_context=decrypt_field_or_plaintext(discussion.retrieved_context_encrypted, uek) if discussion.retrieved_context_encrypted else None,
         created_at=discussion.created_at,
     )
@@ -155,12 +176,16 @@ def get_discussion(
     if not discussion:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Discussion not found")
     uek = getattr(current_user, "uek", None)
+    state_decrypted = decrypt_field_or_plaintext(discussion.state_json, uek)
+    flags = _parse_state_flags(state_decrypted) if discussion.state_json else (False, False)
     return DiscussionResponse(
         id=discussion.id,
         title=decrypt_field_or_plaintext(discussion.title, uek),
         question=decrypt_field_or_plaintext(discussion.question, uek),
         status=discussion.status,
-        state_json=decrypt_field_or_plaintext(discussion.state_json, uek),
+        state_json=state_decrypted,
+        use_rag=flags[0],
+        deep_research=flags[1],
         retrieved_context=decrypt_field_or_plaintext(discussion.retrieved_context_encrypted, uek) if discussion.retrieved_context_encrypted else None,
         created_at=discussion.created_at,
     )
@@ -326,12 +351,16 @@ async def research_next_round(
     db.commit()
     db.refresh(discussion)
 
+    state_decrypted = decrypt_field_or_plaintext(discussion.state_json, uek)
+    flags = _parse_state_flags(state_decrypted) if discussion.state_json else (False, False)
     return DiscussionResponse(
         id=discussion.id,
         title=decrypt_field_or_plaintext(discussion.title, uek),
         question=decrypt_field_or_plaintext(discussion.question, uek),
         status=discussion.status,
-        state_json=decrypt_field_or_plaintext(discussion.state_json, uek),
+        state_json=state_decrypted,
+        use_rag=flags[0],
+        deep_research=flags[1],
         retrieved_context=retrieved_context,
         created_at=discussion.created_at,
     )
