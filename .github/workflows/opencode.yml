@@ -30,4 +30,4 @@ jobs:
         env:
           MAMMOUTH_API_KEY: ${{ secrets.MAMMOUTH_API_KEY }}
         with:
-          model: deepseek-v4-flash
+          model: mammouth-ai/deepseek-v4-flash
