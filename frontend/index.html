@@ -2108,6 +2108,11 @@
         }
 
         function resetAndNewDiscussion() {
+            // Save current discussion state as stopped before resetting
+            if (discussionData && discussionData.status === 'in_progress') {
+                discussionData.status = 'stopped';
+                saveState();
+            }
             // Clear current discussion state
             discussionData = {
                 status: 'idle',
@@ -2203,6 +2208,12 @@
             }
         });
         window.addEventListener('hashchange', (e) => { if (!_settingHash) handleHash(); });
+        window.addEventListener('beforeunload', () => {
+            if (discussionData && discussionData.status === 'in_progress') {
+                discussionData.status = 'stopped';
+                saveState();
+            }
+        });
 
         function handleHash() {
             if (stateRestored && window.location.hash) return;
@@ -3680,10 +3691,14 @@
         let _startingDiscussion = false;
 
         async function startDiscussion() {
-            if (_startingDiscussion) return;
+            if (_startingDiscussion) { log('StartDiscussion: already starting, ignoring'); return; }
             _startingDiscussion = true;
             try {
-                if (!requireAuth('start a discussion')) return;
+                if (!requireAuth('start a discussion')) { _startingDiscussion = false; return; }
+            } catch(e) {
+                _startingDiscussion = false;
+                throw e;
+            }
             const question = document.getElementById('question').value.trim();
             const instructions = document.getElementById('instructions').value.trim();
             totalRounds = parseInt(document.getElementById('rounds').value);
@@ -3699,12 +3714,13 @@
             try {
                 endpoint = await saveProviderCredential();
             } catch (error) {
+                _startingDiscussion = false;
                 showStatus(`❌ ${error.message}`, 'error');
                 return;
             }
 
-            if (!question) { showStatus('Please enter a question', 'error'); return; }
-            if (selectedModels.length < 2 || selectedModels.length > 5) { showStatus('Select 2-5 models', 'error'); return; }
+            if (!question) { _startingDiscussion = false; showStatus('Please enter a question', 'error'); return; }
+            if (selectedModels.length < 2 || selectedModels.length > 5) { _startingDiscussion = false; showStatus('Select 2-5 models', 'error'); return; }
 
             if (useRag) {
                 document.getElementById('questionDisplayText').textContent = question;
@@ -3817,10 +3833,15 @@
             renderRoundTimeline(totalRounds);
             
             log(`Starting discussion with ${selectedModels.length} models, ${totalRounds} rounds, ${timeout}s timeout, ${maxTokens} max tokens`);
-            await runRound(1, totalRounds, endpoint, timeout, maxTokens);
-            } finally {
-                _startingDiscussion = false;
+            try {
+                await runRound(1, totalRounds, endpoint, timeout, maxTokens);
+            } catch (err) {
+                log(`startDiscussion error: ${err.message}`);
+                discussionData.status = discussionData.status === 'in_progress' ? 'stopped' : discussionData.status;
+                saveState();
+                renderHistory();
             }
+            _startingDiscussion = false;
         }
 
         function renderRoundTimeline(totalRoundsNum) {
