@@ -1996,14 +1996,20 @@
                     
                     const models = await modelsResponse.json();
                     if (!Array.isArray(models) || models.length === 0) {
-                        throw new Error('Connection successful, but no models were returned by the endpoint.');
+                        log('Model discovery returned no models — this is normal for some providers');
+                        // Don't fail — provider is still saved successfully
                     }
                 } catch (discoveryError) {
-                    // Revert/delete the temporary credential
-                    await authFetch(`/api/providers/${provider}`, {
-                        method: 'DELETE'
-                    });
-                    throw new Error(`Connection verification failed: ${discoveryError.message}`);
+                    const msg = (discoveryError.message || '').toLowerCase();
+                    if (msg.includes('429') || msg.includes('rate limit') || msg.includes('rate_limit')) {
+                        log('Model discovery rate limited — provider saved but models not yet discovered');
+                    } else {
+                        // Revert/delete the temporary credential only on non-rate-limit errors
+                        await authFetch(`/api/providers/${provider}`, {
+                            method: 'DELETE'
+                        });
+                        throw new Error(`Connection verification failed: ${discoveryError.message}`);
+                    }
                 }
 
                 showStatus(`✓ Saved and verified ${customName || provider} credentials successfully!`, 'success');

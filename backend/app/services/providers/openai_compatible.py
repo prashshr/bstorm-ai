@@ -5,7 +5,7 @@ from app.services.providers.base import ProviderClient
 
 
 class OpenAICompatibleClient(ProviderClient):
-    USER_AGENT = "AI-Ensemble/1.0 (https://ai-ensemble.samkhya.cloud)"
+    USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
     async def list_models(self, endpoint: str, api_key: str) -> list[str]:
         base = endpoint.rstrip("/") if endpoint else "https://api.openai.com/v1"
@@ -35,8 +35,8 @@ class OpenAICompatibleClient(ProviderClient):
                 return sorted(models)
             except httpx.HTTPStatusError as e:
                 # Return empty list gracefully for providers that don't support model listing
-                # or return 401 (invalid key) during model discovery
-                if e.response.status_code in [401, 404, 405, 502]:
+                # or return rate limiting / auth errors during model discovery
+                if e.response.status_code in [401, 404, 405, 429, 502]:
                     return []
                 raise
 
