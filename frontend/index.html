@@ -3691,14 +3691,7 @@
         let _startingDiscussion = false;
 
         async function startDiscussion() {
-            if (_startingDiscussion) { log('StartDiscussion: already starting, ignoring'); return; }
-            _startingDiscussion = true;
-            try {
-                if (!requireAuth('start a discussion')) { _startingDiscussion = false; return; }
-            } catch(e) {
-                _startingDiscussion = false;
-                throw e;
-            }
+            if (!requireAuth('start a discussion')) return;
             const question = document.getElementById('question').value.trim();
             const instructions = document.getElementById('instructions').value.trim();
             totalRounds = parseInt(document.getElementById('rounds').value);
@@ -3714,26 +3707,19 @@
             try {
                 endpoint = await saveProviderCredential();
             } catch (error) {
-                _startingDiscussion = false;
                 showStatus(`❌ ${error.message}`, 'error');
                 return;
             }
 
-            if (!question) { _startingDiscussion = false; showStatus('Please enter a question', 'error'); return; }
-            if (selectedModels.length < 2 || selectedModels.length > 5) { _startingDiscussion = false; showStatus('Select 2-5 models', 'error'); return; }
+            if (!question) { showStatus('Please enter a question', 'error'); return; }
+            if (selectedModels.length < 2 || selectedModels.length > 5) { showStatus('Select 2-5 models', 'error'); return; }
 
             if (useRag) {
                 document.getElementById('questionDisplayText').textContent = question;
                 document.getElementById('questionDisplay').style.display = 'block';
-                document.getElementById('setupSection').style.display = 'none';
-                document.getElementById('discussionSection').className = 'discussion-section active running';
-                document.getElementById('modelsRound1').innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-tertiary);font-size:14px;">Searching the web for relevant context...<div class="rag-loading-bar" style="display:block;margin-top:12px;"></div></div>';
-                switchMainTab('current');
-            } else {
-                document.getElementById('setupSection').style.display = 'none';
-                document.getElementById('discussionSection').className = 'discussion-section active running';
-                switchMainTab('current');
+                setRagLoading(true);
             }
+
             let initialRetrievedContext = null;
             if (authToken) {
                 try {
@@ -3833,15 +3819,7 @@
             renderRoundTimeline(totalRounds);
             
             log(`Starting discussion with ${selectedModels.length} models, ${totalRounds} rounds, ${timeout}s timeout, ${maxTokens} max tokens`);
-            try {
-                await runRound(1, totalRounds, endpoint, timeout, maxTokens);
-            } catch (err) {
-                log(`startDiscussion error: ${err.message}`);
-                discussionData.status = discussionData.status === 'in_progress' ? 'stopped' : discussionData.status;
-                saveState();
-                renderHistory();
-            }
-            _startingDiscussion = false;
+            await runRound(1, totalRounds, endpoint, timeout, maxTokens);
         }
 
         function renderRoundTimeline(totalRoundsNum) {
