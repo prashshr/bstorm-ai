@@ -4,10 +4,90 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI - Ensemble</title>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" integrity="sha384-TQbtLCAerC3jgaim+N78RZSDYV7ryeoBCVqTuzRrFec2akfBkHS7ACQ3PQhvMVi" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js" integrity="sha384-+VfUPEb0PdtChMwmBcBmykRMDd+v6D/oFmB3rZM/puCMDYcIvF968OimRh4KQY9a" crossorigin="anonymous"></script>
     <style>
         :root {
+            --bg-primary: #000000;
+            --bg-secondary: #0a0a0c;
+            --bg-tertiary: #121214;
+            --text-primary: #f5f5f7;
+            --text-secondary: #a1a1aa;
+            --text-tertiary: #52525b;
+            --accent: #ff5c00;
+            --accent-light: #ff7e33;
+            --accent-dark: #cc5200;
+            --accent-hover: #ff7e33;
+            --border: #1f1f23;
+            --border-hover: #2e2e33;
+            --input-bg: #050507;
+            --input-border: #1f1f23;
+            --error: #ef4444;
+            --error-bg: rgba(239, 68, 68, 0.12);
+            --warning: #f59e0b;
+            --warning-bg: rgba(245, 158, 11, 0.12);
+            --success: #22c55e;
+            --success-bg: rgba(34, 197, 94, 0.12);
+            --proceed: #ff5c00;
+            --proceed-hover: #ff7e33;
+            --discussion-active: #ff5c00;
+            --discussion-running: #ff7e33;
+        }
+
+        [data-theme="light"] {
+            --bg-primary: #fafafa;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #f4f4f5;
+            --text-primary: #09090b;
+            --text-secondary: #52525b;
+            --text-tertiary: #a1a1aa;
+            --accent: #ff5c00;
+            --accent-light: #ff7e33;
+            --accent-dark: #cc5200;
+            --accent-hover: #ff7e33;
+            --border: #e4e4e7;
+            --border-hover: #d4d4d8;
+            --input-bg: #ffffff;
+            --input-border: #e4e4e7;
+            --error: #ef4444;
+            --error-bg: rgba(239, 68, 68, 0.12);
+            --warning: #f59e0b;
+            --warning-bg: rgba(245, 158, 11, 0.12);
+            --success: #22c55e;
+            --success-bg: rgba(34, 197, 94, 0.12);
+            --proceed: #ff5c00;
+            --proceed-hover: #ff7e33;
+            --discussion-active: #ff5c00;
+            --discussion-running: #ff7e33;
+        }
+
+        [data-theme="ps-xai-orange"] {
+            --bg-primary: #000000;
+            --bg-secondary: #0a0a0c;
+            --bg-tertiary: #121214;
+            --text-primary: #f5f5f7;
+            --text-secondary: #a1a1aa;
+            --text-tertiary: #52525b;
+            --accent: #ff5c00;
+            --accent-light: #ff7e33;
+            --accent-dark: #cc5200;
+            --accent-hover: #ff7e33;
+            --border: #1f1f23;
+            --border-hover: #2e2e33;
+            --input-bg: #050507;
+            --input-border: #1f1f23;
+            --error: #ef4444;
+            --error-bg: rgba(239, 68, 68, 0.12);
+            --warning: #f59e0b;
+            --warning-bg: rgba(245, 158, 11, 0.12);
+            --success: #22c55e;
+            --success-bg: rgba(34, 197, 94, 0.12);
+            --proceed: #ff5c00;
+            --proceed-hover: #ff7e33;
+            --discussion-active: #ff5c00;
+            --discussion-running: #ff7e33;
+        }
+
         /* ── Center-Aligned Independent Login Page ── */
         .login-page-container {
             position: fixed;
@@ -66,7 +146,7 @@
         }
 
         .model-card.expanded {
-            grid-column: 1 / -1 !important; /* Expands to full-row width */
+            grid-column: 1 / -1 !important;
             z-index: 5;
             background: var(--bg-tertiary);
             border-color: var(--accent);
@@ -84,77 +164,6 @@
             display: none !important;
         }
 
-            /* x.ai Minimalist Dark Theme */
-            --bg-primary: #000000;       /* Pure black for that ultra-premium minimalist look */
-            --bg-secondary: #0a0a0c;     /* Deep dark gray for cards and panels */
-            --bg-tertiary: #121214;      /* Slightly lighter gray for active items / hover states */
-            --text-primary: #f5f5f7;     /* High-contrast crisp white/gray for text */
-            --text-secondary: #a1a1aa;   /* Soft zinc gray for descriptions */
-            --text-tertiary: #52525b;    /* Muted gray for inactive or placeholder labels */
-            --accent: #ff5c00;           /* Premium x.ai vibrant orange accent */
-            --accent-light: #ff7e33;     /* Hover state orange */
-            --accent-dark: #cc5200;      /* Active state orange */
-            --border: #1f1f23;           /* Ultra-thin elegant dark border color */
-            --border-hover: #2e2e33;     /* Hover state for borders */
-            --input-bg: #050507;         /* Very dark input field background */
-            --input-border: #1f1f23;     /* Subtle input border */
-            --error: #cc5200;            /* Error uses a subtle dark orange */
-            --warning: #ff7e33;          /* Warning uses a light orange */
-            --success: #ff5c00;          /* Success is unified to the orange theme! Only orange accents! */
-            --proceed: #ff5c00;          /* Unified to orange */
-            --proceed-hover: #ff7e33;    /* Unified to orange hover */
-            --discussion-active: #ff5c00;
-            --discussion-running: #ff7e33;
-        }
-
-        [data-theme="light"] {
-            /* Crisp Elegant Light Theme */
-            --bg-primary: #fafafa;
-            --bg-secondary: #ffffff;
-            --bg-tertiary: #f4f4f5;
-            --text-primary: #09090b;
-            --text-secondary: #52525b;
-            --text-tertiary: #a1a1aa;
-            --accent: #ff5c00;
-            --accent-light: #ff7e33;
-            --accent-dark: #cc5200;
-            --border: #e4e4e7;
-            --border-hover: #d4d4d8;
-            --input-bg: #ffffff;
-            --input-border: #e4e4e7;
-            --error: #cc5200;
-            --warning: #ff7e33;
-            --success: #ff5c00;
-            --proceed: #ff5c00;
-            --proceed-hover: #ff7e33;
-            --discussion-active: #ff5c00;
-            --discussion-running: #ff7e33;
-        }
-
-        [data-theme="ps-xai-orange"] {
-            /* Unified orange theme */
-            --bg-primary: #000000;
-            --bg-secondary: #0a0a0c;
-            --bg-tertiary: #121214;
-            --text-primary: #f5f5f7;
-            --text-secondary: #a1a1aa;
-            --text-tertiary: #52525b;
-            --accent: #ff5c00;
-            --accent-light: #ff7e33;
-            --accent-dark: #cc5200;
-            --border: #1f1f23;
-            --border-hover: #2e2e33;
-            --input-bg: #050507;
-            --input-border: #1f1f23;
-            --error: #cc5200;
-            --warning: #ff7e33;
-            --success: #ff5c00;
-            --proceed: #ff5c00;
-            --proceed-hover: #ff7e33;
-            --discussion-active: #ff5c00;
-            --discussion-running: #ff7e33;
-        }
-
         * {
             margin: 0;
             padding: 0;
@@ -170,6 +179,21 @@
             transition: background-color 0.2s ease, color 0.2s ease;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
+        }
+
+        :focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--accent);
+            border-radius: 4px;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+            html { scroll-behavior: auto; }
         }
 
         .container { 
@@ -247,7 +271,6 @@
 
         /* ── Left Sidebar (Providers Panel) ── */
         .left-panel {
-            display: none !important;
             width: 260px;
             flex-shrink: 0;
             display: flex;
@@ -805,9 +828,9 @@
         .model-name { font-weight: 600; font-size: 13px; color: var(--text-primary); }
         .model-badge { display: inline-block; padding: 3px 8px; font-size: 10px; font-weight: 600; background: var(--bg-secondary); color: var(--text-secondary); border-radius: 3px; border: 1px solid var(--border); }
 
-        .badge-complete { color: var(--accent); }
-        .badge-incomplete { color: var(--text-tertiary); }
-        .badge-error { color: #ff453a; }
+        .badge-complete { color: var(--success); }
+        .badge-incomplete { color: var(--warning); }
+        .badge-error { color: var(--error); }
         .badge-connecting { color: var(--accent); animation: pulse 1.5s infinite; }
 
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
@@ -1250,7 +1273,7 @@
                 <label for="authPassword">Password <span class="tooltip-icon" title="Your session is temporary and stored only in this browser tab. Your API keys and other sensitive data are always stored encrypted on the server.">(?)</span></label>
                 <div style="position: relative;">
                     <input type="password" id="authPassword" placeholder="••••••••" autocomplete="current-password" style="padding-right: 40px; width: 100%;">
-                    <button type="button" onclick="togglePasswordVisibility('authPassword')" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-tertiary);">👁️</button>
+                    <button type="button" onclick="togglePasswordVisibility('authPassword')" aria-label="Toggle password visibility" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-tertiary);">👁️</button>
                 </div>
             </div>
             
@@ -1270,7 +1293,7 @@
         <div class="login-card" style="max-width: 500px; padding: 30px; gap: 16px; background: var(--bg-secondary); border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 8px;">
                 <h2 style="margin: 0; font-size: 18px; color: var(--text-primary); font-weight: 600;">Configure Provider</h2>
-                <button onclick="closeAddProviderModal()" style="background: none; border: none; font-size: 20px; color: var(--text-tertiary); cursor: pointer; line-height: 1;">&times;</button>
+                <button onclick="closeAddProviderModal()" aria-label="Close modal" style="background: none; border: none; font-size: 20px; color: var(--text-tertiary); cursor: pointer; line-height: 1;">&times;</button>
             </div>
             
             <div class="form-group" style="margin: 0;">
@@ -1349,7 +1372,7 @@
 
             <!-- Right Top Corner: Sun or Moon Toggle button -->
             <div class="header-right" style="flex: 1; display: flex; justify-content: flex-end; align-items: center;">
-                <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme" style="position: static !important; transform: none !important; display: flex !important; cursor: pointer; background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-primary); width: 38px !important; height: 38px !important; border-radius: 50% !important; justify-content: center !important; align-items: center !important; font-size: 16px !important; padding: 0 !important; margin: 0 !important;">☀️</button>
+                <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme" title="Toggle theme" style="position: static !important; transform: none !important; display: flex !important; cursor: pointer; background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-primary); width: 38px !important; height: 38px !important; border-radius: 50% !important; justify-content: center !important; align-items: center !important; font-size: 16px !important; padding: 0 !important; margin: 0 !important;">☀️</button>
             </div>
 
         </div>
@@ -1444,7 +1467,7 @@
                                         <label for="apiKey">API Key <span class="tooltip-icon" title="Your API keys are always stored encrypted on the server and are never exposed to the frontend after saving.">(?)</span></label>
                                         <div style="position: relative;">
                                             <input type="password" id="apiKey" placeholder="sk-..." style="padding-right: 40px;">
-                                            <button type="button" onclick="togglePasswordVisibility('apiKey')" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-tertiary);">👁️</button>
+                                            <button type="button" onclick="togglePasswordVisibility('apiKey')" aria-label="Toggle API key visibility" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-tertiary);">👁️</button>
                                         </div>
                                     </div>
                                 </div>
@@ -3803,7 +3826,6 @@
             window.location.hash = discussionId;
             setTimeout(() => { _settingHash = false; }, 50);
             updateStatusDot();
-            updateStatusDot();
 
             document.getElementById('questionDisplayText').textContent = question;
             const instDisplay = document.getElementById('instructionsDisplay');
@@ -3866,14 +3888,41 @@
 
             log(`===== Round ${roundNum} Started =====`);
 
-            let queryIndex = 0;
-            for (const model of selectedModels) {
+            const MAX_CONCURRENT = 3;
+            const STAGGER_MS = 500;
+
+            const semaphore = {
+                count: 0,
+                max: MAX_CONCURRENT,
+                queue: [],
+                acquire() {
+                    return new Promise(resolve => {
+                        if (this.count < this.max) {
+                            this.count++;
+                            resolve();
+                        } else {
+                            this.queue.push(resolve);
+                        }
+                    });
+                },
+                release() {
+                    if (this.queue.length > 0) {
+                        const next = this.queue.shift();
+                        next();
+                    } else {
+                        this.count = Math.max(0, this.count - 1);
+                    }
+                }
+            };
+
+            const results = await Promise.all(selectedModels.map(async (model, idx) => {
                 if (!discussionRunning) return;
-                if (queryIndex > 0) {
-                    // 1500ms stagger delay between queries to prevent rapid-fire or concurrent 429 rate limits
-                    await new Promise(resolve => setTimeout(resolve, 1500));
+                if (idx > 0) {
+                    await new Promise(resolve => setTimeout(resolve, STAGGER_MS));
                 }
                 if (!discussionRunning) return;
+                await semaphore.acquire();
+                if (!discussionRunning) { semaphore.release(); return; }
                 try {
                     await queryModel(model, roundNum, totalRoundsNum, endpoint, timeout, maxTokens);
                 } catch (err) {
@@ -3884,13 +3933,14 @@
                     const card = document.querySelector(`[data-model="${model}"]`);
                     if (card) {
                         const badge = card.querySelector('.model-badge');
-                        if (badge) { badge.className = 'model-badge badge-error'; badge.textContent = '⚠️'; }
+                        if (badge) { badge.className = 'model-badge badge-error'; badge.textContent = '⚠️ Error'; }
                         const resp = card.querySelector('.model-response');
                         if (resp) resp.textContent = `Error: ${err.message}`;
                     }
+                } finally {
+                    semaphore.release();
                 }
-                queryIndex++;
-            }
+            }));
 
             saveState();
 
@@ -4219,7 +4269,8 @@
             // Update UI immediately to show connecting state
             responseElement.textContent = 'Connecting...';
             badgeElement.className = 'model-badge badge-connecting';
-            badgeElement.textContent = '🔗';
+            badgeElement.textContent = '🔗 Connecting';
+            badgeElement.setAttribute('aria-label', 'Connecting');
             
             if (actionsEl) actionsEl.innerHTML = '';
 
@@ -4287,33 +4338,85 @@
             try {
                 log(`Querying ${modelId}... (${userMessage.length} chars context)`);
 
-                const response = await authFetch('/api/proxy/chat', {
-                    method: 'POST',
-                    signal: controller.signal,
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        provider: pName,
-                        endpoint: pEndpoint,
-                        model: mId,
-                        prompt: `You are ${modelId}. Provide a comprehensive, well-researched response.\n\n${userMessage}`,
-                        temperature: 0.7,
-                        max_tokens: maxTokens
-                    })
+                const requestBody = JSON.stringify({
+                    provider: pName,
+                    endpoint: pEndpoint,
+                    model: mId,
+                    prompt: `You are ${modelId}. Provide a comprehensive, well-researched response.\n\n${userMessage}`,
+                    temperature: 0.7,
+                    max_tokens: maxTokens
                 });
 
-                log(`${modelId} response status: ${response.status}`);
+                const streamResponse = await authFetch('/api/proxy/chat/stream', {
+                    method: 'POST',
+                    signal: controller.signal,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: requestBody
+                });
 
-                if (!response.ok) {
-                    const text = await response.text();
-                    const error = `${response.status}: ${text.substring(0, 100)}`;
-                    log(`${modelId} API error: ${error}`);
-                    throw new Error(error);
+                let fullText = '';
+
+                if (streamResponse.ok && streamResponse.body) {
+                    const reader = streamResponse.body.getReader();
+                    const decoder = new TextDecoder();
+                    let buffer = '';
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        buffer += decoder.decode(value, { stream: true });
+
+                        const lines = buffer.split('\n');
+                        buffer = lines.pop() || '';
+
+                        for (const line of lines) {
+                            if (line.startsWith('data: ')) {
+                                try {
+                                    const data = JSON.parse(line.slice(6));
+                                    if (data.type === 'delta') {
+                                        fullText += data.content;
+                                        if (!discussionRunning || !selectedModels.includes(modelId)) {
+                                            reader.cancel();
+                                            return;
+                                        }
+                                        responseElement.innerHTML = DOMPurify.sanitize(marked.parse(fullText + '▊'));
+                                        responseElement.scrollTop = responseElement.scrollHeight;
+                                    } else if (data.type === 'done') {
+                                        fullText = data.content;
+                                    } else if (data.type === 'error') {
+                                        throw new Error(data.detail);
+                                    }
+                                } catch (e) {
+                                    if (e.message !== 'Unexpected end of JSON input') {
+                                        log(`Stream parse error: ${e.message}`);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    if (streamResponse.status !== 404) {
+                        log(`Streaming endpoint returned ${streamResponse.status}, falling back to batch`);
+                    }
+                    const response = await authFetch('/api/proxy/chat', {
+                        method: 'POST',
+                        signal: controller.signal,
+                        headers: { 'Content-Type': 'application/json' },
+                        body: requestBody
+                    });
+
+                    log(`${modelId} response status: ${response.status}`);
+
+                    if (!response.ok) {
+                        const text = await response.text();
+                        const error = `${response.status}: ${text.substring(0, 100)}`;
+                        log(`${modelId} API error: ${error}`);
+                        throw new Error(error);
+                    }
+
+                    const data = await response.json();
+                    fullText = data.output || '';
                 }
-
-                const data = await response.json();
-                const fullText = data.output || '';
                 
                 // Discard response if this model was replaced in the current active round
                 if (!selectedModels.includes(modelId)) {
@@ -4341,7 +4444,7 @@
                 card.classList.remove('connecting');
                 card.classList.add(status);
                 badgeElement.className = `model-badge badge-${status}`;
-                badgeElement.textContent = status === 'complete' ? '✓' : '⚠️';
+                badgeElement.textContent = status === 'complete' ? '✓ Complete' : '⚠️ Incomplete';
                 
                 // Update response content with markdown parsing
                 responseElement.innerHTML = DOMPurify.sanitize(marked.parse(fullText));
@@ -4399,7 +4502,7 @@
                 card.classList.remove('connecting');
                 card.classList.add(status);
                 badgeElement.className = `model-badge badge-${status}`;
-                badgeElement.textContent = status === 'timeout' ? '⏱️' : '✗';
+                badgeElement.textContent = status === 'timeout' ? '⏱️ Timeout' : '✗ Error';
 
                 // Add retry / skip buttons on failure (with null guard)
                 const safeId = modelId.replace(/[^a-zA-Z0-9]/g, '-');
@@ -4434,7 +4537,7 @@
                 card.classList.remove('error', 'timeout', 'connecting');
                 card.classList.add('complete');
                 const badge = card.querySelector('.model-badge');
-                if (badge) { badge.className = 'model-badge badge-complete'; badge.textContent = '⏭'; }
+                if (badge) { badge.className = 'model-badge badge-complete'; badge.textContent = '⏭ Skipped'; }
                 const resp = card.querySelector('.model-response');
                 if (resp) resp.textContent = '[Skipped]';
                 const acts = card.querySelector('[id^="actions-"]');
@@ -4730,7 +4833,6 @@
             }
             document.getElementById('consensusSection').classList.remove('active');
             closeDiscussionSummary();
-            closeDiscussionSummary();
         }
 
         function copyQuestion() {
@@ -4891,11 +4993,11 @@
                     const card = document.createElement('div');
                     card.className = `model-card ${response?.status || 'waiting'}`;
                     card.setAttribute('data-model', model);
-                    const badgeText = response?.status === 'complete' ? '✓' : 
-                        response?.status === 'incomplete' ? '⚠️' : 
-                        response?.status === 'error' ? '✗' : 
-                        response?.status === 'timeout' ? '⏱️' :
-                        response?.status === 'skipped' ? '⏭' : '⏳';
+                    const badgeText = response?.status === 'complete' ? '✓ Complete' : 
+                        response?.status === 'incomplete' ? '⚠️ Incomplete' : 
+                        response?.status === 'error' ? '✗ Error' : 
+                        response?.status === 'timeout' ? '⏱️ Timeout' :
+                        response?.status === 'skipped' ? '⏭ Skipped' : '⏳ Waiting';
                     const safeId = model.replace(/[^a-zA-Z0-9]/g, '-');
                     
                     const replacementDropdownHtml = getModelReplacementDropdownHtml(model, roundNum);

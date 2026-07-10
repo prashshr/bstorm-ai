@@ -1,6 +1,8 @@
+import json
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import StreamingResponse
 import httpx
 from sqlalchemy.orm import Session
 
@@ -17,14 +19,11 @@ from app.services.providers.factory import get_provider_client
 router = APIRouter()
 
 
-@router.post("/chat", response_model=ChatResponse)
-@limiter.limit("60/minute")
-async def proxy_chat(
-    request: Request,
+async def _resolve_credential_and_prompt(
     payload: ChatRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> ChatResponse:
+    db: Session,
+    current_user: User,
+) -> tuple:
     cred = (
         db.query(ProviderCredential)
         .filter(
@@ -79,9 +78,22 @@ async def proxy_chat(
                     f"for discussion {payload.discussion_id}"
                 )
 
-    client = get_provider_client(payload.provider)
     endpoint = normalize_endpoint(payload.endpoint or cred.endpoint or "")
     api_key = decrypt_secret(cred.api_key_encrypted, key=getattr(current_user, "uek", None))
+    return prompt, endpoint, api_key
+
+
+@router.post("/chat", response_model=ChatResponse)
+@limiter.limit("60/minute")
+async def proxy_chat(
+    request: Request,
+    payload: ChatRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ChatResponse:
+    prompt, endpoint, api_key = await _resolve_credential_and_prompt(payload, db, current_user)
+
+    client = get_provider_client(payload.provider)
 
     try:
         output = await client.chat(
@@ -97,7 +109,6 @@ async def proxy_chat(
         print(f"DEBUG PROXY STATUS EXCEPTION: status={exc.response.status_code}, url={exc.request.url}, body={body[:1000]}")
         detail = body[:500] if body else str(exc)
         
-        # Provide more specific error messages based on status code
         if exc.response.status_code == 401:
             detail = f"Authentication failed (401): Invalid API key for {endpoint or payload.provider}"
         elif exc.response.status_code == 404:
@@ -112,7 +123,6 @@ async def proxy_chat(
             detail=f"Provider returned an error: {detail}",
         )
     except httpx.RequestError as exc:
-        # Handle other request errors like connection timeouts
         detail = str(exc)
         if "502" in detail or "Bad Gateway" in detail:
             detail = f"Could not reach the provider - Check your endpoint URL and connectivity"
@@ -129,3 +139,55 @@ async def proxy_chat(
         )
 
     return ChatResponse(provider=payload.provider, model=payload.model, output=output)
+
+
+@router.post("/chat/stream")
+@limiter.limit("60/minute")
+async def proxy_chat_stream(
+    request: Request,
+    payload: ChatRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> StreamingResponse:
+    prompt, endpoint, api_key = await _resolve_credential_and_prompt(payload, db, current_user)
+
+    client = get_provider_client(payload.provider)
+
+    async def event_stream():
+        full_text = ""
+        try:
+            async for chunk in client.chat_stream(
+                endpoint=endpoint,
+                api_key=api_key,
+                model=payload.model,
+                prompt=prompt,
+                max_tokens=payload.max_tokens,
+                temperature=payload.temperature,
+            ):
+                full_text += chunk
+                event = json.dumps({"type": "delta", "content": chunk})
+                yield f"data: {event}\n\n"
+            event = json.dumps({"type": "done", "content": full_text})
+            yield f"data: {event}\n\n"
+        except httpx.HTTPStatusError as exc:
+            detail = f"Provider returned error: {exc.response.status_code}"
+            event = json.dumps({"type": "error", "detail": detail})
+            yield f"data: {event}\n\n"
+        except httpx.RequestError as exc:
+            detail = f"Provider request failed: {exc}"
+            event = json.dumps({"type": "error", "detail": str(detail)})
+            yield f"data: {event}\n\n"
+        except Exception as exc:
+            detail = f"Streaming failed: {exc}"
+            event = json.dumps({"type": "error", "detail": str(detail)})
+            yield f"data: {event}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )

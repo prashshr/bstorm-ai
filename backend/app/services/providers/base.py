@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from collections.abc import AsyncGenerator
 
 
 class ProviderClient(ABC):
@@ -17,3 +18,15 @@ class ProviderClient(ABC):
         temperature: float,
     ) -> str:
         raise NotImplementedError
+
+    async def chat_stream(
+        self,
+        endpoint: str,
+        api_key: str,
+        model: str,
+        prompt: str,
+        max_tokens: int,
+        temperature: float,
+    ) -> AsyncGenerator[str, None]:
+        full = await self.chat(endpoint, api_key, model, prompt, max_tokens, temperature)
+        yield full

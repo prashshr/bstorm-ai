@@ -111,3 +111,42 @@ class TestProxy:
             headers=auth_headers,
         )
         assert resp.status_code == 422
+
+    def test_proxy_chat_stream_no_credentials(self, client, auth_headers):
+        resp = client.post(
+            "/api/proxy/chat/stream",
+            json={
+                "provider": "openai",
+                "model": "gpt-4",
+                "prompt": "Hello",
+            },
+            headers=auth_headers,
+        )
+        assert resp.status_code == 404
+        assert "credential not found" in resp.json()["detail"].lower()
+
+    def test_proxy_chat_stream_requires_auth(self, client):
+        resp = client.post(
+            "/api/proxy/chat/stream",
+            json={"provider": "openai", "model": "gpt-4", "prompt": "Hello"},
+        )
+        assert resp.status_code == 401
+
+    def test_proxy_chat_stream_returns_event_stream(self, client, auth_headers):
+        client.post(
+            "/api/providers",
+            json={"provider": "openai", "api_key": "sk-test", "endpoint": ""},
+            headers=auth_headers,
+        )
+        resp = client.post(
+            "/api/proxy/chat/stream",
+            json={
+                "provider": "openai",
+                "model": "gpt-4",
+                "prompt": "Hello",
+            },
+            headers=auth_headers,
+        )
+        assert resp.status_code in (200, 401, 502)
+        if resp.status_code == 200:
+            assert resp.headers["content-type"].startswith("text/event-stream")
