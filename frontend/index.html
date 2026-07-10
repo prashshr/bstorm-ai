@@ -4058,7 +4058,8 @@
                 optionsHtml += `<optgroup label="${provider}">`;
                 groups[provider].sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id)).forEach(m => {
                     if (m.id !== currentModelId) {
-                        optionsHtml += `<option value="${m.id}">${m.name || m.id}</option>`;
+                        const optionValue = m.id.includes('::') ? m.id : `${PROVIDER_NAME}::${m.id}`;
+                        optionsHtml += `<option value="${optionValue}">${m.name || m.id}</option>`;
                     }
                 });
                 optionsHtml += `</optgroup>`;
