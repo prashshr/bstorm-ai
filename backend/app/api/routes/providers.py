@@ -98,42 +98,39 @@ async def list_provider_models(
         return await client.list_models(endpoint=row.endpoint or "", api_key=api_key)
     except HTTPException:
         raise
-    except httpx.HTTPStatusError as exc:
-        body = exc.response.text if exc.response is not None else ""
-        detail = body[:300] if body else str(exc)
-        
-        # Provide more specific error messages based on status code
-        if exc.response.status_code == 401:
-            detail = f"Authentication failed (401): Invalid API key for {row.endpoint or provider}"
-        elif exc.response.status_code == 404:
-            detail = f"The provider does not support automatic model discovery or the endpoint is incorrect: {row.endpoint or provider}"
-        elif exc.response.status_code == 502:
-            detail = f"Failed to reach the Chat Completions endpoint for {provider}. Please check your endpoint URL."
-        elif exc.response.status_code == 429:
-            detail = f"Rate limited (429): Too many requests to {provider}"
-        
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Provider model discovery failed: {detail}",
-        )
-    except Exception as exc:
-        # Handle other exceptions like connection errors
-        detail = str(exc)
-        if "502" in detail or "Bad Gateway" in detail:
-            detail = f"Failed to reach the Chat Completions endpoint for {provider}. Please check your endpoint URL."
-        elif "401" in detail or "Authentication" in detail.lower():
-            detail = f"Authentication failed (401): Invalid API key for {provider}"
-        elif "404" in detail:
-            detail = f"The provider does not support automatic model discovery or the endpoint is incorrect: {provider}"
-        
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Provider model discovery failed: {detail}",
-        )
     except httpx.RequestError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Provider model discovery request failed: {exc}",
+            detail=f"Provider model discovery request failed: Could not reach {row.endpoint or provider} — {exc}",
+        )
+    except httpx.HTTPStatusError as exc:
+        body = exc.response.text if exc.response is not None else ""
+        detail = exc.response.reason_phrase or "Provider returned an error"
+        status_code = exc.response.status_code if exc.response else 502
+
+        if status_code == 401:
+            detail = f"Authentication failed (401): Invalid API key for {row.endpoint or provider}"
+        elif status_code == 404:
+            detail = f"Model discovery not supported (404): {row.endpoint or provider}"
+        elif status_code == 429:
+            detail = f"Rate limited (429): Too many requests to {provider} — try again later"
+        elif status_code == 502:
+            detail = f"Bad Gateway (502): Could not reach {row.endpoint or provider}"
+
+        raise HTTPException(
+            status_code=status_code,
+            detail=f"Provider model discovery failed: {detail}",
+        )
+    except Exception as exc:
+        detail = str(exc)
+        if "429" in detail:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Provider model discovery failed: Rate limited (429): Too many requests to {provider}",
+            )
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Provider model discovery failed: {detail}",
         )
 
 
@@ -206,10 +203,10 @@ async def test_provider_connection(
         detail = str(exc)
         if "401" in detail or "Authentication" in detail or "Invalid API key" in detail:
             return {"status": "auth_failed", "message": "Authentication failed: Invalid API key"}
-        if "502" in detail or "Bad Gateway" in detail:
-            return {"status": "connection_error", "message": "Could not reach provider endpoint"}
         if "429" in detail or "Rate limit" in detail:
-            return {"status": "rate_limited", "message": "Rate limited. Try again later."}
+            return {"status": "rate_limited", "message": "Rate limited by provider. Try again later."}
+        if "502" in detail or "Bad Gateway" in detail or "Could not reach" in detail:
+            return {"status": "connection_error", "message": "Could not reach provider endpoint"}
         if "404" in detail:
             return {"status": "connection_error", "message": "Endpoint not found. Check your endpoint URL."}
         return {"status": "connection_error", "message": f"Connection failed: {detail}"}
