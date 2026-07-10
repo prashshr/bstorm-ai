@@ -1641,9 +1641,8 @@
                     </div>
 
                     <div class="discussion-controls" style="justify-content: center; gap: 16px; margin-top: 24px;">
-                        <button id="stopDiscBtn" class="btn-sleek btn-stop" onclick="stopDiscussion()">⏹️ Stop and Summarize</button>
                         <button class="btn-sleek btn-stop" style="background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-danger, #ef4444);" onclick="closeAndResetDiscussion()">✖ Close Discussion</button>
-                        <button id="startNewDiscBtn" class="btn-primary" style="display: none; min-width: 180px;" onclick="resetAndNewDiscussion()">✨ Start New Discussion</button>
+                        <button id="stopDiscBtn" class="btn-sleek btn-stop" style="min-width: 180px; background: var(--accent); color: white; border: none;" onclick="stopDiscussion()">⏹️ Stop Discussion and Summarize</button>
                     </div>
                 </div>
                 </div>
@@ -2162,15 +2161,10 @@
                 currentTab.style.display = 'none';
             }
             
-            // Toggle Stop & Summarize vs Start New Discussion
+            // Toggle Stop Discussion button visibility
             const stopBtn = document.getElementById('stopDiscBtn');
-            const startNewBtn = document.getElementById('startNewDiscBtn');
-            
             if (stopBtn) {
                 stopBtn.style.display = isRunning ? 'inline-block' : 'none';
-            }
-            if (startNewBtn) {
-                startNewBtn.style.display = isFinished ? 'inline-block' : 'none';
             }
         }
 
