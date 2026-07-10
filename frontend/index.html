@@ -3714,10 +3714,17 @@
             if (!question) { showStatus('Please enter a question', 'error'); return; }
             if (selectedModels.length < 2 || selectedModels.length > 5) { showStatus('Select 2-5 models', 'error'); return; }
 
+            const showDiscussionEarly = () => {
+                document.getElementById('setupSection').style.display = 'none';
+                document.getElementById('discussionSection').className = 'discussion-section active running';
+                document.getElementById('modelsRound1').innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-tertiary);font-size:14px;">Searching the web for relevant context...<div class="rag-loading-bar" style="display:block;margin-top:12px;"></div></div>';
+                switchMainTab('current');
+                setRagLoading(true);
+            };
             if (useRag) {
                 document.getElementById('questionDisplayText').textContent = question;
                 document.getElementById('questionDisplay').style.display = 'block';
-                setRagLoading(true);
+                showDiscussionEarly();
             }
 
             let initialRetrievedContext = null;
