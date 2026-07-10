@@ -5,10 +5,12 @@ from app.services.providers.base import ProviderClient
 
 
 class OpenAICompatibleClient(ProviderClient):
+    USER_AGENT = "AI-Ensemble/1.0 (https://ai-ensemble.samkhya.cloud)"
+
     async def list_models(self, endpoint: str, api_key: str) -> list[str]:
         base = endpoint.rstrip("/") if endpoint else "https://api.openai.com/v1"
         url = f"{base}/models"
-        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json", "User-Agent": self.USER_AGENT}
         async with httpx.AsyncClient(timeout=30) as client:
             try:
                 resp = await client.get(url, headers=headers)
@@ -49,7 +51,7 @@ class OpenAICompatibleClient(ProviderClient):
     ) -> str:
         base = endpoint.rstrip("/") if endpoint else "https://api.openai.com/v1"
         url = f"{base}/chat/completions"
-        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json", "User-Agent": self.USER_AGENT}
         payload = {
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
