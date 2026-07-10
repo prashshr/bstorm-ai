@@ -88,7 +88,7 @@ async def proxy_chat(
             endpoint=endpoint,
             api_key=api_key,
             model=payload.model,
-            prompt=payload.prompt,
+            prompt=prompt,
             max_tokens=payload.max_tokens,
             temperature=payload.temperature,
         )
