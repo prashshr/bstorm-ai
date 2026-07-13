@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI - Ensemble</title>
-<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" integrity="sha384-TQbtLCAerC3jgaim+N78RZSDYV7ryeoBCVqTuzRrFec2akfBkHS7ACQ3PQhvMVi" crossorigin="anonymous"></script>
+    <title>AI-Ensemble</title>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" integrity="sha384-/TQbtLCAerC3jgaim+N78RZSDYV7ryeoBCVqTuzRrFec2akfBkHS7ACQ3PQhvMVi" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js" integrity="sha384-+VfUPEb0PdtChMwmBcBmykRMDd+v6D/oFmB3rZM/puCMDYcIvF968OimRh4KQY9a" crossorigin="anonymous"></script>
     <style>
         :root {
@@ -834,8 +834,30 @@
         .badge-connecting { color: var(--accent); animation: pulse 1.5s infinite; }
 
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
-        @keyframes ragShimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
-        .rag-loading-bar { height: 2px; background: linear-gradient(90deg, var(--accent) 25%, var(--accent-hover, #7c3aed) 50%, var(--accent) 75%); background-size: 200% 100%; animation: ragShimmer 1.5s ease-in-out infinite; border-radius: 1px; margin-top: 6px; }
+        @keyframes ragShimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+        .rag-loading-bar {
+            height: 4px;
+            background: var(--bg-tertiary);
+            border-radius: 2px;
+            margin-top: 8px;
+            overflow: hidden;
+            position: relative;
+            width: 100%;
+        }
+        .rag-loading-bar::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 40%;
+            background: linear-gradient(90deg, transparent, var(--accent), transparent);
+            animation: ragShimmer 1.2s ease-in-out infinite;
+            border-radius: 2px;
+        }
 
         .model-response {
             background: var(--bg-secondary);
@@ -1260,7 +1282,7 @@
     <!-- Independent Center-Aligned Login Page -->
     <div id="loginPage" class="login-page-container" style="display: none;">
         <div class="login-card">
-            <h1>AI - Ensemble</h1>
+            <h1>AI-Ensemble</h1>
             
             <div id="loginStatusMsg" class="status-message" style="display: none;"></div>
             
@@ -1288,69 +1310,7 @@
         </div>
     </div>
 
-    <!-- Add Provider Modal -->
-    <div id="addProviderModal" class="fullscreen-overlay" style="display: none; align-items: center; justify-content: center; z-index: 11000; background: rgba(0, 0, 0, 0.75);">
-        <div class="login-card" style="max-width: 500px; padding: 30px; gap: 16px; background: var(--bg-secondary); border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 8px;">
-                <h2 style="margin: 0; font-size: 18px; color: var(--text-primary); font-weight: 600;">Configure Provider</h2>
-                <button onclick="closeAddProviderModal()" aria-label="Close modal" style="background: none; border: none; font-size: 20px; color: var(--text-tertiary); cursor: pointer; line-height: 1;">&times;</button>
-            </div>
-            
-            <div class="form-group" style="margin: 0;">
-                <label for="modalProviderSelect">Platform / Preset</label>
-                <select id="modalProviderSelect" onchange="onModalProviderChange()" style="width: 100%; padding: 10px; background: var(--bg-tertiary); border: 1px solid var(--border); color: var(--text-primary); border-radius: 4px; font-size: 13px;">
-                    <option value="openrouter">OpenRouter (Default)</option>
-                    <option value="openai">OpenAI Official</option>
-                    <option value="perplexity">Perplexity AI</option>
-                    <option value="google-vertex">Google Vertex / Gemini</option>
-                    <option value="mammouth">Mammouth AI</option>
-                    <option value="requesty">Requesty AI</option>
-                    <option value="custom">Custom Compatible...</option>
-                </select>
-            </div>
-
-            <div id="modalCustomProviderGroup" class="form-group" style="display: none; margin: 0;">
-                <label for="modalCustomProviderName">Provider Name / Identifier</label>
-                <input type="text" id="modalCustomProviderName" placeholder="e.g., Fireworks, Ollama, Together" style="width: 100%; padding: 10px; background: var(--bg-tertiary); border: 1px solid var(--border); color: var(--text-primary); border-radius: 4px; font-size: 13px; box-sizing: border-box;">
-            </div>
-
-            <div id="modalOpenrouterOAuthGroup" style="display:none; padding: 12px; background: rgba(255, 92, 0, 0.05); border: 1px solid var(--border); border-radius: 6px; flex-direction: column; gap: 8px; box-sizing: border-box;">
-                <button class="btn-primary" style="background: #ff5c00; color: white; font-weight: 500; border: none; padding: 4px 10px; font-size: 11px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 4px; width: max-content; margin: 0 auto; box-sizing: border-box;" onclick="startOpenRouterOAuth()">
-                    <span>🔑 Sign-in via SSO</span>
-                </button>
-                <div style="font-size: 11px; color: var(--text-tertiary); text-align: center;">Secure, direct one-click authentication.</div>
-            </div>
-
-            <div id="gcpVertexFields" style="display: none; flex-direction: column; gap: 10px; margin-top: 8px;">
-                <div class="form-group" style="margin: 0;">
-                    <label for="modalGcpProject">Google Cloud Project ID</label>
-                    <input type="text" id="modalGcpProject" oninput="onGcpFieldsChange()" placeholder="your-gcp-project-123" style="width: 100%; padding: 10px; background: var(--bg-tertiary); border: 1px solid var(--border); color: var(--text-primary); border-radius: 4px; font-size: 13px; box-sizing: border-box;">
-                </div>
-                <div class="form-group" style="margin: 0;">
-                    <label for="modalGcpRegion">GCP Region</label>
-                    <input type="text" id="modalGcpRegion" oninput="onGcpFieldsChange()" value="us-central1" placeholder="us-central1" style="width: 100%; padding: 10px; background: var(--bg-tertiary); border: 1px solid var(--border); color: var(--text-primary); border-radius: 4px; font-size: 13px; box-sizing: border-box;">
-                </div>
-            </div>
-
-            <div class="form-group" style="margin: 0;">
-                <label for="modalEndpoint">API Endpoint</label>
-                <input type="text" id="modalEndpoint" placeholder="https://openrouter.ai/api/v1" style="width: 100%; padding: 10px; background: var(--bg-tertiary); border: 1px solid var(--border); color: var(--text-primary); border-radius: 4px; font-size: 13px; box-sizing: border-box;">
-            </div>
-
-            <div class="form-group" style="margin: 0; position: relative;">
-                <label for="modalApiKey" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                    <span>API Key</span>
-                    <a id="modalWebAuthLink" href="https://openrouter.ai" target="_blank" style="font-size: 11px; color: var(--accent); text-decoration: underline; font-weight: 500;">🔗 Login & Get Key</a>
-                </label>
-                <input type="password" id="modalApiKey" placeholder="sk-or-..." style="width: 100%; padding: 10px; background: var(--bg-tertiary); border: 1px solid var(--border); color: var(--text-primary); border-radius: 4px; font-size: 13px; box-sizing: border-box;">
-            </div>
-
-            <div style="display: flex; gap: 12px; margin-top: 10px;">
-                <button class="btn-primary" style="flex: 1;" onclick="saveModalProvider()">Save & Discover</button>
-                <button class="btn-secondary" style="flex: 1;" onclick="closeAddProviderModal()">Cancel</button>
-            </div>
-        </div>
-    </div>
+    <!-- ── Provider configuration is handled in the left sidebar ── -->
 
     <!-- Main Dashboard Container -->
     <div id="appContainer" class="container" style="display: none; padding: 24px; max-width: 1440px; margin: 0 auto; box-sizing: border-box;">
@@ -1367,7 +1327,7 @@
 
             <!-- Center: AI Ensemble (Bigger & Clicking brings Home Page) -->
             <div class="header-center" style="flex: 2; display: flex; justify-content: center; align-items: center;">
-                <h1 style="margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.5px; color: var(--text-primary); cursor: pointer; text-align: center;" onclick="switchMainTab('new')" title="Go to Home Screen">AI - Ensemble</h1>
+                <h1 style="margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.5px; color: var(--text-primary); cursor: pointer; text-align: center;" onclick="switchMainTab('new')" title="Go to Home Screen" tabindex="0" role="button" aria-label="AI-Ensemble home" onkeydown="if(event.key==='Enter'||event.key===' ')switchMainTab('new')">AI-Ensemble</h1>
             </div>
 
             <!-- Right Top Corner: Sun or Moon Toggle button -->
@@ -1378,21 +1338,19 @@
         </div>
 
         <div class="app-layout">
-            <!-- ── Left Sidebar: Expandable Providers List ── -->
+            <!-- ── Left Sidebar: Provider Management ── -->
             <div class="left-panel">
                 <div class="panel-section">
                     <div class="panel-section-title" onclick="toggleProviderList()">
                         Providers
                         <span class="panel-toggle-icon" id="providerToggleIcon">▼</span>
                     </div>
-                    <ul class="provider-list" id="providerList">
-                        <li class="provider-item active" data-provider="openai-compatible" onclick="selectProvider(this)">
-                            <span class="provider-dot"></span>
-                            OpenRouter
-                        </li>
+                    <ul class="provider-list" id="sidebarProviderList">
                     </ul>
+                    <div id="sidebarProviderForm" style="display:none; padding: 8px 12px; border-top: 1px solid var(--border);">
+                    </div>
                     <div style="padding: 8px 12px;">
-                        <button class="btn-sleek" style="width: 100%; font-size: 12px; padding: 6px 12px;" onclick="addProvider()">+ Add Provider</button>
+                        <button class="btn-sleek" style="width: 100%; font-size: 12px; padding: 6px 12px;" onclick="sidebarAddProvider()">+ Add Provider</button>
                     </div>
                 </div>
             </div>
@@ -1413,27 +1371,26 @@
                 <!-- Segmented Control / Tab Row -->
                 <div class="main-tabs">
                     <button class="main-tab active" onclick="switchMainTab('new')">New Discussion</button>
+                    <button class="main-tab" onclick="switchMainTab('provider')" id="providerMainTab">Provider</button>
                     <button class="main-tab" onclick="switchMainTab('current')" id="currentMainTab" style="display:none;">Current Discussion</button>
                     <button class="main-tab" onclick="switchMainTab('history')">History</button>
                 </div>
 
                 <!-- ── Tab Content: New Discussion ── -->
                 <div class="tab-content active" id="tab-new">
+                    <div id="ragInitProgress" style="display:none; background:var(--bg-secondary); border:1px solid var(--border); border-radius:6px; padding:24px; margin-bottom:25px; text-align:center; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                        <div style="margin-bottom:12px;font-size:14px;color:var(--text-primary);font-weight:500;">🔍 Initializing knowledge sources...</div>
+                        <div class="rag-loading-bar" style="display:block;margin-bottom:12px;"></div>
+                        <div style="font-size:12px;color:var(--text-tertiary);" id="ragInitStatusText">Loading provider configurations and model data</div>
+                    </div>
                     <div id="setupSection">
 
-
-                        <!-- Step 1: Select & Configure Provider (On Top) -->
-                        <div class="form-section" style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 25px;">
+                        <!-- Provider configuration (inline, no grid) -->
+                        <div class="form-section" style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 6px; padding: 24px; margin-bottom: 25px;">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
-                                <h3 style="margin: 0; font-size: 14px; font-weight: 600; color: var(--text-primary);">🔌 Step 1: Select AI Provider</h3>
-                                <button class="btn-sleek" style="padding: 4px 10px; font-size: 12px;" onclick="addProvider()">+ Add Provider</button>
+                                <h3 style="margin: 0; font-size: 14px; font-weight: 600; color: var(--text-primary);">🔌 Provider Configuration</h3>
                             </div>
                             
-                            <!-- Interactive Grid-based Provider Selection -->
-                            <div id="providerGridList" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin-bottom: 16px;">
-                                <!-- Populated dynamically with active/inactive status indicator dots -->
-                            </div>
-
                             <!-- Expandable Configuration Fields -->
                             <div style="margin-top:10px;">
                                 <button class="btn-sleek" style="background:var(--bg-tertiary);color:var(--text-secondary);border:1px solid var(--border);width:100%;text-align:left;justify-content:space-between;padding:10px 16px;border-radius:6px;" onclick="toggleApiPanel()">
@@ -1479,7 +1436,7 @@
                             </div>
                         </div>
 
-                        <div class="model-selection" id="modelSelection" style="display:none; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 25px; overflow: hidden;">
+                        <div class="model-selection" id="modelSelection" style="display:none; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 25px; overflow: hidden;">
                             <div onclick="toggleModelGrid()" style="display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; cursor: pointer; border-bottom: 1px solid var(--border); user-select: none;">
                                 <h3 style="margin: 0; font-size: 14px; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">🤖 Select Models (2-5)</h3>
                                 <div style="display: flex; align-items: center; gap: 12px;">
@@ -1493,7 +1450,7 @@
                         </div>
 
                         <!-- Standalone Step 2.5: Selected Ensemble Models (Multi-Provider Checklist) -->
-                        <div class="form-section" id="activeEnsembleSection" style="display: none; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 25px;">
+                        <div class="form-section" id="activeEnsembleSection" style="display: none; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 6px; padding: 24px; margin-bottom: 25px;">
                             <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--accent); margin-bottom: 12px; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); padding-bottom: 10px;">🌟 Active Ensemble (Selected Models)</div>
                             <div id="activeEnsemblePills" style="display: flex; flex-wrap: wrap; gap: 10px;"></div>
                         </div>
@@ -1669,6 +1626,16 @@
                     </div>
                 </div>
                 </div>
+                <!-- ── Tab Content: Provider Configuration ── -->
+                <div class="tab-content" id="tab-provider">
+                    <div class="form-section" id="providerEditSection">
+                        <div id="providerEditContent">
+                            <div style="text-align:center;padding:40px;color:var(--text-tertiary);">
+                                <p>Select a configured provider from the sidebar to edit its configuration.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <div class="tab-content" id="tab-history">
                     <div class="form-section">
                         <h2>Discussions</h2>
@@ -1780,52 +1747,158 @@
 
         /* ── New Layout: Provider / Model Panel ── */
         function toggleProviderList() {
-            const list = document.getElementById('providerList');
+            const list = document.getElementById('sidebarProviderList');
             const icon = document.getElementById('providerToggleIcon');
             if (!list || !icon) return;
             list.classList.toggle('collapsed');
             icon.classList.toggle('collapsed');
         }
 
+        function sidebarAddProvider() {
+            const formContainer = document.getElementById('sidebarProviderForm');
+            if (!formContainer) return;
+            formContainer.innerHTML = `
+                <div style="font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:8px;">New Provider</div>
+                <div class="form-group" style="margin-bottom:6px;">
+                    <label style="font-size:11px;color:var(--text-secondary);display:block;margin-bottom:3px;">Platform</label>
+                    <select id="sidebarProviderSelect" onchange="onSidebarProviderChange()" style="width:100%;padding:6px 8px;font-size:11px;background:var(--bg-tertiary);border:1px solid var(--border);color:var(--text-primary);border-radius:4px;">
+                        <option value="openrouter">OpenRouter</option>
+                        <option value="openai">OpenAI</option>
+                        <option value="perplexity">Perplexity</option>
+                        <option value="google-vertex">Google Vertex</option>
+                        <option value="mammouth">Mammouth AI</option>
+                        <option value="requesty">Requesty</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                </div>
+                <div id="sidebarCustomGroup" style="display:none;margin-bottom:6px;">
+                    <label style="font-size:11px;color:var(--text-secondary);display:block;margin-bottom:3px;">Name</label>
+                    <input type="text" id="sidebarCustomName" placeholder="e.g. Fireworks" style="width:100%;padding:6px 8px;font-size:11px;background:var(--bg-tertiary);border:1px solid var(--border);color:var(--text-primary);border-radius:4px;box-sizing:border-box;">
+                </div>
+                <div id="sidebarOAuthGroup" style="display:none;margin-bottom:6px;">
+                    <button class="btn-primary" style="background:#ff5c00;color:white;font-weight:500;border:none;padding:4px 8px;font-size:11px;border-radius:4px;cursor:pointer;width:100%;" onclick="startOpenRouterOAuth()">🔑 SSO Sign-in</button>
+                </div>
+                <div id="sidebarGcpFields" style="display:none;margin-bottom:6px;">
+                    <input type="text" id="sidebarGcpProject" placeholder="GCP Project ID" oninput="onSidebarGcpChange()" style="width:100%;padding:6px 8px;font-size:11px;background:var(--bg-tertiary);border:1px solid var(--border);color:var(--text-primary);border-radius:4px;margin-bottom:4px;box-sizing:border-box;">
+                    <input type="text" id="sidebarGcpRegion" value="us-central1" placeholder="Region" oninput="onSidebarGcpChange()" style="width:100%;padding:6px 8px;font-size:11px;background:var(--bg-tertiary);border:1px solid var(--border);color:var(--text-primary);border-radius:4px;box-sizing:border-box;">
+                </div>
+                <div class="form-group" style="margin-bottom:6px;">
+                    <label style="font-size:11px;color:var(--text-secondary);display:block;margin-bottom:3px;">Endpoint</label>
+                    <input type="text" id="sidebarEndpoint" placeholder="https://openrouter.ai/api/v1" style="width:100%;padding:6px 8px;font-size:11px;background:var(--bg-tertiary);border:1px solid var(--border);color:var(--text-primary);border-radius:4px;box-sizing:border-box;">
+                </div>
+                <div class="form-group" style="margin-bottom:8px;">
+                    <label style="font-size:11px;color:var(--text-secondary);display:block;margin-bottom:3px;">API Key</label>
+                    <input type="password" id="sidebarApiKey" placeholder="sk-..." style="width:100%;padding:6px 8px;font-size:11px;background:var(--bg-tertiary);border:1px solid var(--border);color:var(--text-primary);border-radius:4px;box-sizing:border-box;">
+                </div>
+                <div style="display:flex;gap:6px;">
+                    <button class="btn-primary" style="flex:1;padding:6px 8px;font-size:11px;" onclick="saveSidebarProvider()">Save</button>
+                    <button class="btn-secondary" style="flex:1;padding:6px 8px;font-size:11px;border:1px solid var(--border);" onclick="closeSidebarProviderForm()">Cancel</button>
+                </div>
+            `;
+            formContainer.style.display = 'block';
+            const list = document.getElementById('sidebarProviderList');
+            if (list) list.style.display = 'none';
+            onSidebarProviderChange();
+        }
+
+        function closeSidebarProviderForm() {
+            const formContainer = document.getElementById('sidebarProviderForm');
+            if (formContainer) formContainer.style.display = 'none';
+            const list = document.getElementById('sidebarProviderList');
+            if (list) list.style.display = '';
+        }
+
+        function onSidebarProviderChange() {
+            const key = document.getElementById('sidebarProviderSelect').value;
+            const preset = PRESET_PROVIDERS[key];
+            const epInput = document.getElementById('sidebarEndpoint');
+            if (key === 'custom') {
+                document.getElementById('sidebarCustomGroup').style.display = 'block';
+                if (epInput) { epInput.value = ''; epInput.disabled = false; }
+            } else {
+                document.getElementById('sidebarCustomGroup').style.display = 'none';
+                if (epInput && preset) { epInput.value = preset.endpoint; epInput.disabled = true; }
+            }
+            document.getElementById('sidebarOAuthGroup').style.display = key === 'openrouter' ? 'block' : 'none';
+            const gcpFields = document.getElementById('sidebarGcpFields');
+            if (key === 'google-vertex') {
+                gcpFields.style.display = 'block';
+                onSidebarGcpChange();
+            } else {
+                gcpFields.style.display = 'none';
+            }
+        }
+
+        function onSidebarGcpChange() {
+            const project = document.getElementById('sidebarGcpProject').value.trim() || 'your-gcp-project-123';
+            const region = document.getElementById('sidebarGcpRegion').value.trim() || 'us-central1';
+            const epInput = document.getElementById('sidebarEndpoint');
+            if (epInput) {
+                epInput.value = 'https://' + region + '-aiplatform.googleapis.com/v1/projects/' + project + '/locations/' + region + '/publishers/google';
+            }
+        }
+
+        async function saveSidebarProvider() {
+            let provider = document.getElementById('sidebarProviderSelect').value;
+            const endpoint = document.getElementById('sidebarEndpoint').value.trim();
+            const apiKey = document.getElementById('sidebarApiKey').value.trim();
+            if (!endpoint) { alert('Endpoint is required.'); return; }
+            if (!apiKey) { alert('API Key is required.'); return; }
+            let customName = '';
+            if (provider === 'custom') {
+                customName = document.getElementById('sidebarCustomName').value.trim();
+                if (!customName) { alert('Provider name is required.'); return; }
+                const customKey = customName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+                if (!customKey) { alert('Invalid provider name.'); return; }
+                if (STATIC_PRESETS[customKey]) { alert('Reserved name.'); return; }
+                provider = customKey;
+            }
+            try {
+                showStatus('Testing connection...', 'connecting');
+                const response = await authFetch('/api/providers', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ provider, endpoint, api_key: apiKey })
+                });
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || 'Failed to save');
+                }
+                try {
+                    const modelsResponse = await authFetch('/api/providers/' + provider + '/models');
+                    if (!modelsResponse.ok) {
+                        const errText = await modelsResponse.text();
+                        let errMsg = '';
+                        try { const errObj = JSON.parse(errText); errMsg = errObj.detail || errText; } catch (e) { errMsg = errText || 'HTTP Error ' + modelsResponse.status; }
+                        throw new Error(errMsg);
+                    }
+                } catch (discoveryError) {
+                    const msg = (discoveryError.message || '').toLowerCase();
+                    if (msg.includes('429') || msg.includes('rate limit') || msg.includes('rate_limit')) {
+                        log('Model discovery rate limited');
+                    } else {
+                        await authFetch('/api/providers/' + provider, { method: 'DELETE' });
+                        throw new Error('Connection verification failed: ' + discoveryError.message);
+                    }
+                }
+                showStatus('✓ Saved ' + (customName || provider) + ' credentials!', 'success');
+                closeSidebarProviderForm();
+                await loadUserProviderConfig(false);
+                await selectSavedProvider(provider);
+            } catch (e) {
+                alert('Error: ' + e.message);
+                showStatus('❌ ' + e.message, 'error');
+            }
+        }
+
         function selectProvider(el) {
+            const providerKey = el.getAttribute('data-provider');
+            if (!providerKey) return;
             document.querySelectorAll('.provider-item').forEach(p => p.classList.remove('active'));
             el.classList.add('active');
-            // Redundant sidebar models panel disabled - using main setup checkbox grid
-        }
-
-        function collapseProviderList() {
-            const list = document.getElementById('providerList');
-            const icon = document.getElementById('providerToggleIcon');
-            if (!list || !icon) return;
-            list.classList.add('collapsed');
-            icon.classList.add('collapsed');
-        }
-
-        function addProvider() {
-            document.getElementById('modalProviderSelect').value = 'openrouter';
-            document.getElementById('modalApiKey').value = '';
-            onModalProviderChange();
-            
-            const modal = document.getElementById('addProviderModal');
-            if (modal) {
-                modal.style.display = 'flex';
-            }
-        }
-
-        function closeAddProviderModal() {
-            const modal = document.getElementById('addProviderModal');
-            if (modal) {
-                modal.style.display = 'none';
-            }
-        }
-
-        function onGcpFieldsChange() {
-            const project = document.getElementById('modalGcpProject').value.trim() || 'your-gcp-project-123';
-            const region = document.getElementById('modalGcpRegion').value.trim() || 'us-central1';
-            const endpointInput = document.getElementById('modalEndpoint');
-            if (endpointInput) {
-                endpointInput.value = `https://${region}-aiplatform.googleapis.com/v1/projects/${project}/locations/${region}/publishers/google`;
-            }
+            activeSavedProvider = providerKey;
+            selectSavedProvider(providerKey);
+            switchMainTab('provider');
         }
 
         async function saveActiveSetupProvider() {
@@ -1904,150 +1977,6 @@
             } catch (e) {
                 alert('Connection Error: ' + e.message);
                 log('Failed to save provider: ' + e.message);
-                showStatus(`❌ Error connecting to provider: ${e.message}`, 'error');
-            }
-        }
-
-        function onModalProviderChange() {
-            const providerKey = document.getElementById('modalProviderSelect').value;
-            const preset = PRESET_PROVIDERS[providerKey];
-            
-            const customGroup = document.getElementById('modalCustomProviderGroup');
-            if (customGroup) {
-                customGroup.style.display = (providerKey === 'custom') ? 'flex' : 'none';
-            }
-            
-            if (providerKey !== 'custom' && !preset) return;
-            
-            const modalOauthGroup = document.getElementById('modalOpenrouterOAuthGroup');
-            if (modalOauthGroup) {
-                modalOauthGroup.style.display = (providerKey === 'openrouter') ? 'flex' : 'none';
-            }
-
-            const gcpFields = document.getElementById('gcpVertexFields');
-            if (providerKey === 'google-vertex') {
-                if (gcpFields) gcpFields.style.display = 'flex';
-                onGcpFieldsChange();
-            } else {
-                if (gcpFields) gcpFields.style.display = 'none';
-                const endpointInput = document.getElementById('modalEndpoint');
-                if (endpointInput) {
-                    endpointInput.value = preset ? preset.endpoint : '';
-                    endpointInput.disabled = (providerKey !== 'custom');
-                }
-            }
-            
-            const webAuthLink = document.getElementById('modalWebAuthLink');
-            if (webAuthLink) {
-                if (preset && preset.authUrl) {
-                    webAuthLink.href = preset.authUrl;
-                    webAuthLink.style.display = 'inline';
-                    webAuthLink.textContent = `🔗 Login to ${preset.name}`;
-                } else {
-                    webAuthLink.style.display = 'none';
-                }
-            }
-        }
-
-        async function saveModalProvider() {
-            let provider = document.getElementById('modalProviderSelect').value;
-            const endpoint = document.getElementById('modalEndpoint').value.trim();
-            const apiKey = document.getElementById('modalApiKey').value.trim();
-
-            if (!endpoint) {
-                alert('Endpoint is required.');
-                return;
-            }
-            if (!apiKey) {
-                alert('API Key is required to save.');
-                return;
-            }
-
-            let customName = '';
-            if (provider === 'custom') {
-                customName = document.getElementById('modalCustomProviderName').value.trim();
-                if (!customName) {
-                    alert('Provider Name / Identifier is required for custom compatible providers.');
-                    return;
-                }
-                const customKey = customName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-                if (!customKey) {
-                    alert('Invalid Provider Name. Please use alphanumeric characters.');
-                    return;
-                }
-                if (STATIC_PRESETS[customKey]) {
-                    alert(`"${customName}" is a reserved preset name. Please choose a different identifier.`);
-                    return;
-                }
-                provider = customKey;
-            }
-
-            try {
-                showStatus(`Testing connection to ${endpoint}...`, 'connecting');
-                
-                // 1. Save temporarily to the database
-                const response = await authFetch('/api/providers', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        provider,
-                        endpoint,
-                        api_key: apiKey
-                    })
-                });
-
-                if (!response.ok) {
-                    const err = await response.json();
-                    throw new Error(err.detail || 'Failed to save provider credentials');
-                }
-
-                // 2. Verify connection by fetching models for this provider
-                try {
-                    const modelsResponse = await authFetch(`/api/providers/${provider}/models`);
-                    if (!modelsResponse.ok) {
-                        const errText = await modelsResponse.text();
-                        let errMsg = '';
-                        try {
-                            const errObj = JSON.parse(errText);
-                            errMsg = errObj.detail || errText;
-                        } catch (e) {
-                            errMsg = errText || `HTTP Error ${modelsResponse.status}`;
-                        }
-                        throw new Error(errMsg);
-                    }
-                    
-                    const models = await modelsResponse.json();
-                    if (!Array.isArray(models) || models.length === 0) {
-                        log('Model discovery returned no models — this is normal for some providers');
-                        // Don't fail — provider is still saved successfully
-                    }
-                } catch (discoveryError) {
-                    const msg = (discoveryError.message || '').toLowerCase();
-                    if (msg.includes('429') || msg.includes('rate limit') || msg.includes('rate_limit')) {
-                        log('Model discovery rate limited — provider saved but models not yet discovered');
-                    } else {
-                        // Revert/delete the temporary credential only on non-rate-limit errors
-                        await authFetch(`/api/providers/${provider}`, {
-                            method: 'DELETE'
-                        });
-                        throw new Error(`Connection verification failed: ${discoveryError.message}`);
-                    }
-                }
-
-                showStatus(`✓ Saved and verified ${customName || provider} credentials successfully!`, 'success');
-                
-                if (document.getElementById('modalCustomProviderName')) {
-                    document.getElementById('modalCustomProviderName').value = '';
-                }
-                
-                closeAddProviderModal();
-                
-                await loadUserProviderConfig(false);
-                await selectSavedProvider(provider);
-
-            } catch (e) {
-                alert('Connection Error: ' + e.message);
-                log('Failed to save/verify provider: ' + e.message);
                 showStatus(`❌ Error connecting to provider: ${e.message}`, 'error');
             }
         }
@@ -2232,25 +2161,18 @@
             }
         });
 
-        function handleHash() {
-            if (stateRestored && window.location.hash) return;
-            const hash = window.location.hash.replace(/^#/, '');
-            if (!hash || hash === 'new') {
-                switchMainTab('new');
-            } else if (hash === 'history') {
-                switchMainTab('history');
-            } else if (hash === 'current') {
-                switchMainTab('current');
-            } else if (hash) {
-                const discussion = queryHistory.find(h => String(h.id) === String(hash));
-                if (discussion) {
-                    if (discussion.status === 'in_progress') {
-                        resumeDiscussion(hash);
-                    } else {
-                        loadDiscussion(hash);
+        function safeRenderMarkdown(text) {
+            if (typeof marked !== 'undefined' && typeof marked.parse === 'function') {
+                try {
+                    if (typeof DOMPurify !== 'undefined' && typeof DOMPurify.sanitize === 'function') {
+                        return DOMPurify.sanitize(marked.parse(text));
                     }
+                    return marked.parse(text);
+                } catch (e) {
+                    log(`Markdown render error: ${e.message}`, 'warn');
                 }
             }
+            return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         }
 
         function log(msg) {
@@ -2374,7 +2296,8 @@
                     });
                 }
                 
-                renderProviderList();
+renderProviderList();
+                renderSidebarProviders();
 
                 // Select the active saved provider to auto-fill the form and discover models ONLY if requested
                 if (shouldSelectActive) {
@@ -2396,6 +2319,18 @@
             const grid = document.getElementById('providerGridList');
             if (!grid) return;
             grid.innerHTML = '';
+
+            const configuredCount = Object.keys(savedCredentials).length;
+            if (configuredCount === 0) {
+                grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--text-tertiary);font-size:13px;">No providers configured yet. Use the sidebar to add one.</div>';
+                const panel = document.getElementById('apiConfigPanel');
+                const icon = document.getElementById('apiToggleIcon');
+                if (panel && panel.style.display !== 'block') {
+                    panel.style.display = 'block';
+                    if (icon) icon.textContent = '▲';
+                }
+                return;
+            }
 
             Object.keys(PRESET_PROVIDERS).forEach(key => {
                 if (key === 'custom') return;
@@ -2441,6 +2376,7 @@
         async function selectSavedProvider(key) {
             activeSavedProvider = key;
             renderProviderList();
+            renderSidebarProviders();
 
             const saved = savedCredentials[key] || PRESET_PROVIDERS[key];
             
@@ -2519,6 +2455,108 @@
             return endpoint;
         }
 
+        function renderSidebarProviders() {
+            const list = document.getElementById('sidebarProviderList');
+            if (!list) return;
+            list.innerHTML = '';
+            Object.keys(savedCredentials).forEach(key => {
+                const preset = PRESET_PROVIDERS[key] || {};
+                const isConfigured = !!savedCredentials[key];
+                const isVerified = verifiedProviders.has(key);
+                const dotColor = isVerified ? '#22c55e' : (isConfigured ? '#f59e0b' : '#8e8e93');
+                const li = document.createElement('li');
+                li.className = 'provider-item' + (key === activeSavedProvider ? ' active' : '');
+                li.setAttribute('data-provider', key);
+                li.onclick = function() { selectProvider(this); };
+                li.innerHTML = '<span class="provider-dot" style="background:' + dotColor + ';"></span>' + (preset.name || key);
+                list.appendChild(li);
+            });
+        }
+
+        function showProviderEditTab(providerKey) {
+            const container = document.getElementById('providerEditContent');
+            if (!container) return;
+            if (!providerKey || !savedCredentials[providerKey]) {
+                container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-tertiary);"><p>Provider not configured. Add one from the sidebar.</p></div>';
+                return;
+            }
+            const saved = savedCredentials[providerKey];
+            const preset = PRESET_PROVIDERS[providerKey] || {};
+            const isVerified = verifiedProviders.has(providerKey);
+            container.innerHTML = `
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;border-bottom:1px solid var(--border);padding-bottom:12px;">
+                    <h3 style="margin:0;font-size:16px;font-weight:600;color:var(--text-primary);">${preset.name || providerKey}</h3>
+                    <span style="font-size:12px;padding:4px 10px;border-radius:4px;background:${isVerified ? 'var(--success-bg)' : 'var(--warning-bg)'};color:${isVerified ? 'var(--success)' : 'var(--warning)'};">${isVerified ? '✓ Connected' : '⚠ Not Verified'}</span>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="editEndpoint">API Endpoint</label>
+                        <input type="text" id="editEndpoint" value="${saved.endpoint || ''}" style="width:100%;padding:10px;background:var(--bg-tertiary);border:1px solid var(--border);color:var(--text-primary);border-radius:4px;font-size:13px;box-sizing:border-box;">
+                    </div>
+                    <div class="form-group">
+                        <label for="editApiKey">API Key</label>
+                        <div style="position:relative;">
+                            <input type="password" id="editApiKey" placeholder="[Saved] Enter new key to update..." style="width:100%;padding:10px;padding-right:40px;background:var(--bg-tertiary);border:1px solid var(--border);color:var(--text-primary);border-radius:4px;font-size:13px;box-sizing:border-box;">
+                            <button type="button" onclick="togglePasswordVisibility('editApiKey')" aria-label="Toggle API key visibility" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-tertiary);">👁️</button>
+                        </div>
+                    </div>
+                </div>
+                ${providerKey === 'openrouter' ? '<div style="margin-bottom:12px;"><button class="btn-primary" style="background:#ff5c00;color:white;font-weight:500;border:none;padding:6px 14px;font-size:12px;border-radius:4px;cursor:pointer;" onclick="startOpenRouterOAuth()">🔑 Sign-in via SSO</button></div>' : ''}
+                <div style="display:flex;gap:12px;margin-top:15px;flex-wrap:wrap;">
+                    <button class="btn-primary" style="flex:1;min-width:150px;" onclick="editDiscoverModels('${providerKey}')">Discover Models</button>
+                    <button class="btn-secondary" style="flex:1;min-width:120px;border:1px solid var(--border);" onclick="editSaveProvider('${providerKey}')">💾 Save</button>
+                    <button class="btn-secondary" style="flex:1;min-width:120px;border:1px solid var(--border);color:#e06c75;" onclick="resetActiveProvider()">🗑️ Reset</button>
+                </div>
+                <div id="editStatusMsg" style="margin-top:12px;"></div>
+            `;
+        }
+
+        async function editSaveProvider(providerKey) {
+            const endpoint = document.getElementById('editEndpoint').value.trim();
+            const apiKey = document.getElementById('editApiKey').value.trim();
+            if (!endpoint) { alert('Endpoint is required.'); return; }
+            try {
+                showStatus('Saving...', 'connecting');
+                const response = await authFetch('/api/providers', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ provider: providerKey, endpoint, api_key: apiKey || '[Saved]' })
+                });
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || 'Failed to save');
+                }
+                showStatus('✓ Saved ' + providerKey + ' credentials!', 'success');
+                await loadUserProviderConfig(false);
+                renderSidebarProviders();
+                showProviderEditTab(providerKey);
+            } catch (e) {
+                alert('Error: ' + e.message);
+                showStatus('❌ ' + e.message, 'error');
+            }
+        }
+
+        async function editDiscoverModels(providerKey) {
+            try {
+                showStatus('Discovering models...', 'connecting');
+                const response = await authFetch('/api/providers/' + providerKey + '/models');
+                if (!response.ok) {
+                    const errText = await response.text();
+                    let errMsg = '';
+                    try { const errObj = JSON.parse(errText); errMsg = errObj.detail || errText; } catch (e) { errMsg = errText || 'HTTP Error ' + response.status; }
+                    throw new Error(errMsg);
+                }
+                const models = await response.json();
+                showStatus('✓ Discovered ' + (models.length || 0) + ' models', 'success');
+                if (models.length > 0) {
+                    await loadUserProviderConfig(false);
+                    switchMainTab('new');
+                }
+            } catch (e) {
+                showStatus('❌ ' + e.message, 'error');
+            }
+        }
+
         async function resetActiveProvider() {
             if (!confirm(`Are you sure you want to reset and clear credentials for ${PROVIDER_NAME.toUpperCase()}?`)) {
                 return;
@@ -2556,7 +2594,8 @@
                     updateActiveEnsembleDisplay();
                     
                     // Refresh the providers grid display to show grey-dot
-                    renderProviderList();
+renderProviderList();
+                renderSidebarProviders();
                 } else {
                     const data = await resp.json().catch(() => ({}));
                     showStatus(`Reset failed: ${data.detail || 'Unknown error'}`, 'error');
@@ -2761,7 +2800,7 @@
 
             const appLayout = document.querySelector('.app-layout');
             if (appLayout) {
-                if (tab === 'new') {
+                if (tab === 'new' || tab === 'provider') {
                     appLayout.classList.remove('full-width');
                 } else {
                     appLayout.classList.add('full-width');
@@ -2771,6 +2810,12 @@
             if (tab === 'new') {
                 document.getElementById('setupSection').style.display = 'block';
                 window.location.hash = '#new';
+            } else if (tab === 'provider') {
+                const activeProvider = activeSavedProvider || Object.keys(savedCredentials)[0];
+                if (activeProvider && savedCredentials[activeProvider]) {
+                    showProviderEditTab(activeProvider);
+                }
+                window.location.hash = '#provider';
             } else if (tab === 'history') {
                 renderHistory();
                 window.location.hash = '#history';
@@ -3723,18 +3768,31 @@
             let endpoint = '';
             try {
                 endpoint = await saveProviderCredential();
+                log(`Provider credential saved: ${endpoint}`);
             } catch (error) {
+                log(`Failed to save provider credential: ${error.message}`);
                 showStatus(`❌ ${error.message}`, 'error');
                 return;
             }
 
-            if (!question) { showStatus('Please enter a question', 'error'); return; }
-            if (selectedModels.length < 2 || selectedModels.length > 5) { showStatus('Select 2-5 models', 'error'); return; }
+            if (!question) {
+                log('Question is empty');
+                showStatus('Please enter a question', 'error');
+                return;
+            }
+            if (selectedModels.length < 2 || selectedModels.length > 5) {
+                log(`Invalid model count: ${selectedModels.length}`);
+                showStatus('Select 2-5 models', 'error');
+                return;
+            }
 
             const showDiscussionEarly = () => {
                 document.getElementById('setupSection').style.display = 'none';
                 document.getElementById('discussionSection').className = 'discussion-section active running';
-                document.getElementById('modelsRound1').innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-tertiary);font-size:14px;">Searching the web for relevant context...<div class="rag-loading-bar" style="display:block;margin-top:12px;"></div></div>';
+                const timeline = document.getElementById('roundTimeline');
+                if (timeline) {
+                    timeline.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-tertiary);font-size:14px;">Searching the web for relevant context...<div class="rag-loading-bar" style="display:block;margin-top:12px;max-width:300px;margin-left:auto;margin-right:auto;"></div></div>';
+                }
                 switchMainTab('current');
                 setRagLoading(true);
             };
@@ -3769,10 +3827,10 @@
                     log(`Error creating backend discussion: ${err.message}`);
                     discussionId = 'disc_' + Date.now();
                 }
-                if (useRag) setRagLoading(false);
             } else {
                 discussionId = 'disc_' + Date.now();
             }
+            if (useRag) setRagLoading(false);
 
             currentRoundNum = 1;
             roundErrors = {};
@@ -3882,6 +3940,7 @@
         async function runRound(roundNum, totalRoundsNum, endpoint, timeout, maxTokens) {
             document.getElementById('roundLabel').textContent = `Round ${roundNum} of ${totalRoundsNum}`;
             document.getElementById('progressFill').style.width = (roundNum / totalRoundsNum * 100) + '%';
+            document.getElementById('progressText').textContent = `Round ${roundNum} starting...`;
 
             roundErrors[roundNum] = [];
             showRoundStatus();
@@ -4360,39 +4419,63 @@
                     const reader = streamResponse.body.getReader();
                     const decoder = new TextDecoder();
                     let buffer = '';
+                    let streamFinished = false;
+                    let streamError = null;
 
-                    while (true) {
-                        const { done, value } = await reader.read();
-                        if (done) break;
-                        buffer += decoder.decode(value, { stream: true });
+                    const readerTimeout = setTimeout(() => {
+                        reader.cancel();
+                        streamError = `Stream read timeout after ${timeout}s`;
+                        streamFinished = true;
+                    }, timeout * 1000);
+                    controller.signal.addEventListener('abort', () => {
+                        clearTimeout(readerTimeout);
+                        reader.cancel();
+                        streamError = 'Aborted';
+                        streamFinished = true;
+                    }, { once: true });
 
-                        const lines = buffer.split('\n');
-                        buffer = lines.pop() || '';
+                    try {
+                        while (!streamFinished) {
+                            const { done, value } = await reader.read();
+                            if (done) break;
+                            buffer += decoder.decode(value, { stream: true });
 
-                        for (const line of lines) {
-                            if (line.startsWith('data: ')) {
-                                try {
-                                    const data = JSON.parse(line.slice(6));
-                                    if (data.type === 'delta') {
-                                        fullText += data.content;
-                                        if (!discussionRunning || !selectedModels.includes(modelId)) {
-                                            reader.cancel();
-                                            return;
+                            const lines = buffer.split('\n');
+                            buffer = lines.pop() || '';
+
+                            for (const line of lines) {
+                                if (line.startsWith('data: ')) {
+                                    try {
+                                        const data = JSON.parse(line.slice(6));
+                                        if (data.type === 'delta') {
+                                            fullText += data.content;
+                                            if (!discussionRunning || !selectedModels.includes(modelId)) {
+                                                reader.cancel();
+                                                return;
+                                            }
+                                            responseElement.innerHTML = safeRenderMarkdown(fullText + '▊');
+                                            responseElement.scrollTop = responseElement.scrollHeight;
+                                        } else if (data.type === 'done') {
+                                            fullText = data.content;
+                                        } else if (data.type === 'error') {
+                                            streamError = data.detail || 'Stream error';
+                                            fullText = '';
+                                            streamFinished = true;
                                         }
-                                        responseElement.innerHTML = DOMPurify.sanitize(marked.parse(fullText + '▊'));
-                                        responseElement.scrollTop = responseElement.scrollHeight;
-                                    } else if (data.type === 'done') {
-                                        fullText = data.content;
-                                    } else if (data.type === 'error') {
-                                        throw new Error(data.detail);
-                                    }
-                                } catch (e) {
-                                    if (e.message !== 'Unexpected end of JSON input') {
-                                        log(`Stream parse error: ${e.message}`);
+                                    } catch (e) {
+                                        if (e.message !== 'Unexpected end of JSON input') {
+                                            log(`Stream parse error: ${e.message}`);
+                                        }
                                     }
                                 }
                             }
                         }
+                    } finally {
+                        clearTimeout(readerTimeout);
+                    }
+                    
+                    if (streamError) {
+                        throw new Error(streamError);
                     }
                 } else {
                     if (streamResponse.status !== 404) {
@@ -4447,7 +4530,7 @@
                 badgeElement.textContent = status === 'complete' ? '✓ Complete' : '⚠️ Incomplete';
                 
                 // Update response content with markdown parsing
-                responseElement.innerHTML = DOMPurify.sanitize(marked.parse(fullText));
+                responseElement.innerHTML = safeRenderMarkdown(fullText);
                 responseElement.classList.remove('expanded');
 
                 // Capture token stats
@@ -4641,7 +4724,7 @@
                 clearTimeout(timeoutId);
                 discussionData.consensus = fullText;
                 const endsProperly = /[.!?…"']\s*$/.test(fullText.trim());
-                const consensusHtml = DOMPurify.sanitize(marked.parse(fullText));
+                const consensusHtml = safeRenderMarkdown(fullText);
                 document.getElementById('consensusText').innerHTML = endsProperly ? consensusHtml : consensusHtml + '<div style="margin-top:12px;padding:8px;background:rgba(220,38,38,0.1);border:1px solid var(--error);color:var(--error);font-size:12px;">⚠ Consensus appears truncated — may be incomplete.</div>';
                 if (!endsProperly) log(`Consensus may be truncated: ${fullText.length} chars, ends with: "${fullText.slice(-30)}"`);
                 saveState();
@@ -4792,7 +4875,7 @@
             if (discussionData.stats) {
                 summary += `\n## Token Usage\n- Input: ${discussionData.stats.totalInputTokens.toLocaleString()} tokens\n- Output: ${discussionData.stats.totalOutputTokens.toLocaleString()} tokens\n- Total: ${discussionData.stats.totalTokens.toLocaleString()} tokens\n- Models responded: ${discussionData.stats.modelCount}`;
             }
-            document.getElementById('discussionSummaryText').innerHTML = marked.parse(summary);
+            document.getElementById('discussionSummaryText').innerHTML = safeRenderMarkdown(summary);
             document.getElementById('discussionSummarySection').style.display = 'block';
             document.getElementById('exportSection').classList.add('active');
             saveState();
@@ -5020,7 +5103,7 @@
                     `;
                     const respEl = card.querySelector('.model-response');
                     if (response?.text) {
-                        respEl.innerHTML = marked.parse(response.text);
+                        respEl.innerHTML = safeRenderMarkdown(response.text);
                         renderModelStats(model, roundNum, response);
                         const acts = card.querySelector(`#actions-${safeId}-R${roundNum}`);
                         if (acts) {
@@ -5105,6 +5188,8 @@
                 switchMainTab('history');
             } else if (hash === 'current') {
                 switchMainTab('current');
+            } else if (hash === 'provider') {
+                switchMainTab('provider');
             } else if (hash) {
                 const discussion = queryHistory.find(h => String(h.id) === String(hash));
                 if (discussion) {
@@ -5238,6 +5323,8 @@
 
         // Add missing event listeners
         window.addEventListener('load', async () => {
+            const ragInit = document.getElementById('ragInitProgress');
+            if (ragInit) ragInit.style.display = 'block';
             loadTheme();
             loadAuth();
             await handleOpenRouterOAuthCallback();
@@ -5246,6 +5333,7 @@
             handleHash();
             setupFileUpload();
             applyResponseFormat();
+            if (ragInit) ragInit.style.display = 'none';
         });
 
         window.addEventListener('hashchange', (e) => { 

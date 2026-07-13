@@ -211,17 +211,17 @@ async def extract_content_from_urls(urls: List[str]) -> str:
 async def get_retrieved_context(user_prompt: str) -> Optional[str]:
     logger.info(f"[RAG] === Starting RAG pipeline ===")
     try:
-        search_results = await search_web([user_prompt])
+        search_results = await asyncio.wait_for(search_web([user_prompt]), timeout=30.0)
         logger.info(f"[RAG] Total search results: {len(search_results)}")
 
         if not search_results:
             logger.warning("[RAG] No search results found, aborting")
             return None
 
-        urls = [r["url"] for r in search_results]
+        urls = [r["url"] for r in search_results[:5]]
         logger.info(f"[RAG] Extracting content from {len(urls)} URLs")
 
-        extracted_content = await extract_content_from_urls(urls)
+        extracted_content = await asyncio.wait_for(extract_content_from_urls(urls), timeout=30.0)
         if not extracted_content:
             logger.warning("[RAG] No content extracted from any URL")
             return None
@@ -245,6 +245,9 @@ async def get_retrieved_context(user_prompt: str) -> Optional[str]:
         logger.info(f"[RAG] === RAG SUCCESS === Context size: {len(context)} chars")
         return context
 
+    except asyncio.TimeoutError:
+        logger.warning("[RAG] === RAG TIMEOUT === Pipeline exceeded 60s limit")
+        return None
     except Exception as e:
         logger.error(f"[RAG] === RAG FAILED === {e}", exc_info=True)
         return None
