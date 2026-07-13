@@ -208,7 +208,7 @@ class TestHistoryFunctions:
         assert render_match, "renderHistory not found"
         body = render_match.group(0)
         assert 'deleteHistoryItem' in body, "Delete button not in history render"
-        assert '🗑️' in body, "Delete icon not in history render"
+        assert '#icon-trash' in body, "Delete icon not in history render"
 
 
 # ============================================================
