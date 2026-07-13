@@ -114,7 +114,7 @@
             width: 100%;
             max-width: 440px;
             box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
-            border-radius: 12px;
+            border-radius: 6px;
             display: flex;
             flex-direction: column;
             gap: 20px;
@@ -220,8 +220,8 @@
         }
 
         .header h1 {
-            font-size: 34px;
-            font-weight: 600;
+            font-size: 28px;
+            font-weight: 700;
             letter-spacing: -0.5px;
             margin: 0;
             text-align: center;
@@ -394,8 +394,8 @@
         .tooltip-icon {
             cursor: help;
             font-size: 0.8em;
-            color: #6c757d;
-            border: 1px solid #6c757d;
+            color: var(--text-tertiary);
+            border: 1px solid var(--text-tertiary);
             border-radius: 50%;
             padding: 0px 5px;
             display: inline-block;
@@ -582,16 +582,16 @@
             box-shadow: 0 1px 2px rgba(0,0,0,0.1);
         }
 
-        /* Stop button - unified with orange styling (subtle dark border and red/dark-orange accent) */
+        /* Stop button */
         .btn-stop {
-            background: #1c1c1e;
-            color: #ff453a;
-            border: 1px solid #3a3a3c;
+            background: var(--bg-tertiary);
+            color: var(--error);
+            border: 1px solid var(--border);
             font-weight: 600;
         }
         .btn-stop:hover:not(:disabled) { 
-            background: #2c2c2e; 
-            border-color: #ff453a;
+            background: var(--bg-secondary); 
+            border-color: var(--error);
         }
 
         .btn-secondary { 
@@ -621,8 +621,8 @@
         }
         .btn-danger:hover:not(:disabled) {
             background: var(--bg-tertiary);
-            border-color: #ff453a;
-            color: #ff453a;
+            border-color: var(--error);
+            color: var(--error);
         }
 
         .btn-skip {
@@ -706,8 +706,8 @@
         }
 
         .status-info { border-left-color: var(--accent); color: var(--text-secondary); background: rgba(255, 92, 0, 0.03); }
-        .status-success { border-left-color: var(--accent); color: var(--text-secondary); background: rgba(255, 92, 0, 0.03); }
-        .status-error { border-left-color: #ff453a; color: #ff453a; background: rgba(255, 69, 58, 0.03); }
+        .status-success { border-left-color: var(--success); color: var(--text-secondary); background: var(--success-bg); }
+        .status-error { border-left-color: var(--error); color: var(--error); background: var(--error-bg); }
 
         /* ── Model Grid/Checkboxes ── */
         .model-selection { 
@@ -760,6 +760,90 @@
         .history-item-title { font-weight: 600; color: var(--text-primary); margin-bottom: 6px; font-size: 14px; }
         .history-item-meta { font-size: 12px; color: var(--text-tertiary); }
 
+        /* ── Compact History List ── */
+        .history-list-compact { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+        .history-item-compact {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            transition: background 0.15s ease;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+        .history-item-compact:last-child { border-bottom: none; }
+        .history-item-compact:hover { background: var(--bg-tertiary); }
+        .history-item-compact .hstatus-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .history-item-compact .hq {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 13px;
+            color: var(--text-primary);
+        }
+        .history-item-compact .hmeta {
+            font-size: 11px;
+            color: var(--text-tertiary);
+            flex-shrink: 0;
+            white-space: nowrap;
+        }
+        .history-item-compact .hactions {
+            display: flex;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+        .history-item-compact .hactions button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px 6px;
+            border-radius: 4px;
+            font-size: 13px;
+            color: var(--text-tertiary);
+            transition: background 0.15s ease;
+        }
+        .history-item-compact .hactions button:hover {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+        }
+        .history-item-detail {
+            display: none;
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg-primary);
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+        .history-item-detail.open { display: block; }
+        .hd-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+        .hd-actions button {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+        .hd-actions button:hover { background: var(--bg-secondary); }
+        .hd-actions button.danger { color: var(--error); border-color: var(--error); }
+        .hd-actions button.danger:hover { background: var(--error-bg); }
+
         /* ── Discussion Round Layout ── */
         .round-status {
             background: var(--bg-secondary);
@@ -771,7 +855,7 @@
 
         .round-status-title { font-weight: 600; color: var(--accent); margin-bottom: 10px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
         .round-status-info { font-size: 13px; color: var(--text-secondary); line-height: 1.6; font-family: monospace; }
-        .status-error-box { background: rgba(255, 69, 58, 0.03); border: 1px solid #3a1a1a; padding: 12px; margin-top: 12px; color: #ff453a; font-size: 12px; font-family: monospace; max-height: 200px; overflow-y: auto; border-radius: 4px; }
+        .status-error-box { background: var(--error-bg); border: 1px solid var(--error); padding: 12px; margin-top: 12px; color: var(--error); font-size: 12px; font-family: monospace; max-height: 200px; overflow-y: auto; border-radius: 4px; }
 
         .progress-container { margin-bottom: 24px; }
         .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 13px; color: var(--text-secondary); }
@@ -813,7 +897,7 @@
 
         .model-card.complete { border-color: var(--border); }
         .model-card.incomplete { border-color: var(--border); }
-        .model-card.error { border-color: #ff453a; }
+        .model-card.error { border-color: var(--error); }
         .model-card.connecting { border-color: var(--accent); }
 
         .model-card-header {
@@ -942,10 +1026,12 @@
             border: 1px solid var(--border); 
             padding: 24px; 
             display: none; 
-            margin-top: 30px; 
+            margin-top: 28px; 
             border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
         .export-section.active { display: block; }
+        .export-section h2 { font-size: 16px; font-weight: 600; margin-bottom: 16px; color: var(--text-primary); }
         .export-buttons { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
 
         /* ── Settings Container ── */
@@ -1208,17 +1294,17 @@
             background: var(--bg-primary);
             border: 1px solid var(--accent);
             padding: 24px;
-            border-radius: 8px;
+            border-radius: 6px;
             box-shadow: 0 20px 50px rgba(0,0,0,0.5);
         }
 
         .footer { 
-            padding: 40px 0; 
+            padding: 32px 0; 
             border-top: 1px solid var(--border); 
             text-align: center; 
             font-size: 12px; 
             color: var(--text-tertiary); 
-            margin-top: 60px; 
+            margin-top: 40px; 
         }
 
         /* ── Responsive Grid ── */
@@ -1318,10 +1404,9 @@
             
             <!-- Left Top Corner: Username and Logout -->
             <div class="header-left" style="flex: 1; display: flex; justify-content: flex-start; align-items: center;">
-                <div id="userDisplayHeader" style="display: none; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); background: none; border: none; padding: 0; border-radius: 0;">
-                    <span>Logged in as: <strong id="headerUsername" style="color: var(--accent); font-weight: 600;"></strong></span>
-                    <span style="color: var(--border); margin: 0 4px; user-select: none;">|</span>
-                    <button onclick="logoutUser()" style="background: none; border: none; padding: 0; color: var(--text-tertiary); cursor: pointer; text-decoration: none; font-size: 13px; font-weight: 500; transition: color 0.15s ease;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text-tertiary)'">Logout</button>
+                <div id="userDisplayHeader" style="display: none; flex-direction: column; align-items: flex-start; gap: 2px; font-size: 12px; background: none; border: none; padding: 0; border-radius: 0;">
+                    <span style="color: var(--text-secondary);">User: <strong id="headerUsername" style="color: var(--accent); font-weight: 600;"></strong></span>
+                    <button onclick="logoutUser()" style="background: none; border: none; padding: 0; color: var(--text-tertiary); cursor: pointer; text-decoration: none; font-size: 12px; font-weight: 500; transition: color 0.15s ease; text-align: left; line-height: 1.2;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text-tertiary)'">Logout</button>
                 </div>
             </div>
 
@@ -1378,7 +1463,7 @@
 
                 <!-- ── Tab Content: New Discussion ── -->
                 <div class="tab-content active" id="tab-new">
-                    <div id="ragInitProgress" style="display:none; background:var(--bg-secondary); border:1px solid var(--border); border-radius:6px; padding:24px; margin-bottom:25px; text-align:center; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                    <div id="ragInitProgress" style="display:none; background:var(--bg-secondary); border:1px solid var(--border); border-radius:6px; padding:24px; margin-bottom:28px; text-align:center; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                         <div style="margin-bottom:12px;font-size:14px;color:var(--text-primary);font-weight:500;">🔍 Initializing knowledge sources...</div>
                         <div class="rag-loading-bar" style="display:block;margin-bottom:12px;"></div>
                         <div style="font-size:12px;color:var(--text-tertiary);" id="ragInitStatusText">Loading provider configurations and model data</div>
@@ -1386,7 +1471,7 @@
                     <div id="setupSection">
 
                         <!-- Provider configuration (inline, no grid) -->
-                        <div class="form-section" style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 6px; padding: 24px; margin-bottom: 25px;">
+                        <div class="form-section" style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 6px; padding: 24px; margin-bottom: 28px;">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
                                 <h3 style="margin: 0; font-size: 14px; font-weight: 600; color: var(--text-primary);">🔌 Provider Configuration</h3>
                             </div>
@@ -1400,7 +1485,7 @@
                             </div>
                             
                             <div id="apiConfigPanel" style="display:none; margin-top: 15px; border-top: 1px solid var(--border); padding-top: 18px;">
-                                <div id="restoreBanner" style="display:none;background:var(--bg-secondary);border:1px solid var(--accent);padding:12px 16px;margin-bottom:20px;font-size:13px;border-radius:8px;">
+                                <div id="restoreBanner" style="display:none;background:var(--bg-secondary);border:1px solid var(--accent);padding:12px 16px;margin-bottom:20px;font-size:13px;border-radius:6px;">
                                     <strong>🔄 Discussion In Progress</strong>
                                     <span style="color:var(--text-secondary);margin-left:8px;">You have an unfinished discussion from a previous session.</span>
                                     <button class="btn-sleek" style="background:var(--accent);color:white;padding:4px 14px;margin-left:12px;font-size:12px;" onclick="restoreLastDiscussion()">Restore</button>
@@ -1409,7 +1494,7 @@
                                 <div id="statusMsg" class="status-message" style="display:none;"></div>
                                 <div id="openrouterOAuthGroup" style="display:none; margin-bottom: 12px; flex-direction: column; gap: 0;">
                                     <div style="display: flex; justify-content: flex-start; width: 100%; margin: 4px 0 6px 0;">
-                                        <button class="btn-primary" style="background: #ff5c00; color: white; font-weight: 500; border: none; padding: 4px 10px; font-size: 11px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 4px; width: max-content;" onclick="startOpenRouterOAuth()">
+                                        <button class="btn-primary" style="background: var(--accent); color: white; font-weight: 500; border: none; padding: 4px 10px; font-size: 11px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 4px; width: max-content;" onclick="startOpenRouterOAuth()">
                                             <span>🔑 Sign-in via SSO</span>
                                         </button>
                                     </div>
@@ -1431,12 +1516,12 @@
                                 <div style="display: flex; gap: 12px; margin-top: 15px; flex-wrap: wrap;">
                                     <button class="btn-primary" style="flex: 1; min-width: 150px;" onclick="discoverModels()">Discover Models</button>
                                     <button class="btn-secondary" style="flex: 1; min-width: 120px; border: 1px solid var(--border);" onclick="saveActiveSetupProvider()">💾 Save Provider</button>
-                                    <button id="resetProviderBtn" class="btn-secondary" style="flex: 1; min-width: 120px; border: 1px solid var(--border); color: #e06c75; display: none;" onclick="resetActiveProvider()">🗑️ Reset Provider</button>
+                                    <button id="resetProviderBtn" class="btn-secondary" style="flex: 1; min-width: 120px; border: 1px solid var(--border); color: var(--error); display: none;" onclick="resetActiveProvider()">🗑️ Reset Provider</button>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="model-selection" id="modelSelection" style="display:none; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 25px; overflow: hidden;">
+                        <div class="model-selection" id="modelSelection" style="display:none; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 28px; overflow: hidden;">
                             <div onclick="toggleModelGrid()" style="display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; cursor: pointer; border-bottom: 1px solid var(--border); user-select: none;">
                                 <h3 style="margin: 0; font-size: 14px; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">🤖 Select Models (2-5)</h3>
                                 <div style="display: flex; align-items: center; gap: 12px;">
@@ -1450,7 +1535,7 @@
                         </div>
 
                         <!-- Standalone Step 2.5: Selected Ensemble Models (Multi-Provider Checklist) -->
-                        <div class="form-section" id="activeEnsembleSection" style="display: none; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 6px; padding: 24px; margin-bottom: 25px;">
+                        <div class="form-section" id="activeEnsembleSection" style="display: none; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 6px; padding: 24px; margin-bottom: 28px;">
                             <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--accent); margin-bottom: 12px; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); padding-bottom: 10px;">🌟 Active Ensemble (Selected Models)</div>
                             <div id="activeEnsemblePills" style="display: flex; flex-wrap: wrap; gap: 10px;"></div>
                         </div>
@@ -1507,7 +1592,7 @@
                                                     <option value="default">Default — Let consensus model decide</option>
                                                 </select>
                                                 <label for="summaryInstructions">Custom Summary Instructions (Optional — overrides format above)</label>
-                                                <textarea id="summaryInstructions" placeholder="E.g., Format the final synthesis as a comparison table..." style="width:100%; min-height:100px; padding:10px; background:var(--bg-tertiary); border:1px solid var(--border); color:var(--text-primary); border-radius:4px; font-size:13px; box-sizing:border-box; margin-top:4px; resize:vertical;"></textarea>
+                                                <textarea id="summaryInstructions" placeholder="E.g., Format the final synthesis as a comparison table..." style="width:100%; min-height:100px; margin-top:4px;"></textarea>
                                             </div>
                                         </div>
 
@@ -1535,8 +1620,8 @@
                                             </div>
                                         </div>
 
-                                        <div class="start-discussion-row">
-                                            <button class="btn-primary btn-start-discussion" onclick="startDiscussion()">Start Discussion</button>
+                                        <div class="start-discussion-row" style="margin-top: 20px;">
+                                            <button class="btn-primary btn-start-discussion" style="width: 100%; height: 42px; font-size: 14px;" onclick="startDiscussion()">Start Discussion</button>
                                         </div>
                                 </div>
                             </div>
@@ -1612,7 +1697,7 @@
                     </div>
 
                     <div class="export-section" id="exportSection">
-                        <h3>Export Discussion</h3>
+                        <h2>Export Discussion</h2>
                         <div class="export-buttons">
                             <button class="btn-secondary" onclick="exportMarkdown()">Markdown</button>
                             <button class="btn-secondary" onclick="exportJSON()">JSON</button>
@@ -1621,8 +1706,8 @@
                     </div>
 
                     <div class="discussion-controls" style="justify-content: center; gap: 16px; margin-top: 24px;">
-                        <button class="btn-sleek btn-stop" style="background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-danger, #ef4444);" onclick="closeAndResetDiscussion()">✖ Close Discussion</button>
-                        <button id="stopDiscBtn" class="btn-sleek btn-stop" style="min-width: 180px; background: var(--accent); color: white; border: none;" onclick="stopDiscussion()">⏹️ Stop Discussion and Summarize</button>
+                        <button class="btn-sleek btn-stop" style="background: var(--bg-secondary); border: 1px solid var(--border); color: var(--error);" onclick="closeAndResetDiscussion()">✖ Close Discussion</button>
+                        <button id="stopDiscBtn" class="btn-sleek" style="min-width: 180px; background: var(--accent); color: white; border: 1px solid var(--accent); font-weight: 600;" onclick="stopDiscussion()">⏹️ Stop Discussion and Summarize</button>
                     </div>
                 </div>
                 </div>
@@ -2048,7 +2133,7 @@
                     padding: 4px 10px;
                     font-size: 11px;
                     font-weight: 500;
-                    border-radius: 12px;
+                    border-radius: 6px;
                 `;
                 const displayId = model.includes('::') ? model.split('::')[1] : model;
                 const providerPrefix = model.includes('::') ? `${model.split('::')[0].toUpperCase()} · ` : '';
@@ -2505,7 +2590,7 @@ renderProviderList();
                 <div style="display:flex;gap:12px;margin-top:15px;flex-wrap:wrap;">
                     <button class="btn-primary" style="flex:1;min-width:150px;" onclick="editDiscoverModels('${providerKey}')">Discover Models</button>
                     <button class="btn-secondary" style="flex:1;min-width:120px;border:1px solid var(--border);" onclick="editSaveProvider('${providerKey}')">💾 Save</button>
-                    <button class="btn-secondary" style="flex:1;min-width:120px;border:1px solid var(--border);color:#e06c75;" onclick="resetActiveProvider()">🗑️ Reset</button>
+                    <button class="btn-secondary" style="flex:1;min-width:120px;border:1px solid var(--border);color:var(--error);" onclick="resetActiveProvider()">🗑️ Reset</button>
                 </div>
                 <div id="editStatusMsg" style="margin-top:12px;"></div>
             `;
@@ -2960,12 +3045,14 @@ renderProviderList();
                                 parsedState = JSON.parse(d.state_json);
                             } catch (e) {}
                         }
+                        const effectiveStatus = parsedState.status || d.status || 'new';
                         return {
                             id: d.id,
                             timestamp: parseDbDate(d.created_at),
                             question: d.question || '',
-                            status: d.status || 'new',
+                            status: effectiveStatus,
                             ...parsedState,
+                            status: effectiveStatus,
                             retrieved_context: d.retrieved_context || parsedState.retrieved_context || null
                         };
                     });
@@ -3022,7 +3109,7 @@ renderProviderList();
             if (window._historyFilter === 'completed') {
                 filtered = filtered.filter(h => h.status === 'completed' || h.status === 'stopped' || h.status === 'closed');
             } else if (window._historyFilter === 'running') {
-                filtered = filtered.filter(h => h.status === 'in_progress');
+                filtered = filtered.filter(h => h.status === 'in_progress' && h.id === discussionData?.id && discussionRunning);
             }
 
             // Keyword/Fuzzy search filter
@@ -3063,35 +3150,51 @@ renderProviderList();
             }
 
             historyList.innerHTML = filtered.map((h, idx) => {
-                const statusDot = h.status === 'completed' ? '🟢' : h.status === 'stopped' ? '🟡' : h.status === 'closed' ? '⚪' : h.status === 'in_progress' ? '🟡' : '⚪';
-                const statusIcon = statusDot;
+                let dotColor, statusLabel;
+                if (h.status === 'completed') {
+                    dotColor = '#22c55e'; statusLabel = 'Completed';
+                } else if (h.status === 'stopped') {
+                    dotColor = '#f59e0b'; statusLabel = 'Stopped';
+                } else if (h.status === 'closed') {
+                    dotColor = '#8e8e93'; statusLabel = 'Closed';
+                } else if (h.status === 'in_progress') {
+                    if (h.id === discussionData?.id && discussionRunning) {
+                        dotColor = '#ff5c00'; statusLabel = 'Running';
+                    } else {
+                        dotColor = '#f59e0b'; statusLabel = 'Interrupted';
+                    }
+                } else {
+                    dotColor = '#8e8e93'; statusLabel = h.status || 'Unknown';
+                }
                 const qText = h.question || '';
                 const hTime = typeof h.timestamp === 'string' ? new Date(h.timestamp).getTime() : (h.timestamp || Date.now());
                 const formattedDateStr = new Date(hTime).toLocaleDateString();
                 const formattedTimeStr = new Date(hTime).toLocaleString();
+                const isActuallyRunning = h.status === 'in_progress' && h.id === discussionData?.id && discussionRunning;
 
                 return `
                 <div>
                     <div class="history-item-compact" onclick="toggleHistoryDetail(${idx})">
-                        <span>${statusIcon}</span>
+                        <span class="hstatus-dot" style="background:${dotColor};"></span>
                         <span class="hq">${qText.substring(0, 80)}${qText.length > 80 ? '…' : ''}</span>
                         <span class="hmeta">${formattedDateStr} · ${h.models?.length || 0}m · ${Object.keys(h.rounds||{}).length}r</span>
                         <span class="hactions">
                             <button title="Copy question" onclick="event.stopPropagation();copyHistoryQuery('${h.id}')">📋</button>
-                            <button title="Copy summary" onclick="event.stopPropagation();copyHistorySummary('${h.id}')">📝</button>
-                            ${h.status !== 'in_progress' ? `<button title="View discussion" onclick="event.stopPropagation();loadHistoryView('${h.id}')">👁️</button>` : `<button title="Resume discussion" onclick="event.stopPropagation();resumeDiscussion('${h.id}')">▶️</button>`}
+                            <button title="Delete" onclick="event.stopPropagation();deleteHistoryItem('${h.id}')">🗑️</button>
+                            ${isActuallyRunning ? `<button title="Resume discussion" onclick="event.stopPropagation();resumeDiscussion('${h.id}')">▶️</button>` : `<button title="View discussion" onclick="event.stopPropagation();loadHistoryView('${h.id}')">👁️</button>`}
                         </span>
                     </div>
                     <div class="history-item-detail" id="hd-${idx}">
                         <div><strong>Question:</strong> ${qText}</div>
                         ${h.instructions ? `<div style="margin-top:6px;"><strong>Instructions:</strong> ${h.instructions}</div>` : ''}
                         <div style="margin-top:6px;color:var(--text-tertiary);font-size:11px;">
-                            ${formattedTimeStr} · ${h.models?.length || 0} models · ${Object.keys(h.rounds||{}).length} rounds · Status: ${h.status}
+                            ${formattedTimeStr} · ${h.models?.length || 0} models · ${Object.keys(h.rounds||{}).length} rounds · Status: ${statusLabel}
                         </div>
                         <div class="hd-actions">
                             <button title="Copy question text" onclick="copyHistoryQuery('${h.id}')">📋 Copy Query</button>
                             ${h.consensus ? `<button title="Copy consensus summary" onclick="copyHistorySummary('${h.id}')">📝 Copy Summary</button>` : ''}
-                            ${h.status !== 'in_progress' ? `<button title="View full discussion" onclick="loadHistoryView('${h.id}')">👁️ View Discussion</button>` : `<button title="Continue discussion" onclick="resumeDiscussion('${h.id}')">▶️ Resume</button>`}
+                            ${isActuallyRunning ? `<button title="Continue discussion" onclick="resumeDiscussion('${h.id}')">▶️ Resume</button>` : `<button title="View full discussion" onclick="loadHistoryView('${h.id}')">👁️ View Discussion</button>`}
+                            <button class="danger" title="Delete discussion" onclick="deleteHistoryItem('${h.id}')">🗑️ Delete</button>
                         </div>
                     </div>
                 </div>`;
@@ -3112,14 +3215,32 @@ renderProviderList();
             if (el) el.classList.toggle('open');
         }
 
+        async function deleteHistoryItem(id) {
+            if (!confirm('Delete this discussion? This cannot be undone.')) return;
+            queryHistory = queryHistory.filter(h => String(h.id) !== String(id));
+            saveHistory();
+            if (authToken) {
+                try {
+                    await authFetch(`/api/discussions/${id}`, { method: 'DELETE' });
+                } catch (e) {
+                    log(`Failed to delete discussion on server: ${e.message}`);
+                }
+            }
+            renderHistory();
+            showStatus('Discussion deleted', 'info');
+        }
+
         function copyHistorySummary(id) {
             const discussion = queryHistory.find(h => String(h.id) === String(id));
-            if (discussion?.consensus) {
-                navigator.clipboard.writeText(discussion.consensus);
-                const btn = event.target;
-                btn.textContent = '✅ Copied!';
-                setTimeout(() => btn.textContent = '📝', 1500);
-            }
+            if (!discussion?.consensus) return;
+            navigator.clipboard.writeText(discussion.consensus).then(() => {
+                const btn = event?.target;
+                if (btn) {
+                    const orig = btn.textContent;
+                    btn.textContent = '✅ Copied!';
+                    setTimeout(() => btn.textContent = orig, 1500);
+                }
+            }).catch(() => showStatus('Failed to copy', 'error'));
         }
 
         function loadHistoryView(id) {
@@ -4919,17 +5040,33 @@ renderProviderList();
         }
 
         function copyQuestion() {
-            const question = document.getElementById('questionDisplayText').textContent;
-            navigator.clipboard.writeText(question);
-            showStatus('Question copied to clipboard', 'success');
+            const question = document.getElementById('questionDisplayText')?.textContent || '';
+            if (!question) return;
+            navigator.clipboard.writeText(question).then(() => {
+                const btn = event?.target;
+                if (btn) {
+                    const orig = btn.textContent;
+                    btn.textContent = '✅ Copied!';
+                    setTimeout(() => btn.textContent = orig, 1500);
+                }
+                showStatus('Question copied to clipboard', 'success');
+            }).catch(() => {
+                showStatus('Failed to copy', 'error');
+            });
         }
 
         function copyHistoryQuery(id) {
             const discussion = queryHistory.find(h => String(h.id) === String(id));
-            if (discussion) {
-                const text = discussion.instructions ? `${discussion.question}\n\nInstructions: ${discussion.instructions}` : discussion.question;
-                navigator.clipboard.writeText(text);
-            }
+            if (!discussion) return;
+            const text = discussion.instructions ? `${discussion.question}\n\nInstructions: ${discussion.instructions}` : discussion.question;
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = event?.target;
+                if (btn) {
+                    const orig = btn.textContent;
+                    btn.textContent = '✅ Copied!';
+                    setTimeout(() => btn.textContent = orig, 1500);
+                }
+            }).catch(() => showStatus('Failed to copy', 'error'));
         }
 
         function getUniqueFilename(ext) {
@@ -4975,8 +5112,9 @@ renderProviderList();
         }
 
         function copyToClipboard() {
-            navigator.clipboard.writeText(JSON.stringify(discussionData, null, 2));
-            showStatus('Copied!', 'success');
+            navigator.clipboard.writeText(JSON.stringify(discussionData, null, 2)).then(() => {
+                showStatus('Copied to clipboard!', 'success');
+            }).catch(() => showStatus('Failed to copy', 'error'));
         }
 
         function showStatus(msg, type) {

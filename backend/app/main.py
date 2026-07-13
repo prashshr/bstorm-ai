@@ -19,7 +19,7 @@ logging.basicConfig(
 logging.getLogger("ai_ensemble.rag").setLevel(logging.DEBUG)
 
 
-app = FastAPI(title="AI Ensemble API", version="1.1.1")
+app = FastAPI(title="AI Ensemble API", version="1.2.0")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
