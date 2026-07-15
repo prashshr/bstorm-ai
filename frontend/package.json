@@ -1,0 +1,31 @@
+{
+  "name": "ai-ensemble-frontend",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "description": "AI-Ensemble multi-provider discussion platform frontend (Svelte 5 + Vite)",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^5.0.3",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/svelte": "^5.2.6",
+    "@tsconfig/svelte": "^5.0.4",
+    "jsdom": "^25.0.1",
+    "svelte": "^5.19.0",
+    "svelte-check": "^4.1.4",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.7",
+    "vitest": "^3.0.2"
+  },
+  "dependencies": {
+    "dompurify": "^3.2.3",
+    "marked": "^12.0.2"
+  }
+}
