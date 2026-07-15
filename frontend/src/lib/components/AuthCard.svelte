@@ -2,6 +2,7 @@
   import { auth } from "../stores/auth.svelte";
   import { providers } from "../stores/providers.svelte";
   import { history } from "../stores/history.svelte";
+  import { normalizeAuthIdentifier } from "../utils/helpers";
   import Icon from "./Icon.svelte";
 
   let identifier = $state("");
@@ -11,10 +12,11 @@
 
   async function submit(e: Event) {
     e.preventDefault();
+    const email = normalizeAuthIdentifier(identifier);
     const ok =
       mode === "login"
-        ? await auth.login(identifier, password)
-        : await auth.register(identifier, password);
+        ? await auth.login(email, password)
+        : await auth.register(email, password);
     if (ok) {
       await Promise.all([providers.load(), history.load()]);
     }
@@ -29,13 +31,13 @@
     </div>
     <p class="subtitle">Multi-provider AI discussion platform</p>
 
-    <label for="auth-id">Email</label>
+    <label for="auth-id">Username or Email</label>
     <input
       id="auth-id"
-      type="email"
+      type="text"
       autocomplete="username"
       bind:value={identifier}
-      placeholder="you@example.com"
+      placeholder="admin or admin@example.com"
       required
     />
 

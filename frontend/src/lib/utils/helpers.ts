@@ -1,3 +1,14 @@
+/**
+ * Normalize an auth identifier. The backend expects an EmailStr, but the UI
+ * allows plain usernames (e.g. "admin") for convenience, mapping them to the
+ * local domain — matching the legacy monolith behaviour exactly.
+ */
+export function normalizeAuthIdentifier(value: string): string {
+  const id = (value || "").trim().toLowerCase();
+  if (!id) return "";
+  return id.includes("@") ? id : `${id}@local.ai-ensemble`;
+}
+
 /** Subsequence-based fuzzy matcher (matches the legacy behaviour). */
 export function fuzzyMatch(text: string, query: string): boolean {
   if (!query) return true;

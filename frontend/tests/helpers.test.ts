@@ -5,8 +5,25 @@ import {
   colorForModel,
   splitModelKey,
   formatDate,
+  normalizeAuthIdentifier,
   PROVIDER_PRESETS,
 } from "../src/lib/utils/helpers";
+
+describe("normalizeAuthIdentifier", () => {
+  it("maps a bare username to the local domain", () => {
+    expect(normalizeAuthIdentifier("admin")).toBe("admin@local.ai-ensemble");
+  });
+
+  it("passes through an existing email (lowercased/trimmed)", () => {
+    expect(normalizeAuthIdentifier("  User@Example.com ")).toBe(
+      "user@example.com",
+    );
+  });
+
+  it("returns empty string for blank input", () => {
+    expect(normalizeAuthIdentifier("   ")).toBe("");
+  });
+});
 
 describe("fuzzyMatch", () => {
   it("matches an empty query", () => {
