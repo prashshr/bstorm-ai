@@ -44,3 +44,18 @@ testing/reports/
 
 # OS files
 Thumbs.db
+
+# Agent files
+SKILLS.md
+AGENTS.md
+PROJECTS.md
+ENVIRONMENT.md
+
+# Playwright MCP runtime artifacts
+.playwright-mcp/
+
+# Node / frontend build
+frontend/node_modules/
+frontend/dist/
+frontend/.svelte-kit/
+node_modules/

@@ -106,16 +106,33 @@ async def _search_duckduckgo(query: str) -> List[Dict]:
     results = []
     logger.info("[RAG] DuckDuckGo fallback search")
 
-    async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+    user_agents = [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+    ]
+
+    for attempt in range(2):
+        agent = user_agents[attempt % len(user_agents)]
+        headers = {
+            "User-Agent": agent,
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept-Encoding": "gzip, deflate",
+            "DNT": "1",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+        }
         try:
-            resp = await client.get(
-                "https://html.duckduckgo.com/html/",
-                params={"q": query},
-                headers={**SEARXNG_HEADERS, "Accept": "text/html,application/xhtml+xml"},
-            )
+            async with httpx.AsyncClient(
+                timeout=15.0,
+                follow_redirects=True,
+                headers=headers,
+            ) as client:
+                resp = await client.get("https://html.duckduckgo.com/html/", params={"q": query})
             if resp.status_code == 200:
-                from lxml import html
-                tree = html.fromstring(resp.text)
+                from lxml import html as lh
+                tree = lh.fromstring(resp.text)
                 for result in tree.xpath("//div[contains(@class, 'result__body')]"):
                     link_el = result.xpath(".//a[contains(@class, 'result__a')]")
                     snippet_el = result.xpath(".//a[contains(@class, 'result__snippet')]")
@@ -126,11 +143,19 @@ async def _search_duckduckgo(query: str) -> List[Dict]:
                         if real_url and real_url not in unique_urls:
                             unique_urls.add(real_url)
                             results.append({"url": real_url, "title": title, "content": snippet})
-                logger.info(f"[RAG] DuckDuckGo returned {len(results)} results")
+                logger.info(f"[RAG] DuckDuckGo returned {len(results)} results (attempt {attempt+1})")
+                return results
+            elif attempt == 0:
+                logger.warning(f"[RAG] DuckDuckGo returned {resp.status_code}, retrying with different UA")
+                await asyncio.sleep(1)
             else:
-                logger.warning(f"[RAG] DuckDuckGo returned {resp.status_code}")
+                logger.warning(f"[RAG] DuckDuckGo returned {resp.status_code} after retry")
         except Exception as e:
-            logger.warning(f"[RAG] DuckDuckGo failed: {e}")
+            if attempt == 0:
+                logger.warning(f"[RAG] DuckDuckGo failed (attempt {attempt+1}): {e}, retrying...")
+                await asyncio.sleep(1)
+            else:
+                logger.warning(f"[RAG] DuckDuckGo failed (attempt {attempt+1}): {e}")
 
     return results
 

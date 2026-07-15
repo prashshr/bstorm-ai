@@ -1108,6 +1108,29 @@
             100% { background: var(--bg-secondary); color: var(--text-primary); }
         }
 
+        /* ── File Attachment ── */
+        .file-drop-zone {
+            border: 2px dashed var(--border);
+            border-radius: 6px;
+            padding: 16px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: var(--text-tertiary);
+            font-size: 13px;
+            background: var(--bg-tertiary);
+            margin-top: 8px;
+        }
+        .file-drop-zone:hover { border-color: var(--accent); color: var(--accent); }
+        .file-drop-zone.dragover { border-color: var(--accent); background: var(--accent-dark); color: white; }
+        .file-attachment {
+            display: flex; align-items: center; gap: 8px;
+            padding: 6px 10px; margin-top: 6px;
+            background: var(--bg-tertiary); border-radius: 4px;
+            font-size: 12px; color: var(--text-primary);
+        }
+        .file-attachment .remove-file { cursor: pointer; color: var(--error); margin-left: auto; font-weight: bold; }
+
         .round-header {
             background: var(--bg-secondary);
             color: var(--text-primary);
@@ -1506,8 +1529,8 @@
             <div class="main-area">
                 <!-- Segmented Control / Tab Row -->
                 <div class="main-tabs">
-                    <button class="main-tab active" onclick="switchMainTab('new')">New Discussion</button>
                     <button class="main-tab" onclick="switchMainTab('provider')" id="providerMainTab">Provider</button>
+                    <button class="main-tab active" onclick="switchMainTab('new')">New Discussion</button>
                     <button class="main-tab" onclick="switchMainTab('current')" id="currentMainTab" style="display:none;">Current Discussion</button>
                     <button class="main-tab" onclick="switchMainTab('history')">History</button>
                 </div>
@@ -1605,6 +1628,16 @@
                                             <div class="form-group" style="grid-column: 1 / -1;">
                                                 <label for="question">Question</label>
                                                 <textarea id="question" placeholder="E.g., What are the top 5 earphones to buy in Berlin?"></textarea>
+                                            </div>
+                                        </div>
+
+                                        <div class="form-row" style="margin-top: -10px;">
+                                            <div class="form-group" style="grid-column: 1 / -1;">
+                                                <div class="file-drop-zone" id="fileDropArea">
+                                                    <svg class="icon icon-sm"><use href="#icon-upload"/></svg> Attach files to this question (max 10MB each)
+                                                </div>
+                                                <input type="file" id="fileInput" multiple style="display:none;">
+                                                <div id="fileList"></div>
                                             </div>
                                         </div>
 
@@ -3129,6 +3162,12 @@ renderProviderList();
             localStorage.setItem('councilHistory', JSON.stringify(queryHistory));
         }
 
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
         function fuzzyMatch(text, query) {
             if (!query) return true;
             text = text.toLowerCase();
@@ -3230,7 +3269,7 @@ renderProviderList();
                 <div>
                     <div class="history-item-compact" onclick="toggleHistoryDetail(${idx})">
                         <span class="hstatus-dot" style="background:${dotColor};"></span>
-                        <span class="hq">${qText.substring(0, 80)}${qText.length > 80 ? '…' : ''}</span>
+                        <span class="hq">${escapeHtml(qText.substring(0, 80))}${qText.length > 80 ? '…' : ''}</span>
                         <span class="hmeta">${formattedDateStr} · ${h.models?.length || 0}m · ${Object.keys(h.rounds||{}).length}r</span>
                         <span class="hactions">
                             <button title="Copy question" onclick="event.stopPropagation();copyHistoryQuery('${h.id}')"><svg class="icon icon-sm"><use href="#icon-copy"/></svg></button>
@@ -3239,8 +3278,8 @@ renderProviderList();
                         </span>
                     </div>
                     <div class="history-item-detail" id="hd-${idx}">
-                        <div><strong>Question:</strong> ${qText}</div>
-                        ${h.instructions ? `<div style="margin-top:6px;"><strong>Instructions:</strong> ${h.instructions}</div>` : ''}
+                        <div><strong>Question:</strong> ${escapeHtml(qText)}</div>
+                        ${h.instructions ? `<div style="margin-top:6px;"><strong>Instructions:</strong> ${escapeHtml(h.instructions)}</div>` : ''}
                         <div style="margin-top:6px;color:var(--text-tertiary);font-size:11px;">
                             ${formattedTimeStr} · ${h.models?.length || 0} models · ${Object.keys(h.rounds||{}).length} rounds · Status: ${statusLabel}
                         </div>
