@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-ensemble-web-nginx
+  namespace: ai-ensemble
+data:
+  default.conf: |
+    server {
+      listen 80;
+      server_name _;
+      root /usr/share/nginx/html;
+      index index.html;
+
+      # SPA fallback: serve index.html for unknown client-side routes
+      location / {
+        try_files $uri $uri/ /index.html;
+      }
+
+      # Long-cache hashed assets
+      location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+      }
+
+      # Proxy API and health to the backend service (defense in depth;
+      # the ingress already routes these, but keep parity for direct pod access)
+      location /api/ {
+        proxy_pass http://ai-ensemble:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+      }
+
+      location /health {
+        proxy_pass http://ai-ensemble:8080;
+      }
+
+      gzip on;
+      gzip_types text/css application/javascript application/json image/svg+xml;
+    }

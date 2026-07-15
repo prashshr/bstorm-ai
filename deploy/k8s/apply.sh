@@ -16,6 +16,15 @@ if [ ! -f "./.env" ]; then
   exit 1
 fi
 
+echo "Building frontend (Svelte 5 + Vite)..."
+if command -v npm >/dev/null 2>&1; then
+  (cd ./frontend && npm ci && npm run build)
+  echo "Frontend built to frontend/dist"
+else
+  echo "ERROR: npm not found. Install Node.js to build the frontend."
+  exit 1
+fi
+
 echo "Applying manifests in order..."
 
 echo "1. Creating namespace..."
@@ -48,7 +57,10 @@ kubectl apply -f $MANIFEST_DIR/deployment.yaml
 echo "7. Creating api service..."
 kubectl apply -f $MANIFEST_DIR/service.yaml
 
-echo "8. Creating web deployment..."
+echo "8. Creating web nginx config..."
+kubectl apply -f $MANIFEST_DIR/web-nginx-configmap.yaml
+
+echo "8b. Creating web deployment..."
 kubectl apply -f $MANIFEST_DIR/web-deployment.yaml
 
 echo "9. Creating web service..."

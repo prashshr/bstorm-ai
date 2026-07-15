@@ -1,0 +1,88 @@
+import { api } from "../api/client";
+import type { ProviderCredentialResponse } from "../api/types";
+import { debug } from "./debug.svelte";
+import { PROVIDER_PRESETS } from "../utils/helpers";
+
+class ProvidersStore {
+  #list = $state<ProviderCredentialResponse[]>([]);
+  #active = $state<string | null>(null);
+  #loading = $state(false);
+  #verified = $state<Set<string>>(new Set());
+
+  get list() {
+    return this.#list;
+  }
+  get active() {
+    return this.#active;
+  }
+  get loading() {
+    return this.#loading;
+  }
+  get presets() {
+    return PROVIDER_PRESETS;
+  }
+
+  isVerified(provider: string): boolean {
+    return this.#verified.has(provider);
+  }
+
+  async load(): Promise<void> {
+    this.#loading = true;
+    try {
+      this.#list = await api.listProviders();
+      debug.log(`Loaded ${this.#list.length} providers`);
+      if (!this.#active && this.#list.length > 0) {
+        this.#active = this.#list[0].provider;
+      }
+    } catch (e) {
+      debug.log(`Failed to load providers: ${e}`, "error");
+    } finally {
+      this.#loading = false;
+    }
+  }
+
+  select(provider: string | null): void {
+    this.#active = provider;
+  }
+
+  find(provider: string): ProviderCredentialResponse | undefined {
+    return this.#list.find((p) => p.provider === provider);
+  }
+
+  async save(
+    provider: string,
+    apiKey: string,
+    endpoint: string,
+  ): Promise<boolean> {
+    try {
+      await api.upsertProvider({ provider, api_key: apiKey, endpoint });
+      await this.load();
+      this.#active = provider;
+      debug.log(`Saved provider ${provider}`);
+      return true;
+    } catch (e) {
+      debug.log(`Failed to save provider ${provider}: ${e}`, "error");
+      return false;
+    }
+  }
+
+  async remove(provider: string): Promise<boolean> {
+    try {
+      await api.deleteProvider(provider);
+      this.#verified.delete(provider);
+      if (this.#active === provider) this.#active = null;
+      await this.load();
+      debug.log(`Removed provider ${provider}`);
+      return true;
+    } catch (e) {
+      debug.log(`Failed to remove provider ${provider}: ${e}`, "error");
+      return false;
+    }
+  }
+
+  markVerified(provider: string): void {
+    this.#verified = new Set(this.#verified).add(provider);
+  }
+}
+
+export const providers = new ProvidersStore();
