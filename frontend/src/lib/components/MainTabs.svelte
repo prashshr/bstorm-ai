@@ -3,7 +3,6 @@
   import { discussion } from "../stores/discussion.svelte";
 
   const tabs: { key: Tab; label: string; alwaysShow: boolean }[] = [
-    { key: "provider", label: "Provider", alwaysShow: true },
     { key: "new", label: "New Discussion", alwaysShow: true },
     { key: "current", label: "Current Discussion", alwaysShow: false },
     { key: "history", label: "History", alwaysShow: true },

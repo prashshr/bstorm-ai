@@ -6,8 +6,21 @@ import {
   splitModelKey,
   formatDate,
   normalizeAuthIdentifier,
+  copyToClipboard,
   PROVIDER_PRESETS,
 } from "../src/lib/utils/helpers";
+
+describe("copyToClipboard", () => {
+  it("uses the async clipboard API in a secure context", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    vi.stubGlobal("isSecureContext", true);
+    const ok = await copyToClipboard("hello");
+    expect(ok).toBe(true);
+    expect(writeText).toHaveBeenCalledWith("hello");
+    vi.unstubAllGlobals();
+  });
+});
 
 describe("normalizeAuthIdentifier", () => {
   it("maps a bare username to the local domain", () => {

@@ -6,17 +6,41 @@
   import { debug } from "../stores/debug.svelte";
   import type { AttachedFile } from "../api/types";
   import { splitModelKey } from "../utils/helpers";
-  import ModelSelector from "./ModelSelector.svelte";
   import ActiveEnsemble from "./ActiveEnsemble.svelte";
   import Icon from "./Icon.svelte";
 
+  const RESPONSE_PRESETS: Record<string, string> = {
+    compact:
+      "Provide a COMPACT response:\n- Use bullet points\n- Be concise and precise\n- Limit to 3-5 key points\n- No lengthy explanations\n- Use short sentences",
+    elaborate:
+      "Provide an ELABORATE response:\n- Include thorough explanations and reasoning\n- Cover multiple perspectives\n- Provide examples and evidence where relevant\n- Structure with clear sections\n- Be comprehensive but well-organized",
+  };
+  const SUMMARY_PRESETS: Record<string, string> = {
+    compact:
+      "Provide a COMPACT consensus summary:\n- Start with a 1-sentence verdict\n- Use a weighted score table for the model answers\n- Keep paragraphs under 3 sentences\n- Focus strictly on core agreement points",
+    elaborate:
+      "Provide an ELABORATE consensus summary:\n- Full synthesis of alternative viewpoints and reasoning\n- Explicitly trace points of divergence and conflicts between models\n- Grade consensus strength across categories\n- Detail background context and recommended next steps",
+  };
+
   let question = $state("");
+  let responseFormat = $state<"default" | "compact" | "elaborate">("default");
+  let summaryFormat = $state<"default" | "compact" | "elaborate">("default");
   let instructions = $state("");
+  let summaryInstructions = $state("");
   let useRag = $state(false);
   let deepResearch = $state(false);
-  let responseFormat = $state("default");
-  let summaryFormat = $state<"default" | "compact" | "elaborate">("default");
-  let summaryInstructions = $state("");
+
+  function applyResponseFormat() {
+    instructions =
+      responseFormat in RESPONSE_PRESETS
+        ? RESPONSE_PRESETS[responseFormat]
+        : "";
+  }
+
+  function applySummaryFormat() {
+    summaryInstructions =
+      summaryFormat in SUMMARY_PRESETS ? SUMMARY_PRESETS[summaryFormat] : "";
+  }
   let totalRounds = $state(2);
   let timeout = $state(120);
   let maxTokens = $state(6000);
@@ -25,13 +49,14 @@
   let attachments = $state<AttachedFile[]>([]);
   let dragover = $state(false);
   let starting = $state(false);
+  let summarizing = $state(false);
   let error = $state<string | null>(null);
 
-  let consensusOptions = $derived(models.selected);
+  let consensusOptions = $derived(models.all);
 
   $effect(() => {
-    if (!consensusModel && models.selected.length > 0) {
-      consensusModel = models.selected[0];
+    if (!consensusModel && models.all.length > 0) {
+      consensusModel = models.all[0];
     }
   });
 
@@ -52,6 +77,23 @@
 
   function removeFile(name: string) {
     attachments = attachments.filter((f) => f.name !== name);
+  }
+
+  async function stopAndSummarize() {
+    summarizing = true;
+    try {
+      nav.go("current");
+      await discussion.stopAndSummarize();
+    } catch (e) {
+      debug.log(`Stop & summarize failed: ${e}`, "error");
+    } finally {
+      summarizing = false;
+    }
+  }
+
+  function closeDiscussion() {
+    discussion.stop();
+    discussion.reset();
   }
 
   async function start() {
@@ -104,7 +146,6 @@
 </script>
 
 <div class="new-discussion">
-  <ModelSelector />
   <ActiveEnsemble />
 
   <section class="form-section">
@@ -187,12 +228,16 @@
       <div class="row">
         <div class="field">
           <label for="nd-format">Response format</label>
-          <select id="nd-format" bind:value={responseFormat}>
-            <option value="default">Default</option>
-            <option value="markdown">Markdown</option>
-            <option value="bullet points">Bullet points</option>
-            <option value="essay">Essay</option>
-            <option value="JSON">JSON</option>
+          <select
+            id="nd-format"
+            bind:value={responseFormat}
+            onchange={applyResponseFormat}
+          >
+            <option value="default">Default — Let the model decide</option>
+            <option value="compact">Compact — Precise, bullet points, short</option>
+            <option value="elaborate"
+              >Elaborate — Detailed with explanations & reasoning</option
+            >
           </select>
         </div>
         <div class="field">
@@ -204,7 +249,9 @@
         </div>
       </div>
 
-      <label for="nd-instructions">Custom instructions</label>
+      <label for="nd-instructions"
+        >Custom instructions (overrides format above)</label
+      >
       <textarea
         id="nd-instructions"
         bind:value={instructions}
@@ -215,24 +262,25 @@
       <div class="row">
         <div class="field">
           <label for="nd-summaryfmt">Summary format</label>
-          <select id="nd-summaryfmt" bind:value={summaryFormat}>
-            <option value="default">Default</option>
-            <option value="compact">Compact</option>
-            <option value="elaborate">Elaborate</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="nd-consensus">Consensus model</label>
-          <select id="nd-consensus" bind:value={consensusModel}>
-            {#each consensusOptions as key (key)}
-              {@const { model } = splitModelKey(key)}
-              <option value={key}>{model}</option>
-            {/each}
+          <select
+            id="nd-summaryfmt"
+            bind:value={summaryFormat}
+            onchange={applySummaryFormat}
+          >
+            <option value="elaborate"
+              >Elaborate — Full synthesis with reasoning</option
+            >
+            <option value="compact"
+              >Compact — Quick verdict with weighted scores</option
+            >
+            <option value="default">Default — Let consensus model decide</option>
           </select>
         </div>
       </div>
 
-      <label for="nd-summaryinstr">Summary instructions</label>
+      <label for="nd-summaryinstr"
+        >Summary instructions (overrides format above)</label
+      >
       <textarea
         id="nd-summaryinstr"
         bind:value={summaryInstructions}
@@ -255,6 +303,16 @@
           />
         </div>
       </div>
+
+      <div class="field consensus-field">
+        <label for="nd-consensus">Consensus model</label>
+        <select id="nd-consensus" bind:value={consensusModel}>
+          {#each consensusOptions as key (key)}
+            {@const { provider, model } = splitModelKey(key)}
+            <option value={key}>{provider}::{model}</option>
+          {/each}
+        </select>
+      </div>
     </section>
   {/if}
 
@@ -262,15 +320,36 @@
     <div class="error" role="alert">{error}</div>
   {/if}
 
-  <button
-    class="btn btn-primary start"
-    data-testid="start-discussion-btn"
-    onclick={start}
-    disabled={starting || discussion.running}
-  >
-    <Icon name="play" size="sm" />
-    {starting ? "Starting…" : "Start Discussion"}
-  </button>
+  {#if discussion.running}
+    <div class="running-actions">
+      <button
+        class="btn btn-primary start"
+        data-testid="stop-summarize-btn"
+        onclick={stopAndSummarize}
+        disabled={summarizing}
+      >
+        <Icon name="stop" size="sm" />
+        {summarizing ? "Summarizing…" : "Stop Discussion and Summarize"}
+      </button>
+      <button
+        class="btn btn-secondary close-btn"
+        data-testid="close-discussion-btn"
+        onclick={closeDiscussion}
+      >
+        <Icon name="close" size="sm" /> Close
+      </button>
+    </div>
+  {:else}
+    <button
+      class="btn btn-primary start"
+      data-testid="start-discussion-btn"
+      onclick={start}
+      disabled={starting}
+    >
+      <Icon name="play" size="sm" />
+      {starting ? "Starting…" : "Start Discussion"}
+    </button>
+  {/if}
 </div>
 
 <style>
@@ -284,6 +363,14 @@
     border-radius: var(--radius-lg);
     padding: 18px;
     margin-top: 16px;
+  }
+  .form-section textarea {
+    width: 100%;
+    box-sizing: border-box;
+  }
+  #nd-question {
+    min-height: 160px;
+    resize: both;
   }
   .drop-zone {
     border: 2px dashed var(--border);
@@ -368,6 +455,9 @@
   .field select {
     width: 100%;
   }
+  .consensus-field {
+    max-width: 320px;
+  }
   .error {
     margin-top: 14px;
     padding: 8px 12px;
@@ -381,6 +471,20 @@
     width: 100%;
     padding: 12px;
     font-size: 15px;
+  }
+  .running-actions {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+  }
+  .running-actions .start {
+    flex: 1;
+  }
+  .close-btn {
+    margin-top: 18px;
+    padding: 12px 18px;
+    font-size: 15px;
+    white-space: nowrap;
   }
   @media (max-width: 640px) {
     .advanced .row {

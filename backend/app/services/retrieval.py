@@ -243,7 +243,18 @@ async def get_retrieved_context(user_prompt: str) -> Optional[str]:
             logger.warning("[RAG] No search results found, aborting")
             return None
 
-        urls = [r["url"] for r in search_results[:5]]
+        # Pull candidate URLs from across all search engines (not just the
+        # first engine) so we diversify sources. Some hosts (e.g. Medium) are
+        # not fetchable from this environment; mixing in SearXNG/DDG results
+        # (Wikipedia, news, vendor blogs) avoids an all-fail extraction pass.
+        # De-prioritise known-unfetchable hosts and keep the rest in ranking
+        # order, capped at 10 candidates.
+        blocked_hosts = {"medium.com"}
+        candidates = [r for r in search_results if r.get("url")]
+        candidates.sort(
+            key=lambda r: (r.get("_source") == "Tavily", r.get("url", "").split("/")[2] in blocked_hosts)
+        )
+        urls = [r["url"] for r in candidates[:10]]
         logger.info(f"[RAG] Extracting content from {len(urls)} URLs")
 
         extracted_content = await asyncio.wait_for(extract_content_from_urls(urls), timeout=30.0)

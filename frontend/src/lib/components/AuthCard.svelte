@@ -19,6 +19,7 @@
         : await auth.register(email, password);
     if (ok) {
       await Promise.all([providers.load(), history.load()]);
+      providers.verifyAll();
     }
   }
 </script>
@@ -37,7 +38,7 @@
       type="text"
       autocomplete="username"
       bind:value={identifier}
-      placeholder="admin or admin@example.com"
+      placeholder="admin"
       required
     />
 

@@ -2,7 +2,7 @@
   import type { ModelResult } from "../api/types";
   import { discussion } from "../stores/discussion.svelte";
   import { safeRenderMarkdown } from "../utils/markdown";
-  import { splitModelKey } from "../utils/helpers";
+  import { splitModelKey, copyToClipboard } from "../utils/helpers";
   import Icon from "./Icon.svelte";
 
   interface Props {
@@ -24,6 +24,14 @@
     timeout: "Timed out",
     skipped: "Skipped",
   };
+
+  let copied = $state(false);
+  async function copy() {
+    if (await copyToClipboard(result.text)) {
+      copied = true;
+      setTimeout(() => (copied = false), 1500);
+    }
+  }
 </script>
 
 <article
@@ -36,9 +44,20 @@
       <Icon name="bot" size="sm" />
       {model}
     </span>
-    <span class="status status-{result.status}">
-      {statusLabel[result.status] ?? result.status}
-    </span>
+    <div class="head-right">
+      <span class="status status-{result.status}">
+        {statusLabel[result.status] ?? result.status}
+      </span>
+      {#if (result.status === "complete" || result.status === "streaming") && result.text}
+        <button
+          class="btn btn-ghost btn-sm copy-btn"
+          title="Copy response"
+          onclick={copy}
+        >
+          <Icon name={copied ? "check" : "copy"} size="sm" />
+        </button>
+      {/if}
+    </div>
   </header>
 
   {#if result.status === "connecting" || result.status === "waiting"}
@@ -121,6 +140,15 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .head-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .copy-btn {
+    padding: 2px 6px;
   }
   .status {
     font-size: 11px;

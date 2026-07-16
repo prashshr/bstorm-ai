@@ -10,6 +10,12 @@
   }
   let { initialProvider = "", ondone }: Props = $props();
 
+  const presetOptions = [...PROVIDER_PRESETS].sort((a, b) => {
+    if (a.key === "custom") return 1;
+    if (b.key === "custom") return -1;
+    return 0;
+  });
+
   let presetKey = $state(initialProvider || "openrouter");
   let apiKey = $state("");
   let endpoint = $state(
@@ -55,7 +61,7 @@
 <div class="provider-form">
   <label for="pf-preset">Provider</label>
   <select id="pf-preset" bind:value={presetKey} onchange={onPresetChange}>
-    {#each PROVIDER_PRESETS as preset (preset.key)}
+    {#each presetOptions as preset (preset.key)}
       <option value={preset.key}>{preset.name}</option>
     {/each}
   </select>

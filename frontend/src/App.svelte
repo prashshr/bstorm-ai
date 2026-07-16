@@ -15,7 +15,7 @@
     nav.init();
     discussion.restore();
     if (auth.isAuthenticated) {
-      providers.load();
+      providers.load().then(() => providers.verifyAll());
       history.load();
     }
   });

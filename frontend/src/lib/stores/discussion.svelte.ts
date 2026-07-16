@@ -67,6 +67,27 @@ class DiscussionStore {
     return this.#phase;
   }
 
+  /** Build a plain-text transcript of the whole discussion for copy/export. */
+  buildTranscript(): string {
+    const d = this.#data;
+    const parts: string[] = [];
+    parts.push(`# Question\n\n${d.question}`);
+    if (d.instructions) parts.push(`## Instructions\n\n${d.instructions}`);
+    const roundNums = Object.keys(d.rounds)
+      .map(Number)
+      .sort((a, b) => a - b);
+    for (const rn of roundNums) {
+      const models = d.rounds[rn];
+      const body = Object.entries(models)
+        .filter(([, r]) => r.text)
+        .map(([m, r]) => `### ${splitModelKey(m).model}\n\n${r.text}`)
+        .join("\n\n");
+      if (body) parts.push(`## Round ${rn}\n\n${body}`);
+    }
+    if (d.consensus) parts.push(`## Consensus\n\n${d.consensus}`);
+    return parts.join("\n\n");
+  }
+
   /** Contribution weights derived from output token counts per model. */
   get contributions(): Contribution[] {
     const totals: Record<string, number> = {};
@@ -91,10 +112,20 @@ class DiscussionStore {
       const raw = localStorage.getItem(STATE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw) as DiscussionState;
-        this.#data = { ...emptyState(), ...parsed };
-        if (this.#data.status === "in_progress") {
-          this.#data.status = "stopped";
+        const restored = { ...emptyState(), ...parsed };
+        if (restored.status !== "completed" && restored.status !== "closed") {
+          restored.status = "stopped";
         }
+        for (const round of Object.values(restored.rounds)) {
+          for (const r of Object.values(round)) {
+            if (r.status === "waiting" || r.status === "connecting") {
+              r.status = "skipped";
+            }
+          }
+        }
+        this.#data = restored;
+        this.#running = false;
+        this.#phase = "done";
       }
     } catch (e) {
       debug.log(`Failed to restore discussion state: ${e}`, "warn");
@@ -363,6 +394,27 @@ class DiscussionStore {
     this.persist();
   }
 
+  /**
+   * Stop the running rounds immediately and synthesize a consensus from
+   * whatever responses have been collected so far (mirrors the legacy
+   * "Stop Discussion and Summarize" action).
+   */
+  async stopAndSummarize(): Promise<void> {
+    this.#running = false;
+    this.#abort?.abort();
+    this.#data.status = "stopped";
+    this.#data = { ...this.#data };
+    const hasResponses = Object.values(this.#data.rounds).some((round) =>
+      Object.values(round).some((r) => r.status === "complete" && r.text),
+    );
+    if (hasResponses) {
+      await this.generateConsensus();
+    }
+    this.#phase = "done";
+    this.#data = { ...this.#data };
+    this.persist();
+  }
+
   finish(): void {
     this.#running = false;
     this.#data.status = "completed";
@@ -372,9 +424,29 @@ class DiscussionStore {
   }
 
   load(state: DiscussionState): void {
-    this.#data = { ...emptyState(), ...state };
+    const loaded = { ...emptyState(), ...state };
+    // A loaded (e.g. history) discussion must never auto-resume. Coerce any
+    // non-terminal status to a terminal one and freeze any models that were
+    // mid-flight so the LLM is never prompted again when the discussion is
+    // merely viewed.
+    if (loaded.status !== "completed" && loaded.status !== "closed") {
+      loaded.status = "stopped";
+    }
+    for (const round of Object.values(loaded.rounds)) {
+      for (const r of Object.values(round)) {
+        if (r.status === "waiting" || r.status === "connecting") {
+          r.status = "skipped";
+        }
+      }
+    }
+    this.#data = loaded;
+    this.#abort?.abort();
     this.#running = false;
+    this.#currentRound = 0;
     this.#phase = "done";
+    // Persist so a page reload restores the currently-viewed discussion
+    // instead of dropping to a blank "New Discussion" screen.
+    this.persist();
   }
 
   #buildPrompt(compositeKey: string, roundNum: number): string {

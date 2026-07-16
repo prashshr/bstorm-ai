@@ -5,6 +5,15 @@
   import RoundTimeline from "./RoundTimeline.svelte";
   import ConsensusSection from "./ConsensusSection.svelte";
   import Icon from "./Icon.svelte";
+  import { copyToClipboard } from "../utils/helpers";
+
+  let copiedAll = $state(false);
+  async function copyAll() {
+    if (await copyToClipboard(discussion.buildTranscript())) {
+      copiedAll = true;
+      setTimeout(() => (copiedAll = false), 1500);
+    }
+  }
 
   let scrollEl = $state<HTMLElement | null>(null);
   let atBottom = $state(true);
@@ -34,6 +43,7 @@
   }
 </script>
 
+<div class="cd">
 {#if discussion.data.id == null && !discussion.running && discussion.data.question === ""}
   <div class="empty-state">
     <Icon name="bot" size="md" />
@@ -49,14 +59,34 @@
       <ProgressStepper />
     </div>
     <div class="controls">
+      <button
+        class="btn btn-ghost"
+        title="Copy entire discussion"
+        onclick={copyAll}
+      >
+        <Icon name={copiedAll ? "check" : "copy"} size="sm" />
+        {copiedAll ? "Copied" : "Copy all"}
+      </button>
       {#if discussion.running}
         <button class="btn btn-ghost" onclick={() => discussion.stop()}>
           <Icon name="stop" size="sm" /> Stop
         </button>
-      {:else if discussion.data.status === "completed" || discussion.data.status === "stopped"}
-        <button class="btn btn-secondary" onclick={newDiscussion}>
-          <Icon name="plus" size="sm" /> New
-        </button>
+      {:else}
+        <div class="header-actions">
+          <button
+            class="btn btn-ghost"
+            title="Close discussion"
+            onclick={() => {
+              discussion.reset();
+              nav.go("new");
+            }}
+          >
+            <Icon name="close" size="sm" /> Close
+          </button>
+          <button class="btn btn-secondary" onclick={newDiscussion}>
+            <Icon name="plus" size="sm" /> New
+          </button>
+        </div>
       {/if}
     </div>
   </div>
@@ -72,9 +102,18 @@
     </button>
   {/if}
 {/if}
+</div>
 
 <style>
+  .cd {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: 20px;
+  }
   .empty-state {
+    flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -92,25 +131,36 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 16px;
-    margin-bottom: 16px;
+    padding-bottom: 12px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--border);
   }
   .q-wrap {
     flex: 1;
     min-width: 0;
   }
   .question {
-    margin: 0 0 12px;
-    font-size: 18px;
+    margin: 0 0 8px;
+    font-size: 14px;
+    font-weight: 600;
     line-height: 1.4;
+    color: var(--text-primary);
     word-break: break-word;
   }
   .controls {
     flex-shrink: 0;
+    display: flex;
+    gap: 8px;
+  }
+  .header-actions {
+    display: flex;
+    gap: 8px;
   }
   .scroll-area {
     position: relative;
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
-    max-height: calc(100vh - 220px);
     padding-right: 8px;
   }
   .jump {

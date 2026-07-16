@@ -1,6 +1,7 @@
 import { api } from "../api/client";
 import type { ProviderCredentialResponse } from "../api/types";
 import { debug } from "./debug.svelte";
+import { models } from "./models.svelte";
 import { PROVIDER_PRESETS } from "../utils/helpers";
 
 class ProvidersStore {
@@ -82,6 +83,20 @@ class ProvidersStore {
 
   markVerified(provider: string): void {
     this.#verified = new Set(this.#verified).add(provider);
+  }
+
+  /** Re-discover models for every saved provider so verified (green) state
+   *  and the global model list are restored after a page reload. */
+  async verifyAll(): Promise<void> {
+    await Promise.all(
+      this.#list.map((p) =>
+        models
+          .discover(p.provider)
+          .catch((e) =>
+            debug.log(`Provider ${p.provider} re-verify failed: ${e}`, "warn"),
+          ),
+      ),
+    );
   }
 }
 

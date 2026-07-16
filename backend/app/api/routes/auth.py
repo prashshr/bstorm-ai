@@ -22,10 +22,22 @@ from app.core.crypto import (
 router = APIRouter()
 
 
+def _normalize_email(raw: str) -> str:
+    """Allow short local usernames (e.g. "admin") by mapping them to the
+    internal local domain, mirroring the frontend behaviour."""
+    raw = (raw or "").strip()
+    if not raw:
+        return raw
+    if "@" not in raw:
+        return f"{raw}@local.ai-ensemble"
+    return raw
+
+
 @router.post("/register", response_model=TokenResponse)
 @limiter.limit("10/minute")
 def register(request: Request, payload: RegisterRequest, db: Session = Depends(get_db)) -> TokenResponse:
-    existing = db.query(User).filter(User.email == payload.email).first()
+    email = _normalize_email(payload.email)
+    existing = db.query(User).filter(User.email == email).first()
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User already exists")
 
@@ -36,7 +48,7 @@ def register(request: Request, payload: RegisterRequest, db: Session = Depends(g
     uek_encrypted = encrypt_uek(uek, pdk)
 
     user = User(
-        email=payload.email,
+        email=email,
         password_hash=get_password_hash(payload.password),
         encryption_salt=salt_hex,
         master_key_encrypted=uek_encrypted,
@@ -51,7 +63,8 @@ def register(request: Request, payload: RegisterRequest, db: Session = Depends(g
 @router.post("/login", response_model=TokenResponse)
 @limiter.limit("20/minute")
 def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
-    user = db.query(User).filter(User.email == payload.email).first()
+    email = _normalize_email(payload.email)
+    user = db.query(User).filter(User.email == email).first()
     if not user or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 

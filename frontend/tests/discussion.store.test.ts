@@ -71,4 +71,12 @@ describe("discussion store contributions", () => {
       "skipped",
     );
   });
+
+  it("buildTranscript includes question, rounds and model names", () => {
+    const t = discussion.buildTranscript();
+    expect(t).toContain("# Question");
+    expect(t).toContain("## Round 1");
+    expect(t).toContain("### gpt-4o");
+    expect(t).toContain("### claude");
+  });
 });

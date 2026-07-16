@@ -1,22 +1,42 @@
 <script lang="ts">
   import { discussion } from "../stores/discussion.svelte";
   import { safeRenderMarkdown } from "../utils/markdown";
+  import { copyToClipboard } from "../utils/helpers";
   import ContributionBars from "./ContributionBars.svelte";
   import Icon from "./Icon.svelte";
 
   let consensus = $derived(discussion.data.consensus);
   let rendered = $derived(safeRenderMarkdown(consensus));
   let generating = $derived(discussion.phase === "synthesizing");
+
+  let copied = $state(false);
+  async function copy() {
+    if (await copyToClipboard(consensus)) {
+      copied = true;
+      setTimeout(() => (copied = false), 1500);
+    }
+  }
 </script>
 
 <section class="consensus" aria-live="polite">
   <div class="c-head">
     <h2><Icon name="star" size="sm" /> Consensus Synthesis</h2>
-    {#if discussion.data.consensusModel}
-      <span class="c-model"
-        >via {discussion.data.consensusModel.split("::")[1]}</span
-      >
-    {/if}
+    <div class="c-head-right">
+      {#if discussion.data.consensusModel}
+        <span class="c-model"
+          >via {discussion.data.consensusModel.split("::")[1]}</span
+        >
+      {/if}
+      {#if consensus}
+        <button
+          class="btn btn-ghost btn-sm"
+          title="Copy consensus"
+          onclick={copy}
+        >
+          <Icon name={copied ? "check" : "copy"} size="sm" />
+        </button>
+      {/if}
+    </div>
   </div>
 
   {#if generating}
@@ -34,23 +54,29 @@
 <style>
   .consensus {
     background: var(--bg-secondary);
-    border: 1px solid var(--accent);
-    border-radius: var(--radius-lg);
-    padding: 18px;
-    margin-top: 20px;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    margin-top: 16px;
   }
   .c-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
   }
   .c-head h2 {
     display: flex;
     align-items: center;
     gap: 8px;
     margin: 0;
-    font-size: 16px;
+    font-size: 15px;
+  }
+  .c-head-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
   .c-model {
     font-size: 12px;

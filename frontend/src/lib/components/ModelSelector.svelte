@@ -3,6 +3,9 @@
   import { providers } from "../stores/providers.svelte";
   import Icon from "./Icon.svelte";
 
+  let { collapsible = false } = $props<{ collapsible?: boolean }>();
+  let collapsed = $state(false);
+
   let compositeKeys = $derived(
     models.available.map((m) => `${providers.active}::${m}`),
   );
@@ -10,11 +13,34 @@
   async function retestAll() {
     await models.checkAllHealth(compositeKeys);
   }
+
+  function selectAll() {
+    for (const key of compositeKeys) if (!models.isSelected(key)) models.toggle(key);
+  }
+  function clearAll() {
+    for (const key of compositeKeys) if (models.isSelected(key)) models.toggle(key);
+  }
 </script>
 
 <div class="model-selector">
   <div class="head">
-    <h3>Models {providers.active ? `· ${providers.active}` : ""}</h3>
+    {#if collapsible}
+      <button
+        class="collapse-toggle"
+        onclick={() => (collapsed = !collapsed)}
+        aria-expanded={!collapsed}
+      >
+        <Icon name={collapsed ? "chevron-right" : "chevron-down"} size="sm" />
+        <h3>Models {providers.active ? `· ${providers.active}` : ""}</h3>
+        {#if models.available.length > 0}
+          <span class="count-pill"
+            >{models.selected.length}/{models.available.length}</span
+          >
+        {/if}
+      </button>
+    {:else}
+      <h3>Models {providers.active ? `· ${providers.active}` : ""}</h3>
+    {/if}
     {#if models.available.length > 0}
       <button class="btn btn-ghost btn-sm" onclick={retestAll}>
         <Icon name="refresh" size="sm" /> Test all
@@ -22,13 +48,19 @@
     {/if}
   </div>
 
-  {#if models.discovering}
+  {#if collapsible && collapsed}
+    <!-- collapsed: list hidden -->
+  {:else if models.discovering}
     <div class="hint">Discovering models…</div>
   {:else if !providers.active}
     <div class="hint">Select a provider from the sidebar to load models.</div>
   {:else if models.available.length === 0}
     <div class="hint">No models found for this provider.</div>
   {:else}
+    <div class="bulk">
+      <button class="btn btn-ghost btn-sm" onclick={selectAll}>Select all</button>
+      <button class="btn btn-ghost btn-sm" onclick={clearAll}>Clear</button>
+    </div>
     <div class="grid" role="group" aria-label="Model selection">
       {#each models.available as model (model)}
         {@const key = `${providers.active}::${model}`}
@@ -66,6 +98,28 @@
   .head h3 {
     font-size: 14px;
     margin: 0;
+  }
+  .collapse-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    color: var(--text-primary);
+  }
+  .count-pill {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    background: var(--bg-tertiary);
+    border-radius: 999px;
+    padding: 1px 7px;
+  }
+  .bulk {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
   }
   .hint {
     color: var(--text-tertiary);

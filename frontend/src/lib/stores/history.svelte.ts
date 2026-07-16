@@ -12,6 +12,7 @@ class HistoryStore {
   #sort = $state<HistorySort>("newest");
   #search = $state("");
   #loading = $state(false);
+  #error = $state<string | null>(null);
 
   get items() {
     return this.#items;
@@ -27,6 +28,9 @@ class HistoryStore {
   }
   get loading() {
     return this.#loading;
+  }
+  get error() {
+    return this.#error;
   }
 
   get visible(): DiscussionResponse[] {
@@ -67,10 +71,12 @@ class HistoryStore {
 
   async load(): Promise<void> {
     this.#loading = true;
+    this.#error = null;
     try {
       this.#items = await api.listDiscussions();
       debug.log(`Loaded ${this.#items.length} discussions`);
     } catch (e) {
+      this.#error = e instanceof Error ? e.message : String(e);
       debug.log(`Failed to load history: ${e}`, "error");
     } finally {
       this.#loading = false;

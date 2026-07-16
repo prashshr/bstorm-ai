@@ -51,6 +51,10 @@
 
   {#if history.loading}
     <div class="hint">Loading…</div>
+  {:else if history.error}
+    <div class="hint error-hint">
+      Failed to load history: {history.error}
+    </div>
   {:else if history.visible.length === 0}
     <div class="hint">No discussions found.</div>
   {:else}
@@ -95,5 +99,8 @@
     color: var(--text-tertiary);
     text-align: center;
     padding: 40px;
+  }
+  .error-hint {
+    color: var(--error);
   }
 </style>

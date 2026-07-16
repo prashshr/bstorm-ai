@@ -7,7 +7,6 @@
   import TabNewDiscussion from "./TabNewDiscussion.svelte";
   import TabCurrentDiscussion from "./TabCurrentDiscussion.svelte";
   import TabHistory from "./TabHistory.svelte";
-  import TabProviderConfig from "./TabProviderConfig.svelte";
   import DebugPanel from "./DebugPanel.svelte";
 </script>
 
@@ -20,14 +19,16 @@
     <main class="main-area">
       <MainTabs />
       <div class="tab-content">
-        {#if nav.tab === "new"}
-          <TabNewDiscussion />
-        {:else if nav.tab === "current"}
+        {#if nav.tab === "current"}
           <TabCurrentDiscussion />
+        {:else if nav.tab === "new"}
+          <div class="tab-scroll">
+            <TabNewDiscussion />
+          </div>
         {:else if nav.tab === "history"}
-          <TabHistory />
-        {:else if nav.tab === "provider"}
-          <TabProviderConfig />
+          <div class="tab-scroll">
+            <TabHistory />
+          </div>
         {/if}
       </div>
     </main>
@@ -56,6 +57,14 @@
   }
   .tab-content {
     flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .tab-scroll {
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
     padding: 20px;
   }
@@ -63,7 +72,7 @@
     .body {
       flex-direction: column;
     }
-    .tab-content {
+    .tab-scroll {
       padding: 14px;
     }
   }

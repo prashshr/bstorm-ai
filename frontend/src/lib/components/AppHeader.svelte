@@ -5,10 +5,6 @@
   import { discussion } from "../stores/discussion.svelte";
   import Icon from "./Icon.svelte";
   import ProgressStepper from "./ProgressStepper.svelte";
-
-  function logout() {
-    auth.logout();
-  }
 </script>
 
 <header class="app-header">
@@ -23,9 +19,6 @@
     <span class="user" data-testid="user-display" title={auth.user ?? ""}>
       {auth.user ?? "user"}
     </span>
-    <button class="btn btn-ghost btn-sm" onclick={logout}>
-      <Icon name="logout" size="sm" /> Logout
-    </button>
   </div>
 
   <button class="title" onclick={() => nav.go("new")}>
@@ -78,18 +71,18 @@
   .title {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 12px;
     background: none;
     border: none;
     color: var(--text-primary);
-    font-size: 16px;
+    font-size: 32px;
     font-weight: 700;
   }
   .logo {
-    width: 18px;
-    height: 18px;
-    border-radius: 4px;
-    border: 2px solid var(--accent);
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: 4px solid var(--accent);
     position: relative;
   }
   .logo::after {

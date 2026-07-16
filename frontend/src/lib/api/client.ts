@@ -42,6 +42,7 @@ async function request<T>(
   path: string,
   options: RequestInit = {},
   auth = true,
+  logoutOn401 = true,
 ): Promise<T> {
   const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
@@ -53,8 +54,18 @@ async function request<T>(
   const resp = await fetch(`${BASE}${path}`, { ...options, headers });
 
   if (resp.status === 401) {
-    onUnauthorized();
-    throw new ApiError(401, "Unauthorized");
+    // Only a 401 from our own auth layer should end the session. A 401 that
+    // bubbles up from an upstream provider (e.g. a bad provider key during a
+    // chat/health check) must NOT log the user out.
+    if (logoutOn401) onUnauthorized();
+    let detail = "Unauthorized";
+    try {
+      const body = await resp.json();
+      detail = body.detail ?? detail;
+    } catch {
+      /* keep default */
+    }
+    throw new ApiError(401, detail);
   }
 
   if (!resp.ok) {
@@ -154,11 +165,14 @@ export const api = {
   },
 
   // ---- Proxy chat ----
+  // Provider/upstream 401s here must not end the user's session.
   chat(body: ChatRequest): Promise<ChatResponse> {
-    return request<ChatResponse>("/api/proxy/chat", {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
+    return request<ChatResponse>(
+      "/api/proxy/chat",
+      { method: "POST", body: JSON.stringify(body) },
+      true,
+      false,
+    );
   },
 
   /**
@@ -182,8 +196,8 @@ export const api = {
     });
 
     if (resp.status === 401) {
-      onUnauthorized();
-      throw new ApiError(401, "Unauthorized");
+      // Upstream provider 401 during streaming must not log the user out.
+      throw new ApiError(401, "Provider authorization failed");
     }
     if (!resp.ok || !resp.body) {
       throw new ApiError(resp.status, resp.statusText || "stream failed");

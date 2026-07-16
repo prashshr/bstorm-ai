@@ -93,7 +93,6 @@ class TestAuthFlow:
 class TestNavigation:
     def test_main_tabs_visible(self, page: Page):
         _register(page)
-        expect(page.get_by_role("button", name="Provider")).to_be_visible()
         expect(page.get_by_role("button", name="New Discussion")).to_be_visible()
         expect(page.get_by_role("button", name="History")).to_be_visible()
 
@@ -101,18 +100,17 @@ class TestNavigation:
         _register(page)
         page.get_by_role("button", name="History").click()
         page.wait_for_function("() => location.hash === '#history'")
-        page.get_by_role("button", name="Provider").click()
-        page.wait_for_function("() => location.hash === '#provider'")
+        page.get_by_role("button", name="New Discussion").click()
+        page.wait_for_function("() => location.hash === '#new'")
 
 
 # ============================================================
-# Provider Management
+# Provider Management (now lives in the left sidebar)
 # ============================================================
 
 class TestProviderUI:
     def test_add_provider_button_reveals_form(self, page: Page):
         _register(page)
-        page.get_by_role("button", name="Provider").click()
         add_btn = page.get_by_test_id("add-provider-btn")
         expect(add_btn).to_be_visible()
         add_btn.click()
@@ -121,7 +119,6 @@ class TestProviderUI:
 
     def test_save_provider_credential(self, page: Page):
         _register(page)
-        page.get_by_role("button", name="Provider").click()
         page.get_by_test_id("add-provider-btn").click()
         page.wait_for_selector("#pf-key", state="visible")
         page.locator("#pf-preset").select_option("openai")
@@ -132,7 +129,6 @@ class TestProviderUI:
 
     def test_provider_shows_in_list(self, page: Page):
         _register(page)
-        page.get_by_role("button", name="Provider").click()
         page.get_by_test_id("add-provider-btn").click()
         page.wait_for_selector("#pf-key", state="visible")
         page.locator("#pf-preset").select_option("openrouter")
@@ -140,7 +136,7 @@ class TestProviderUI:
         page.get_by_role("button", name="Save & Discover").click()
         provider_list = page.get_by_test_id("provider-list")
         expect(provider_list).to_be_visible(timeout=10000)
-        assert provider_list.locator(".card").count() >= 1
+        assert provider_list.locator(".provider-row").count() >= 1
 
 
 # ============================================================

@@ -1,6 +1,6 @@
-export type Tab = "new" | "current" | "history" | "provider";
+export type Tab = "new" | "current" | "history";
 
-const VALID: Tab[] = ["new", "current", "history", "provider"];
+const VALID: Tab[] = ["new", "current", "history"];
 
 class NavStore {
   #tab = $state<Tab>("new");

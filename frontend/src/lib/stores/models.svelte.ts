@@ -9,6 +9,8 @@ class ModelsStore {
   #selected = $state<string[]>([]);
   #health = $state<Record<string, HealthStatus>>({});
   #discovering = $state(false);
+  /** All discovered models across every provider, keyed by provider. */
+  #allByProvider = $state<Record<string, string[]>>({});
 
   get available() {
     return this.#available;
@@ -23,6 +25,13 @@ class ModelsStore {
     return this.#discovering;
   }
 
+  /** Flat list of all composite model keys discovered across providers. */
+  get all(): string[] {
+    return Object.entries(this.#allByProvider).flatMap(([provider, ms]) =>
+      ms.map((model) => `${provider}::${model}`),
+    );
+  }
+
   healthOf(model: string): HealthStatus {
     return this.#health[model] ?? "unknown";
   }
@@ -34,9 +43,14 @@ class ModelsStore {
   async discover(provider: string): Promise<void> {
     this.#discovering = true;
     try {
-      this.#available = await api.listModels(provider);
+      const discovered = await api.listModels(provider);
+      this.#available = discovered;
+      this.#allByProvider = {
+        ...this.#allByProvider,
+        [provider]: discovered,
+      };
       providers.markVerified(provider);
-      debug.log(`Discovered ${this.#available.length} models for ${provider}`);
+      debug.log(`Discovered ${discovered.length} models for ${provider}`);
     } catch (e) {
       this.#available = [];
       debug.log(`Model discovery failed for ${provider}: ${e}`, "error");
