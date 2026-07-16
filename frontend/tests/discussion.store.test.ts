@@ -7,9 +7,11 @@ function seed(enabled: boolean) {
   const state: DiscussionState = {
     id: 1,
     timestamp: Date.now(),
+    title: "q",
     question: "q",
     instructions: "",
     models: ["openai::gpt-4o", "anthropic::claude"],
+    userMessages: { 1: "q" },
     rounds: {
       1: {
         "openai::gpt-4o": {
@@ -34,6 +36,7 @@ function seed(enabled: boolean) {
     status: "completed",
     totalRounds: 1,
     use_rag: false,
+    ragMode: "model-self",
     deep_research: false,
     retrieved_context: null,
     summaryFormat: "default",
@@ -74,8 +77,8 @@ describe("discussion store contributions", () => {
 
   it("buildTranscript includes question, rounds and model names", () => {
     const t = discussion.buildTranscript();
-    expect(t).toContain("# Question");
-    expect(t).toContain("## Round 1");
+    expect(t).toContain("# q");
+    expect(t).toContain("## Model responses (turn 1)");
     expect(t).toContain("### gpt-4o");
     expect(t).toContain("### claude");
   });

@@ -4,6 +4,9 @@ import type {
   DiscussionCreateRequest,
   DiscussionResponse,
   DiscussionUpdateRequest,
+  Folder,
+  FolderCreateRequest,
+  FolderUpdateRequest,
   MessageResponse,
   ProviderCredentialResponse,
   StreamEvent,
@@ -162,6 +165,41 @@ export const api = {
     return request<DiscussionResponse>(`/api/discussions/${id}/research`, {
       method: "POST",
     });
+  },
+
+  // ---- Folders ----
+  listFolders(): Promise<Folder[]> {
+    return request<Folder[]>("/api/folders");
+  },
+  createFolder(body: FolderCreateRequest): Promise<Folder> {
+    return request<Folder>("/api/folders", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  updateFolder(id: number, body: FolderUpdateRequest): Promise<Folder> {
+    return request<Folder>(`/api/folders/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+  },
+  deleteFolder(id: number): Promise<{ deleted: boolean }> {
+    return request(`/api/folders/${id}`, { method: "DELETE" });
+  },
+  addFolderDiscussion(folderId: number, discussionId: number): Promise<Folder> {
+    return request<Folder>(
+      `/api/folders/${folderId}/discussions/${discussionId}`,
+      { method: "POST" },
+    );
+  },
+  removeFolderDiscussion(
+    folderId: number,
+    discussionId: number,
+  ): Promise<Folder> {
+    return request<Folder>(
+      `/api/folders/${folderId}/discussions/${discussionId}`,
+      { method: "DELETE" },
+    );
   },
 
   // ---- Proxy chat ----

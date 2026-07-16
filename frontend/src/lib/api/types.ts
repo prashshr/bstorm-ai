@@ -113,10 +113,12 @@ export type DiscussionStatus =
 export interface DiscussionState {
   id: number | string | null;
   timestamp: number | null;
+  title: string;
   question: string;
   instructions: string;
   models: string[];
   rounds: Record<number, Record<string, ModelResult>>;
+  userMessages: Record<number, string>;
   consensus: string;
   endpoint: string;
   consensusModel: string;
@@ -127,6 +129,7 @@ export interface DiscussionState {
   status: DiscussionStatus;
   totalRounds: number;
   use_rag: boolean;
+  ragMode: "model-only" | "model-self";
   deep_research: boolean;
   retrieved_context: string | null;
   summaryFormat: "elaborate" | "compact" | "default";
@@ -148,6 +151,23 @@ export interface AttachedFile {
   size: number;
   type: string;
   content: string;
+}
+
+export interface Folder {
+  id: number;
+  name: string;
+  position: number;
+  discussion_ids: number[];
+  created_at: string;
+}
+
+export interface FolderCreateRequest {
+  name: string;
+}
+
+export interface FolderUpdateRequest {
+  name?: string;
+  position?: number;
 }
 
 export interface ProviderPreset {

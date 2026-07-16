@@ -319,3 +319,80 @@ label {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* ============================================================
+   Print / PDF export — clean single-column chat transcript
+   ============================================================ */
+@media print {
+  .app-header,
+  .sessions,
+  .panel,
+  .backdrop,
+  .chat-header,
+  .chat-input-bar,
+  .jump,
+  .model-card .copy-btn,
+  .model-card .card-actions,
+  .consensus .c-head-right,
+  .debug-panel {
+    display: none !important;
+  }
+
+  html,
+  body,
+  #app {
+    height: auto !important;
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  .shell,
+  .body,
+  .main-area {
+    display: block !important;
+    overflow: visible !important;
+    height: auto !important;
+  }
+
+  .scroll-area {
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+
+  .turn {
+    margin-bottom: 18px !important;
+    break-inside: avoid;
+  }
+
+  .user-msg p {
+    background: #f4f4f5 !important;
+    border: 1px solid #ddd !important;
+    color: #000 !important;
+  }
+
+  .model-card {
+    border: 1px solid #ddd !important;
+    background: #fff !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+
+  .model-row {
+    display: block !important;
+  }
+
+  .model-card + .model-card {
+    margin-top: 12px !important;
+  }
+
+  .consensus {
+    border: 1px solid #ddd !important;
+    border-left: 3px solid #ff5c00 !important;
+    background: #fff !important;
+    break-inside: avoid;
+  }
+
+  .markdown {
+    color: #000 !important;
+  }
+}

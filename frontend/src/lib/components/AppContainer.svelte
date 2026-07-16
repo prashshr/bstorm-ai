@@ -1,38 +1,32 @@
 <script lang="ts">
-  import { nav } from "../stores/nav.svelte";
   import { discussion } from "../stores/discussion.svelte";
   import AppHeader from "./AppHeader.svelte";
-  import LeftSidebar from "./LeftSidebar.svelte";
-  import MainTabs from "./MainTabs.svelte";
-  import TabNewDiscussion from "./TabNewDiscussion.svelte";
-  import TabCurrentDiscussion from "./TabCurrentDiscussion.svelte";
-  import TabHistory from "./TabHistory.svelte";
+  import ChatSessions from "./ChatSessions.svelte";
+  import ChatHome from "./ChatHome.svelte";
+  import ChatMessages from "./ChatMessages.svelte";
+  import ProviderPanel from "./ProviderPanel.svelte";
   import DebugPanel from "./DebugPanel.svelte";
+
+  let panelOpen = $state(false);
+
+  const hasActive = $derived(
+    discussion.data.id != null || discussion.data.question !== "" || discussion.running,
+  );
 </script>
 
 <div class="shell">
-  <AppHeader />
-  <div class="body" class:focus={nav.focusMode}>
-    {#if !nav.focusMode}
-      <LeftSidebar />
-    {/if}
+  <AppHeader onToggleSessions={() => {}} onTogglePanel={() => (panelOpen = !panelOpen)} />
+  <div class="body">
+    <ChatSessions />
     <main class="main-area">
-      <MainTabs />
-      <div class="tab-content">
-        {#if nav.tab === "current"}
-          <TabCurrentDiscussion />
-        {:else if nav.tab === "new"}
-          <div class="tab-scroll">
-            <TabNewDiscussion />
-          </div>
-        {:else if nav.tab === "history"}
-          <div class="tab-scroll">
-            <TabHistory />
-          </div>
-        {/if}
-      </div>
+      {#if hasActive}
+        <ChatMessages />
+      {:else}
+        <ChatHome />
+      {/if}
     </main>
   </div>
+  <ProviderPanel open={panelOpen} onclose={() => (panelOpen = false)} />
   <DebugPanel />
 </div>
 
@@ -55,25 +49,9 @@
     min-width: 0;
     overflow: hidden;
   }
-  .tab-content {
-    flex: 1;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-  .tab-scroll {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    padding: 20px;
-  }
   @media (max-width: 768px) {
     .body {
       flex-direction: column;
-    }
-    .tab-scroll {
-      padding: 14px;
     }
   }
 </style>

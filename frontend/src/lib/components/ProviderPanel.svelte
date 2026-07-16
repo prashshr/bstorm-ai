@@ -1,11 +1,15 @@
 <script lang="ts">
   import { providers } from "../stores/providers.svelte";
   import { models } from "../stores/models.svelte";
-  import { nav } from "../stores/nav.svelte";
-  import { auth } from "../stores/auth.svelte";
   import Icon from "./Icon.svelte";
   import ProviderForm from "./ProviderForm.svelte";
   import ModelSelector from "./ModelSelector.svelte";
+
+  interface Props {
+    open: boolean;
+    onclose: () => void;
+  }
+  let { open, onclose }: Props = $props();
 
   let adding = $state(false);
   let editing = $state<string | null>(null);
@@ -19,32 +23,6 @@
     }),
   );
 
-  const MIN_W = 220;
-  const MAX_W = 560;
-  let width = $state<number>(
-    Number(localStorage.getItem("aiEnsembleSidebarW")) || 260,
-  );
-  let resizing = $state(false);
-
-  function startResize(e: PointerEvent) {
-    resizing = true;
-    const startX = e.clientX;
-    const startW = width;
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-    const onMove = (ev: PointerEvent) => {
-      const next = Math.min(MAX_W, Math.max(MIN_W, startW + ev.clientX - startX));
-      width = next;
-    };
-    const onUp = () => {
-      resizing = false;
-      localStorage.setItem("aiEnsembleSidebarW", String(width));
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-    };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-  }
-
   async function selectProvider(key: string) {
     providers.select(key);
     try {
@@ -54,56 +32,44 @@
     }
   }
 
-  async function discover(key: string) {
-    await selectProvider(key);
-  }
-
   async function remove(key: string) {
-    if (
-      confirm(`Remove provider "${key}"? Saved credentials will be deleted.`)
-    ) {
+    if (confirm(`Remove provider "${key}"? Saved credentials will be deleted.`)) {
       await providers.remove(key);
       if (editing === key) editing = null;
     }
   }
 
-  async function toggleEdit(key: string) {
+  function toggleEdit(key: string) {
     editing = editing === key ? null : key;
     adding = false;
     if (editing === key && providers.isVerified(key)) {
-      await selectProvider(key);
+      selectProvider(key);
     }
   }
 </script>
 
-<aside
-  class="sidebar"
-  class:collapsed={nav.sidebarCollapsed}
-  class:resizing
-  style={nav.sidebarCollapsed ? "" : `width:${width}px`}
->
-  {#if nav.sidebarCollapsed}
-    <button
-      class="btn btn-ghost expand-btn"
-      onclick={() => nav.toggleSidebar()}
-      aria-label="Expand sidebar"
-    >
-      <Icon name="chevron-right" />
+{#if open}
+  <div class="backdrop" role="presentation" onclick={onclose}></div>
+{/if}
+
+<aside class="panel" class:open aria-hidden={!open}>
+  <div class="p-head">
+    <h2>Providers & Models</h2>
+    <button class="btn btn-ghost icon-btn" onclick={onclose} aria-label="Close panel">
+      <Icon name="close" size="sm" />
     </button>
-  {:else}
-    <div class="sidebar-body">
-    <div class="sidebar-head">
-      <h2>Providers</h2>
+  </div>
+
+  <div class="p-body">
+    <div class="p-head-actions">
       <button
         class="btn btn-primary btn-sm"
-        data-testid="add-provider-btn"
         onclick={() => {
           adding = !adding;
           editing = null;
         }}
-        aria-label="Add provider"
       >
-        <Icon name="plus" size="sm" /> Add
+        <Icon name="plus" size="sm" /> Add Provider
       </button>
     </div>
 
@@ -113,12 +79,12 @@
       </div>
     {/if}
 
-    <ul class="provider-list" data-testid="provider-list">
-      {#if providers.loading}
-        <li class="empty">Loading…</li>
-      {:else if providers.list.length === 0}
-        <li class="empty">No providers yet. Click Add to create one.</li>
-      {:else}
+    {#if providers.loading}
+      <p class="muted">Loading…</p>
+    {:else if providers.list.length === 0}
+      <p class="muted">No providers yet. Click Add to create one.</p>
+    {:else}
+      <ul class="provider-list">
         {#each sortedProviders as p (p.provider)}
           <li class="provider-row" class:active={providers.active === p.provider}>
             <div class="row-main">
@@ -139,18 +105,10 @@
                 {/if}
               </button>
               <div class="row-actions">
-                <button
-                  class="btn btn-ghost btn-sm"
-                  title="Select & discover models"
-                  onclick={() => discover(p.provider)}
-                >
+                <button class="btn btn-ghost btn-sm" title="Select & discover models" onclick={() => selectProvider(p.provider)}>
                   <Icon name="refresh" size="sm" />
                 </button>
-                <button
-                  class="btn btn-ghost btn-sm danger"
-                  title="Remove"
-                  onclick={() => remove(p.provider)}
-                >
+                <button class="btn btn-ghost btn-sm danger" title="Remove" onclick={() => remove(p.provider)}>
                   <Icon name="trash" size="sm" />
                 </button>
               </div>
@@ -162,113 +120,75 @@
                 {/if}
                 <details class="settings-details">
                   <summary>Settings</summary>
-                  <ProviderForm
-                    initialProvider={p.provider}
-                    ondone={() => (editing = null)}
-                  />
+                  <ProviderForm initialProvider={p.provider} ondone={() => (editing = null)} />
                 </details>
               </div>
             {/if}
           </li>
         {/each}
-      {/if}
-    </ul>
-
-    <div
-      class="resizer"
-      role="separator"
-      aria-orientation="vertical"
-      aria-label="Resize sidebar"
-      title="Drag to resize"
-      onpointerdown={startResize}
-    ></div>
-    </div>
-  {/if}
-
-  <div class="sidebar-footer">
-    <span class="user" title={auth.user ?? ""}>{auth.user ?? "user"}</span>
-    <button class="btn btn-ghost btn-sm" onclick={() => auth.logout()}>
-      <Icon name="logout" size="sm" /> Logout
-    </button>
+      </ul>
+    {/if}
   </div>
 </aside>
 
 <style>
-  .sidebar {
-    position: relative;
-    width: var(--sidebar-width);
-    flex-shrink: 0;
-    border-right: 1px solid var(--border);
-    background: var(--bg-secondary);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    transition: width var(--transition);
+  .backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 40;
   }
-  .sidebar-body {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-  }
-  .sidebar-footer {
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 10px 14px;
-    border-top: 1px solid var(--border);
-    background: var(--bg-secondary);
-  }
-  .sidebar-footer .user {
-    font-size: 13px;
-    color: var(--text-secondary);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .sidebar.resizing {
-    transition: none;
-    user-select: none;
-    cursor: col-resize;
-  }
-  .resizer {
-    position: absolute;
+  .panel {
+    position: fixed;
     top: 0;
     right: 0;
-    width: 1.5px;
     height: 100%;
-    cursor: col-resize;
-    z-index: 5;
+    width: 320px;
+    max-width: 90vw;
+    background: var(--bg-secondary);
+    border-left: 1px solid var(--border);
+    box-shadow: var(--shadow-md);
+    transform: translateX(100%);
+    transition: transform var(--transition);
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
   }
-  .resizer:hover,
-  .sidebar.resizing .resizer {
-    background: var(--accent);
-    opacity: 0.5;
+  .panel.open {
+    transform: translateX(0);
   }
-  .sidebar.collapsed {
-    width: var(--sidebar-collapsed);
-    align-items: center;
-  }
-  .expand-btn {
-    margin-top: 10px;
-    padding: 8px;
-  }
-  .sidebar-head {
+  .p-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 14px 14px 8px;
+    border-bottom: 1px solid var(--border);
   }
-  .sidebar-head h2 {
+  .p-head h2 {
+    margin: 0;
     font-size: 13px;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--text-tertiary);
-    margin: 0;
+  }
+  .p-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 10px;
+  }
+  .p-head-actions {
+    margin-bottom: 10px;
+  }
+  .p-head-actions .btn {
+    width: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
   }
   .edit-pane {
-    padding: 8px 14px 14px;
+    padding: 8px 8px 14px;
     border-bottom: 1px solid var(--border);
   }
   .provider-list {
@@ -324,12 +244,11 @@
     display: flex;
     gap: 2px;
     flex-shrink: 0;
-    padding-right: 4px;
   }
   .btn.danger {
     color: var(--error);
   }
-  .empty {
+  .muted {
     color: var(--text-tertiary);
     font-size: 12px;
     padding: 10px 14px;
@@ -348,16 +267,5 @@
     text-transform: uppercase;
     letter-spacing: 0.05em;
     padding: 4px 0;
-  }
-  @media (max-width: 768px) {
-    .sidebar {
-      width: 100% !important;
-      max-height: 50vh;
-      border-right: none;
-      border-bottom: 1px solid var(--border);
-    }
-    .resizer {
-      display: none;
-    }
   }
 </style>

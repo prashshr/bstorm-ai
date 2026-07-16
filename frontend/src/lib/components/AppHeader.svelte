@@ -1,27 +1,28 @@
 <script lang="ts">
-  import { auth } from "../stores/auth.svelte";
   import { theme } from "../stores/theme.svelte";
-  import { nav } from "../stores/nav.svelte";
   import { discussion } from "../stores/discussion.svelte";
   import Icon from "./Icon.svelte";
   import ProgressStepper from "./ProgressStepper.svelte";
+
+  interface Props {
+    onToggleSessions: () => void;
+    onTogglePanel: () => void;
+  }
+  let { onToggleSessions, onTogglePanel }: Props = $props();
 </script>
 
 <header class="app-header">
   <div class="left">
     <button
       class="btn btn-ghost btn-sm icon-btn"
-      onclick={() => nav.toggleSidebar()}
-      aria-label="Toggle sidebar"
+      onclick={onToggleSessions}
+      aria-label="Toggle chat list"
     >
       <Icon name="menu" />
     </button>
-    <span class="user" data-testid="user-display" title={auth.user ?? ""}>
-      {auth.user ?? "user"}
-    </span>
   </div>
 
-  <button class="title" onclick={() => nav.go("new")}>
+  <button class="title" onclick={() => discussion.reset()} aria-label="New chat">
     <span class="logo" aria-hidden="true"></span>
     AI-Ensemble
   </button>
@@ -37,6 +38,13 @@
     >
       <Icon name={theme.theme === "dark" ? "sun" : "moon"} />
     </button>
+    <button
+      class="btn btn-ghost btn-sm icon-btn"
+      onclick={onTogglePanel}
+      aria-label="Toggle providers panel"
+    >
+      <Icon name="settings" />
+    </button>
   </div>
 </header>
 
@@ -49,6 +57,7 @@
     border-bottom: 1px solid var(--border);
     background: var(--bg-secondary);
     gap: 12px;
+    flex-shrink: 0;
   }
   .left,
   .right {
@@ -59,14 +68,6 @@
   }
   .right {
     justify-content: flex-end;
-  }
-  .user {
-    font-size: 13px;
-    color: var(--text-secondary);
-    max-width: 160px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
   .title {
     display: flex;
@@ -94,10 +95,5 @@
   }
   .icon-btn {
     padding: 6px;
-  }
-  @media (max-width: 640px) {
-    .user {
-      display: none;
-    }
   }
 </style>

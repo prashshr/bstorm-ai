@@ -18,10 +18,12 @@ function emptyState(): DiscussionState {
   return {
     id: null,
     timestamp: null,
+    title: "",
     question: "",
     instructions: "",
     models: [],
     rounds: {},
+    userMessages: {},
     consensus: "",
     endpoint: "",
     consensusModel: "",
@@ -39,6 +41,7 @@ function emptyState(): DiscussionState {
     status: "new",
     totalRounds: 0,
     use_rag: false,
+    ragMode: "model-self",
     deep_research: false,
     retrieved_context: null,
     summaryFormat: "default",
@@ -71,18 +74,21 @@ class DiscussionStore {
   buildTranscript(): string {
     const d = this.#data;
     const parts: string[] = [];
-    parts.push(`# Question\n\n${d.question}`);
+    const heading = d.title || d.question;
+    parts.push(`# ${heading}`);
     if (d.instructions) parts.push(`## Instructions\n\n${d.instructions}`);
     const roundNums = Object.keys(d.rounds)
       .map(Number)
       .sort((a, b) => a - b);
     for (const rn of roundNums) {
+      const userMsg = d.userMessages[rn];
+      if (userMsg) parts.push(`## You (turn ${rn})\n\n${userMsg}`);
       const models = d.rounds[rn];
       const body = Object.entries(models)
         .filter(([, r]) => r.text)
         .map(([m, r]) => `### ${splitModelKey(m).model}\n\n${r.text}`)
         .join("\n\n");
-      if (body) parts.push(`## Round ${rn}\n\n${body}`);
+      if (body) parts.push(`## Model responses (turn ${rn})\n\n${body}`);
     }
     if (d.consensus) parts.push(`## Consensus\n\n${d.consensus}`);
     return parts.join("\n\n");
@@ -170,7 +176,7 @@ class DiscussionStore {
     totalRounds: number;
     timeout: number;
     maxTokens: number;
-    useRag: boolean;
+    ragMode: DiscussionState["ragMode"];
     deepResearch: boolean;
     responseFormat: string;
     summaryFormat: DiscussionState["summaryFormat"];
@@ -178,11 +184,15 @@ class DiscussionStore {
   }): Promise<void> {
     this.#abort = new AbortController();
     this.#running = true;
-    this.#phase = opts.useRag ? "searching" : "queued";
+    const useRag = opts.ragMode === "model-self";
+    this.#phase = useRag ? "searching" : "queued";
 
+    const title = opts.question.slice(0, 60);
     this.#data = {
       ...emptyState(),
       question: opts.question,
+      title,
+      userMessages: { 1: opts.question },
       instructions: opts.instructions,
       models: [...opts.models],
       endpoint: opts.endpoint,
@@ -190,7 +200,8 @@ class DiscussionStore {
       totalRounds: opts.totalRounds,
       timeout: opts.timeout,
       maxTokens: opts.maxTokens,
-      use_rag: opts.useRag,
+      use_rag: useRag,
+      ragMode: opts.ragMode,
       deep_research: opts.deepResearch,
       responseFormat: opts.responseFormat,
       summaryFormat: opts.summaryFormat,
@@ -203,8 +214,8 @@ class DiscussionStore {
     try {
       const created = await api.createDiscussion({
         question: opts.question,
-        title: opts.question.slice(0, 60),
-        use_rag: opts.useRag,
+        title,
+        use_rag: useRag,
         deep_research: opts.deepResearch,
       });
       this.#data.id = created.id;
@@ -217,6 +228,21 @@ class DiscussionStore {
 
     this.persist();
     await this.runRound(1);
+  }
+
+  /** Append a follow-up user message and run the next chat turn. */
+  async nextTurn(followUp: string): Promise<void> {
+    if (!followUp.trim()) return;
+    if (!this.#running) {
+      this.#abort = new AbortController();
+      this.#running = true;
+    }
+    const roundNum = Object.keys(this.#data.rounds).length + 1;
+    this.#data.userMessages = { ...this.#data.userMessages, [roundNum]: followUp };
+    if (!this.#data.title) this.#data.title = followUp.slice(0, 60);
+    this.#data = { ...this.#data };
+    this.persist();
+    await this.runRound(roundNum);
   }
 
   async runRound(roundNum: number): Promise<void> {
@@ -249,12 +275,10 @@ class DiscussionStore {
 
     this.persist();
 
-    if (this.#running && roundNum < this.#data.totalRounds) {
-      await this.runRound(roundNum + 1);
-    } else if (this.#running) {
-      await this.generateConsensus();
-      this.finish();
-    }
+    // Multi-turn: only the final round synthesizes a consensus, then stop.
+    // The UI drives follow-ups via nextTurn().
+    await this.generateConsensus();
+    this.finish();
   }
 
   async queryModel(compositeKey: string, roundNum: number): Promise<void> {
@@ -451,20 +475,38 @@ class DiscussionStore {
 
   #buildPrompt(compositeKey: string, roundNum: number): string {
     const today = new Date().toISOString().slice(0, 10);
-    let prompt = `Today's date: ${today}\n\nQuestion: ${this.#data.question}\n`;
+    let prompt = `Today's date: ${today}\n\n`;
+
     if (this.#data.instructions) {
-      prompt += `\nInstructions: ${this.#data.instructions}\n`;
+      prompt += `Global instructions: ${this.#data.instructions}\n\n`;
     }
-    if (roundNum > 1) {
-      const prev = this.#data.rounds[roundNum - 1] ?? {};
-      const others = Object.entries(prev)
-        .filter(([m, r]) => m !== compositeKey && r.status === "complete")
-        .map(([m, r]) => `### ${m}\n${r.text}`)
+
+    // Build the full chat transcript up to (but not including) this turn.
+    const turnCount = roundNum;
+    prompt += `The following is the conversation so far:\n\n`;
+    for (let i = 1; i < turnCount; i++) {
+      const userMsg = this.#data.userMessages[i];
+      if (userMsg) {
+        prompt += `User (turn ${i}): ${userMsg}\n\n`;
+      }
+      const prevRound = this.#data.rounds[i] ?? {};
+      const parts = Object.entries(prevRound)
+        .filter(([m, r]) => m !== compositeKey && r.status === "complete" && r.text)
+        .map(([m, r]) => `### ${splitModelKey(m).model}\n${r.text}`)
         .join("\n\n");
-      if (others) {
-        prompt += `\nOther models said in the previous round:\n\n${others}\n\nRefine or challenge these views with your own analysis.\n`;
+      if (parts) {
+        prompt += `Model responses (turn ${i}):\n${parts}\n\n`;
       }
     }
+
+    // Current user turn
+    const currentMsg = this.#data.userMessages[roundNum] ?? this.#data.question;
+    prompt += `User (turn ${roundNum}): ${currentMsg}\n\n`;
+
+    if (turnCount > 1) {
+      prompt += `Building on the previous responses above, continue the discussion with your own analysis. Refine or challenge earlier views where useful.\n`;
+    }
+
     if (this.#data.responseFormat && this.#data.responseFormat !== "default") {
       prompt += `\nRespond in ${this.#data.responseFormat} format.\n`;
     }
