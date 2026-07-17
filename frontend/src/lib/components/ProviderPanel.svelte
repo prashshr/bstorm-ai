@@ -4,6 +4,7 @@
   import Icon from "./Icon.svelte";
   import ProviderForm from "./ProviderForm.svelte";
   import ModelSelector from "./ModelSelector.svelte";
+  import { providerDisplayName } from "../utils/helpers";
 
   interface Props {
     open: boolean;
@@ -99,7 +100,7 @@
                   name={editing === p.provider ? "chevron-down" : "chevron-right"}
                   size="sm"
                 />
-                <span class="pname">{p.provider}</span>
+                <span class="pname">{providerDisplayName(p.provider)}</span>
                 {#if providers.isVerified(p.provider)}
                   <span class="verified" title="Models discovered"></span>
                 {/if}

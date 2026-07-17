@@ -125,3 +125,17 @@ export const PROVIDER_PRESETS = [
   { key: "requesty", name: "Requesty AI", endpoint: "https://router.requesty.ai/v1" },
   { key: "custom", name: "Custom Compatible", endpoint: "" },
 ];
+
+const PRESET_NAME_BY_KEY: Record<string, string> = Object.fromEntries(
+  PROVIDER_PRESETS.map((p) => [p.key, p.name]),
+);
+
+/** Human-readable provider name for a credential key, falling back to a
+ *  prettified version of the key when no preset matches. */
+export function providerDisplayName(key: string): string {
+  if (PRESET_NAME_BY_KEY[key]) return PRESET_NAME_BY_KEY[key];
+  return key
+    .split(/[-_]/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
