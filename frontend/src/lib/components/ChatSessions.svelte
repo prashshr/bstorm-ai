@@ -9,7 +9,7 @@
   import Icon from "./Icon.svelte";
 
   let search = $state("");
-  let collapsed = $state(false);
+  let { collapsed = $bindable(false), paneWidth = $bindable(260), mobileOpen = $bindable(false) } = $props();
   let expandedFolders = $state<Record<number, boolean>>({});
   let newFolderName = $state("");
   let addingFolder = $state(false);
@@ -53,6 +53,7 @@
   const dateOrder = $derived(Object.keys(dateGroups));
 
   function selectDiscussion(d: DiscussionResponse) {
+    mobileOpen = false;
     try {
       const state = JSON.parse(d.state_json || "{}") as typeof discussion.data;
       discussion.load(state);
@@ -63,6 +64,29 @@
 
   function newChat() {
     discussion.reset();
+  }
+
+  let dragging = $state(false);
+  function startResize(e: PointerEvent) {
+    if (collapsed) return;
+    dragging = true;
+    document.body.classList.add("resizing");
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  }
+  function onResize(e: PointerEvent) {
+    if (!dragging) return;
+    const next = Math.min(Math.max(e.clientX, 200), 520);
+    paneWidth = next;
+    localStorage.setItem("aiEnsembleSidebarWidth", String(next));
+  }
+  function endResize(e: PointerEvent) {
+    dragging = false;
+    document.body.classList.remove("resizing");
+    try {
+      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
   }
 
   function toggleFolder(id: number) {
@@ -98,7 +122,7 @@
   const modelCount = $derived(models.all.length);
 </script>
 
-<aside class="sessions" class:collapsed>
+<aside class="sessions" class:collapsed class:mobile-open={mobileOpen} style={collapsed ? "" : `width:${paneWidth}px`}>
   {#if collapsed}
     <button class="btn btn-ghost expand-btn" onclick={() => (collapsed = false)} aria-label="Expand chat list">
       <Icon name="chevron-right" />
@@ -191,7 +215,23 @@
       </div>
     </div>
   {/if}
+  {#if !collapsed}
+    <div
+      class="resizer"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize chat list"
+      class:dragging
+      onpointerdown={startResize}
+      onpointermove={onResize}
+      onpointerup={endResize}
+    ></div>
+  {/if}
 </aside>
+
+{#if mobileOpen}
+  <div class="s-backdrop" onclick={() => (mobileOpen = false)} aria-hidden="true"></div>
+{/if}
 
 <style>
   .sessions {
@@ -207,6 +247,28 @@
   .sessions.collapsed {
     width: 56px;
     align-items: center;
+  }
+  .resizer {
+    position: absolute;
+    top: 0;
+    right: -2px;
+    width: 3px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 5;
+    background: transparent;
+  }
+  .resizer:hover,
+  .resizer.dragging {
+    background: var(--accent);
+    opacity: 0.6;
+  }
+  .sessions {
+    position: relative;
+  }
+  :global(body.resizing) {
+    cursor: col-resize;
+    user-select: none;
   }
   .expand-btn {
     margin-top: 10px;
@@ -387,5 +449,48 @@
   .stat {
     font-size: 11px;
     color: var(--text-tertiary);
+  }
+  .s-backdrop {
+    display: none;
+  }
+
+  /* ---- Mobile: sidebar becomes a slide-in overlay ---- */
+  @media (max-width: 768px) {
+    .sessions {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 100%;
+      height: 100dvh;
+      width: 280px;
+      max-width: 85vw;
+      z-index: 60;
+      transform: translateX(-100%);
+      transition: transform var(--transition);
+      box-shadow: var(--shadow-md);
+    }
+    .sessions.mobile-open {
+      transform: translateX(0);
+    }
+    .resizer {
+      display: none;
+    }
+    .s-backdrop {
+      display: block;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 55;
+    }
+    .folder-actions,
+    .s-del {
+      opacity: 1;
+    }
+  }
+  @media (hover: none) {
+    .folder-actions,
+    .s-del {
+      opacity: 1;
+    }
   }
 </style>

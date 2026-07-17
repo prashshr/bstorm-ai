@@ -2,12 +2,15 @@
   import ChatInput from "./ChatInput.svelte";
   import { models } from "../stores/models.svelte";
   import Icon from "./Icon.svelte";
+
+  interface Props {
+    onEditModels?: () => void;
+  }
+  let { onEditModels }: Props = $props();
 </script>
 
 <div class="home">
   <div class="hero">
-    <span class="logo" aria-hidden="true"></span>
-    <h1>AI-Ensemble</h1>
     <p class="tagline">Ask multiple AI models at once and get a consensus synthesis.</p>
   </div>
 
@@ -18,7 +21,7 @@
         Select one or more models from the providers panel to begin.
       </div>
     {/if}
-    <ChatInput autofocus placeholder="What would you like to ask multiple AI models today?" />
+    <ChatInput autofocus placeholder="What would you like to ask multiple AI models today?" {onEditModels} />
   </div>
 </div>
 
@@ -28,6 +31,8 @@
     display: flex;
     flex-direction: column;
     min-height: 0;
+    min-width: 0;
+    width: 100%;
   }
   .hero {
     flex: 1;
@@ -39,31 +44,18 @@
     padding: 24px;
     gap: 6px;
   }
-  .logo {
-    width: 56px;
-    height: 56px;
-    border-radius: 14px;
-    border: 5px solid var(--accent);
-    position: relative;
-    margin-bottom: 8px;
-  }
-  .logo::after {
-    content: "";
-    position: absolute;
-    inset: 8px;
-    background: var(--accent);
-    border-radius: 50%;
-  }
-  h1 {
-    margin: 0;
-    font-size: 34px;
-    font-weight: 700;
-    letter-spacing: -0.01em;
+  .title-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
   }
   .tagline {
     margin: 0;
     color: var(--text-secondary);
     font-size: 15px;
+    text-align: center;
     max-width: 420px;
   }
   .composer {
@@ -86,5 +78,14 @@
     border: 1px dashed var(--border);
     border-radius: var(--radius);
     margin-bottom: 10px;
+  }
+  @media (max-width: 768px) {
+    .hero {
+      padding: 16px;
+    }
+    .composer {
+      padding-left: 12px;
+      padding-right: 12px;
+    }
   }
 </style>

@@ -27,6 +27,7 @@ function seed(enabled: boolean) {
       },
     },
     consensus: "",
+    consensuses: {},
     endpoint: "",
     consensusModel: "openai::gpt-4o",
     timeout: 120,

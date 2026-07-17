@@ -26,7 +26,10 @@ class ProviderCredential(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     provider: Mapped[str] = mapped_column(String(100), index=True)
     endpoint: Mapped[str] = mapped_column(String(500), default="")
-    api_key_encrypted: Mapped[str] = mapped_column(Text)
+    api_key_encrypted: Mapped[str] = mapped_column(Text, default="")
+    project_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    region: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    adc_json_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 

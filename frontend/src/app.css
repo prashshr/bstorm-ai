@@ -16,7 +16,7 @@
   --accent-hover: #ff7e33;
   --border: #1f1f23;
   --border-hover: #2e2e33;
-  --input-bg: #050507;
+  --input-bg: #16161a;
   --input-border: #1f1f23;
   --error: #ef4444;
   --error-bg: rgba(239, 68, 68, 0.12);
@@ -77,8 +77,10 @@ body {
 
 #app {
   height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
+  overflow-x: hidden;
 }
 
 /* Accessible focus rings everywhere */

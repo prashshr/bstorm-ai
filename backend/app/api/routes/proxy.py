@@ -16,6 +16,22 @@ from app.services.providers.endpoints import normalize_endpoint
 from app.services.providers.factory import get_provider_client
 
 
+def _apply_vertex_config(client, credential_row, uek: str | None = None) -> None:
+    """Attach stored Vertex project/region/ADC to a client instance when supported."""
+    project_id = getattr(credential_row, "project_id", None)
+    region = getattr(credential_row, "region", None)
+    if project_id is not None:
+        client.project_id = project_id
+    if region is not None:
+        client.region = region
+    adc_encrypted = getattr(credential_row, "adc_json_encrypted", None)
+    if adc_encrypted:
+        try:
+            client.adc_json = decrypt_secret(adc_encrypted, key=uek)
+        except Exception:  # noqa: BLE001
+            client.adc_json = None
+
+
 router = APIRouter()
 
 
@@ -85,8 +101,9 @@ async def _resolve_credential_and_prompt(
                 )
 
     endpoint = normalize_endpoint(payload.endpoint or cred.endpoint or "")
-    api_key = decrypt_secret(cred.api_key_encrypted, key=getattr(current_user, "uek", None))
-    return prompt, endpoint, api_key
+    uek = getattr(current_user, "uek", None)
+    api_key = decrypt_secret(cred.api_key_encrypted, key=uek)
+    return prompt, endpoint, api_key, cred
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -97,9 +114,10 @@ async def proxy_chat(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ChatResponse:
-    prompt, endpoint, api_key = await _resolve_credential_and_prompt(payload, db, current_user)
+    prompt, endpoint, api_key, cred = await _resolve_credential_and_prompt(payload, db, current_user)
 
     client = get_provider_client(payload.provider)
+    _apply_vertex_config(client, cred, uek=getattr(current_user, "uek", None))
 
     try:
         output = await client.chat(
@@ -155,9 +173,10 @@ async def proxy_chat_stream(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> StreamingResponse:
-    prompt, endpoint, api_key = await _resolve_credential_and_prompt(payload, db, current_user)
+    prompt, endpoint, api_key, cred = await _resolve_credential_and_prompt(payload, db, current_user)
 
     client = get_provider_client(payload.provider)
+    _apply_vertex_config(client, cred, uek=getattr(current_user, "uek", None))
 
     async def event_stream():
         full_text = ""

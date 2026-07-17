@@ -83,6 +83,13 @@ class HistoryStore {
     }
   }
 
+  /** Insert a freshly-created discussion at the top of the list so it shows
+   *  in the sessions pane immediately, without waiting for a full reload. */
+  add(discussion: DiscussionResponse): void {
+    if (this.#items.some((d) => d.id === discussion.id)) return;
+    this.#items = [discussion, ...this.#items];
+  }
+
   async remove(id: number): Promise<void> {
     try {
       await api.deleteDiscussion(id);

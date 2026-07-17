@@ -54,9 +54,17 @@ class ProvidersStore {
     provider: string,
     apiKey: string,
     endpoint: string,
+    extra?: { project_id?: string; region?: string; adc_json?: string },
   ): Promise<boolean> {
     try {
-      await api.upsertProvider({ provider, api_key: apiKey, endpoint });
+      await api.upsertProvider({
+        provider,
+        api_key: apiKey,
+        endpoint,
+        project_id: extra?.project_id ?? "",
+        region: extra?.region ?? "",
+        adc_json: extra?.adc_json ?? "",
+      });
       await this.load();
       this.#active = provider;
       debug.log(`Saved provider ${provider}`);

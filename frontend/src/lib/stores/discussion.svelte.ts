@@ -8,6 +8,7 @@ import type {
 } from "../api/types";
 import { debug } from "./debug.svelte";
 import { providers } from "./providers.svelte";
+import { history } from "./history.svelte";
 import { colorForModel, splitModelKey } from "../utils/helpers";
 
 const STATE_KEY = "aiEnsembleDiscussionState";
@@ -25,6 +26,7 @@ function emptyState(): DiscussionState {
     rounds: {},
     userMessages: {},
     consensus: "",
+    consensuses: {},
     endpoint: "",
     consensusModel: "",
     timeout: 120,
@@ -89,8 +91,10 @@ class DiscussionStore {
         .map(([m, r]) => `### ${splitModelKey(m).model}\n\n${r.text}`)
         .join("\n\n");
       if (body) parts.push(`## Model responses (turn ${rn})\n\n${body}`);
+      const cons = d.consensuses[rn];
+      if (cons) parts.push(`## Consensus (turn ${rn})\n\n${cons}`);
     }
-    if (d.consensus) parts.push(`## Consensus\n\n${d.consensus}`);
+    if (d.consensus) parts.push(`## Latest Consensus\n\n${d.consensus}`);
     return parts.join("\n\n");
   }
 
@@ -220,6 +224,7 @@ class DiscussionStore {
       });
       this.#data.id = created.id;
       this.#data.retrieved_context = created.retrieved_context;
+      history.add(created);
       debug.log(`Created discussion ${created.id}`);
     } catch (e) {
       this.#data.id = `disc_${Date.now()}`;
@@ -277,7 +282,7 @@ class DiscussionStore {
 
     // Multi-turn: only the final round synthesizes a consensus, then stop.
     // The UI drives follow-ups via nextTurn().
-    await this.generateConsensus();
+    await this.generateConsensus(roundNum);
     this.finish();
   }
 
@@ -370,7 +375,7 @@ class DiscussionStore {
     this.persist();
   }
 
-  async generateConsensus(): Promise<void> {
+  async generateConsensus(roundNum: number): Promise<void> {
     this.#phase = "synthesizing";
     const model = this.#data.consensusModel || this.#data.models[0];
     if (!model) return;
@@ -383,7 +388,11 @@ class DiscussionStore {
           .filter(([, r]) => r.status === "complete")
           .map(([m, r]) => `### ${m}\n${r.text}`)
           .join("\n\n");
-        return `## Round ${round}\n${parts}`;
+        const consensus = this.#data.consensuses[Number(round)];
+        const consensusBlock = consensus
+          ? `\n\n### Consensus (turn ${round})\n${consensus}`
+          : "";
+        return `## Round ${round}\n${parts}${consensusBlock}`;
       })
       .join("\n\n");
 
@@ -402,6 +411,12 @@ class DiscussionStore {
         max_tokens: this.#data.maxTokens,
         temperature: 0.5,
       });
+      // Persist the consensus for this specific round so each turn keeps its
+      // own synthesis and the conversation reads top-to-bottom in order.
+      this.#data.consensuses = {
+        ...this.#data.consensuses,
+        [roundNum]: res.output,
+      };
       this.#data.consensus = res.output;
       this.#data = { ...this.#data };
     } catch (e) {
@@ -432,7 +447,7 @@ class DiscussionStore {
       Object.values(round).some((r) => r.status === "complete" && r.text),
     );
     if (hasResponses) {
-      await this.generateConsensus();
+      await this.generateConsensus(this.#currentRound || 1);
     }
     this.#phase = "done";
     this.#data = { ...this.#data };
@@ -483,7 +498,7 @@ class DiscussionStore {
 
     // Build the full chat transcript up to (but not including) this turn.
     const turnCount = roundNum;
-    prompt += `The following is the conversation so far:\n\n`;
+    prompt += `The following is the full conversation so far (from the beginning). Use ALL of it as context — do not treat this as a fresh query:\n\n`;
     for (let i = 1; i < turnCount; i++) {
       const userMsg = this.#data.userMessages[i];
       if (userMsg) {
@@ -496,6 +511,10 @@ class DiscussionStore {
         .join("\n\n");
       if (parts) {
         prompt += `Model responses (turn ${i}):\n${parts}\n\n`;
+      }
+      const prevConsensus = this.#data.consensuses[i];
+      if (prevConsensus) {
+        prompt += `Consensus synthesis (turn ${i}):\n${prevConsensus}\n\n`;
       }
     }
 

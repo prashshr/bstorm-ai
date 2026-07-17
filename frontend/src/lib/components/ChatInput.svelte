@@ -1,33 +1,54 @@
 <script lang="ts">
   import { discussion } from "../stores/discussion.svelte";
   import { models } from "../stores/models.svelte";
+  import { splitModelKey } from "../utils/helpers";
   import type { AttachedFile } from "../api/types";
   import Icon from "./Icon.svelte";
 
   interface Props {
     autofocus?: boolean;
     placeholder?: string;
+    onEditModels?: () => void;
   }
-  let { autofocus = false, placeholder = "Ask your question…" }: Props = $props();
+  let {
+    autofocus = false,
+    placeholder = "Ask your question…",
+    onEditModels,
+  }: Props = $props();
 
-  let text = $state("");
-  let ragMode = $state<"model-only" | "model-self">("model-self");
-  let deepResearch = $state(false);
-  let attachments = $state<AttachedFile[]>([]);
-  let dragover = $state(false);
-  let sending = $state(false);
-  let textareaEl = $state<HTMLTextAreaElement | null>(null);
+   let text = $state("");
+   let ragMode = $state<"model-only" | "model-self">("model-self");
+   let deepResearch = $state(false);
+   let attachments = $state<AttachedFile[]>([]);
+   let dragover = $state(false);
+   let sending = $state(false);
+   let editorEl = $state<HTMLDivElement | null>(null);
+   let showAdvanced = $state(false);
+   let instructions = $state("");
+   let responseFormat = $state("default");
+   let summaryFormat = $state<"elaborate" | "compact" | "default">("default");
+   let summaryInstructions = $state("");
+   let timeout = $state(120);
+   let maxTokens = $state(6000);
+   let consensusModel = $state("");
+   let totalRounds = $state(1);
 
-  $effect(() => {
-    if (autofocus && textareaEl) textareaEl.focus();
-  });
+   $effect(() => {
+     if (autofocus && editorEl) editorEl.focus();
+   });
 
-  const running = $derived(discussion.running);
+   const running = $derived(discussion.running);
 
-  function autoGrow() {
-    if (!textareaEl) return;
-    textareaEl.style.height = "auto";
-    textareaEl.style.height = Math.min(textareaEl.scrollHeight, 200) + "px";
+   function autoGrow() {
+    if (!editorEl) return;
+    editorEl.style.height = "auto";
+    editorEl.style.height = Math.min(editorEl.scrollHeight, 250) + "px";
+    text = readText();
+  }
+
+  function readText(): string {
+    if (!editorEl) return "";
+    return (editorEl.innerText ?? "").replace(/ /g, " ").trim();
   }
 
   async function handleFiles(fileList: FileList | null) {
@@ -46,11 +67,27 @@
     attachments = attachments.filter((f) => f.name !== name);
   }
 
+  function onDragOver(e: DragEvent) {
+    if (!e.dataTransfer?.types.includes("Files")) return;
+    e.preventDefault();
+    dragover = true;
+  }
+  function onDragLeave(e: DragEvent) {
+    if ((e.relatedTarget as Node | null) && (e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) return;
+    dragover = false;
+  }
+  function onDrop(e: DragEvent) {
+    e.preventDefault();
+    dragover = false;
+    if (e.dataTransfer?.files?.length) handleFiles(e.dataTransfer.files);
+  }
+
   async function send() {
-    if (!text.trim() || sending) return;
+    const question = readText();
+    if (!question || sending) return;
     if (models.selected.length === 0) return;
-    const question = text;
     const attach = attachments;
+    if (editorEl) editorEl.innerHTML = "";
     text = "";
     attachments = [];
     sending = true;
@@ -59,17 +96,17 @@
         await discussion.start({
           question,
           models: models.selected,
-          instructions: "",
+          instructions,
           endpoint: "",
-          consensusModel: models.selected[0],
-          totalRounds: 1,
-          timeout: 120,
-          maxTokens: 6000,
+          consensusModel: consensusModel || models.selected[0],
+          totalRounds,
+          timeout,
+          maxTokens,
           ragMode,
           deepResearch: deepResearch,
-          responseFormat: "default",
-          summaryFormat: "default",
-          summaryInstructions: "",
+          responseFormat,
+          summaryFormat,
+          summaryInstructions,
         });
       } else {
         let full = question;
@@ -85,16 +122,64 @@
     }
   }
 
-  function onKeydown(e: KeyboardEvent) {
+   function onKeydown(e: KeyboardEvent) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       send();
     }
   }
+
+  function onPaste(e: ClipboardEvent) {
+    e.preventDefault();
+    const html = e.clipboardData?.getData("text/html");
+    const textPlain = e.clipboardData?.getData("text/plain") ?? "";
+    if (html && editorEl) {
+      const clean = stripDangerous(html);
+      document.execCommand("insertHTML", false, clean);
+    } else if (editorEl) {
+      document.execCommand("insertText", false, textPlain);
+    }
+    text = readText();
+    autoGrow();
+  }
+
+  function stripDangerous(html: string): string {
+    const tpl = document.createElement("template");
+    tpl.innerHTML = html;
+    tpl.content.querySelectorAll("script,style,iframe,object,embed,link,meta").forEach((n) => n.remove());
+    tpl.content.querySelectorAll("*").forEach((n) => {
+      Array.from(n.attributes).forEach((a) => {
+        if (/^(on|href|src)/i.test(a.name)) n.removeAttribute(a.name);
+      });
+    });
+    return tpl.innerHTML;
+  }
 </script>
 
 <div class="chat-input-bar">
   <div class="attach-row">
+    {#if models.selected.length > 0}
+      <div class="selected-models">
+        <span class="sm-label">Models</span>
+        {#each models.selected as key (key)}
+          {@const { provider, model } = splitModelKey(key)}
+          <span class="chip model-chip" title={key}>
+            <Icon name="bot" size="sm" />
+            {model}
+            <button
+              class="rm"
+              onclick={() => models.toggle(key)}
+              aria-label="Remove {model}"
+            >×</button>
+          </span>
+        {/each}
+        <button
+          class="btn btn-ghost btn-sm edit-models"
+          onclick={() => onEditModels?.()}
+          title="Edit model selection"
+        >edit</button>
+      </div>
+    {/if}
     {#if attachments.length > 0}
       <div class="files">
         {#each attachments as f (f.name)}
@@ -108,16 +193,105 @@
     {/if}
   </div>
 
-  <div class="input-wrap">
-    <textarea
-      bind:this={textareaEl}
-      bind:value={text}
+  <div
+    class="input-wrap"
+    class:dragover
+    ondragover={onDragOver}
+    ondragleave={onDragLeave}
+    ondrop={onDrop}
+  >
+    <div
+      class="editor"
+      bind:this={editorEl}
+      contenteditable="true"
+      role="textbox"
+      aria-multiline="true"
+      aria-label="Message"
       {placeholder}
-      rows="2"
+      data-testid="chat-input"
       oninput={autoGrow}
       onkeydown={onKeydown}
-      data-testid="chat-input"
-    ></textarea>
+      onpaste={onPaste}
+    ></div>
+
+    {#if discussion.data.id == null}
+      <div class="advanced">
+        <button
+          type="button"
+          class="adv-toggle"
+          onclick={() => (showAdvanced = !showAdvanced)}
+          aria-expanded={showAdvanced}
+        >
+          <Icon name={showAdvanced ? "chevron-down" : "chevron-right"} size="sm" />
+          Advanced settings
+        </button>
+
+        {#if showAdvanced}
+          <div class="adv-panel">
+            <div class="adv-grid">
+              <div class="adv-field">
+                <label for="pf-consensus">Consensus Model</label>
+                <select id="pf-consensus" bind:value={consensusModel}>
+                  <option value="">Auto (first selected model)</option>
+                  {#each models.selected as m (m)}
+                    <option value={m}>{m.split("::")[1] ?? m}</option>
+                  {/each}
+                </select>
+              </div>
+
+              <div class="adv-field">
+                <label for="pf-response">Response Format</label>
+                <select id="pf-response" bind:value={responseFormat}>
+                  <option value="default">Default — let the model decide</option>
+                  <option value="compact">Compact — precise, bullet points</option>
+                  <option value="elaborate">Elaborate — detailed with reasoning</option>
+                </select>
+              </div>
+
+              <div class="adv-field">
+                <label for="pf-summary">Discussion / Summary Format</label>
+                <select id="pf-summary" bind:value={summaryFormat}>
+                  <option value="default">Default — let consensus model decide</option>
+                  <option value="compact">Compact — quick verdict</option>
+                  <option value="elaborate">Elaborate — full synthesis</option>
+                </select>
+              </div>
+
+              <div class="adv-field">
+                <label for="pf-rounds">Number of Rounds</label>
+                <select id="pf-rounds" bind:value={totalRounds}>
+                  <option value={1}>1 Round</option>
+                  <option value={2}>2 Rounds</option>
+                  <option value={3}>3 Rounds</option>
+                </select>
+              </div>
+
+              <div class="adv-field">
+                <label for="pf-timeout">Response Timeout (sec)</label>
+                <input id="pf-timeout" type="number" min="10" max="300" bind:value={timeout} />
+              </div>
+
+              <div class="adv-field">
+                <label for="pf-maxtok">Max Tokens / Response</label>
+                <input id="pf-maxtok" type="number" min="500" max="16000" step="500" bind:value={maxTokens} />
+              </div>
+            </div>
+
+            <div class="adv-field">
+              <label for="pf-instructions">Custom Instructions (optional — overrides response format)</label>
+              <textarea id="pf-instructions" rows="2" bind:value={instructions}
+                placeholder="E.g., Format as bullet points…"></textarea>
+            </div>
+
+            <div class="adv-field">
+              <label for="pf-summinst">Custom Summary Instructions (optional)</label>
+              <textarea id="pf-summinst" rows="2" bind:value={summaryInstructions}
+                placeholder="E.g., Format the final synthesis as a comparison table…"></textarea>
+            </div>
+          </div>
+        {/if}
+      </div>
+    {/if}
 
     <div class="controls">
       <label class="switch" title="Attach files">
@@ -138,16 +312,19 @@
         />
       </label>
 
-      <div class="rag-select" title="Retrieval mode">
-        <select bind:value={ragMode} data-testid="rag-mode-select" aria-label="Retrieval mode">
+      <div class="rag-select" title="RAG retrieval mode">
+        <span class="rag-label">RAG</span>
+        <select bind:value={ragMode} data-testid="rag-mode-select" aria-label="RAG mode">
           <option value="model-self">Model/Self (Default)</option>
           <option value="model-only">Model-Only</option>
         </select>
       </div>
 
-      <label class="switch" title="Deep Research">
+      <label class="switch" class:on={deepResearch} title="Deep Research (web search between rounds)">
         <input type="checkbox" bind:checked={deepResearch} />
+        <span class="track" aria-hidden="true"><span class="thumb"></span></span>
         <Icon name="search" size="sm" />
+        <span class="dr-label">Deep Research</span>
       </label>
 
       <button
@@ -168,13 +345,92 @@
     flex-shrink: 0;
     border-top: 1px solid var(--border);
     background: var(--bg-secondary);
-    padding: 12px 16px 14px;
+    padding: 10px 16px;
+  }
+  .advanced {
+    margin-bottom: 8px;
+  }
+  .adv-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: none;
+    color: var(--text-tertiary);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 2px 0;
+  }
+  .adv-toggle:hover {
+    color: var(--text-secondary);
+  }
+  .adv-panel {
+    margin-top: 8px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-tertiary);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .adv-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 10px;
+  }
+  .adv-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .adv-field label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-tertiary);
+  }
+  .adv-field select,
+  .adv-field input,
+  .adv-field textarea {
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .adv-field textarea {
+    resize: vertical;
+    font-size: 12px;
   }
   .files {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
     margin-bottom: 8px;
+  }
+  .selected-models {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+  .sm-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-tertiary);
+    margin-right: 2px;
+  }
+  .chip.model-chip {
+    padding: 3px 6px 3px 8px;
+  }
+  .chip.model-chip :global(svg) {
+    color: var(--accent);
+  }
+  .edit-models {
+    font-size: 11px;
+    padding: 3px 8px;
+    color: var(--text-tertiary);
   }
   .chip {
     display: inline-flex;
@@ -199,67 +455,200 @@
     border: 1px solid var(--input-border);
     border-radius: var(--radius-lg);
     background: var(--input-bg);
-    padding: 10px 12px;
+    padding: 14px 16px;
+    min-height: 132px;
+    display: flex;
+    flex-direction: column;
     transition: border-color var(--transition);
   }
   .input-wrap:focus-within {
     border-color: var(--accent);
   }
-  textarea {
+  .input-wrap.dragover {
+    border-color: var(--accent);
+    border-style: dashed;
+    background: var(--accent-bg, rgba(255, 92, 0, 0.06));
+  }
+  .editor {
+    flex: 1;
     width: 100%;
     border: none;
     background: none;
     padding: 0;
-    resize: none;
-    min-height: 24px;
-    line-height: 1.5;
-    color: var(--text-primary);
-  }
-  textarea:focus {
-    border: none;
     outline: none;
+    resize: none;
+    min-height: 86px;
+    max-height: 260px;
+    overflow-y: auto;
+    line-height: 1.6;
+    color: var(--text-primary);
+    font-size: 14px;
+  }
+  .editor:empty::before {
+    content: attr(placeholder);
+    color: var(--text-tertiary);
+    pointer-events: none;
+  }
+  .editor:focus {
+    outline: none;
+  }
+  .editor :global(b),
+  .editor :global(strong) {
+    font-weight: 700;
+  }
+  .editor :global(i),
+  .editor :global(em) {
+    font-style: italic;
+  }
+  .editor :global(ul),
+  .editor :global(ol) {
+    margin: 4px 0;
+    padding-left: 22px;
+  }
+  .editor :global(a) {
+    color: var(--accent);
+    text-decoration: underline;
   }
   .controls {
     display: flex;
-    align-items: center;
+    align-items: stretch;
     gap: 8px;
-    margin-top: 8px;
+    margin-top: 12px;
   }
   .switch {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    font-size: 13px;
-    color: var(--text-secondary);
-    cursor: pointer;
-  }
-  .switch input {
-    accent-color: var(--accent);
-    width: auto;
-    padding: 0;
-  }
-  .rag-select {
-    display: inline-flex;
-    align-items: center;
-  }
-  .rag-select select {
+    gap: 7px;
+    height: 32px;
+    padding: 0 10px;
     font-size: 12px;
-    padding: 6px 8px;
+    font-weight: 500;
     color: var(--text-secondary);
     background: var(--bg-tertiary);
     border: 1px solid var(--border);
     border-radius: var(--radius);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: border-color var(--transition), color var(--transition);
+  }
+  .switch:hover {
+    border-color: var(--accent);
+  }
+  .switch.on {
+    color: var(--text-primary);
+    border-color: var(--accent);
+  }
+  .switch input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    margin: 0;
+    pointer-events: none;
+  }
+  .track {
+    position: relative;
+    width: 30px;
+    height: 16px;
+    border-radius: 999px;
+    background: var(--border-hover);
+    transition: background var(--transition);
+    flex-shrink: 0;
+  }
+  .thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--text-secondary);
+    transition: transform var(--transition), background var(--transition);
+  }
+  .switch.on .track {
+    background: var(--accent);
+  }
+  .switch.on .thumb {
+    transform: translateX(14px);
+    background: #fff;
+  }
+  .rag-select {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 10px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+  .rag-select:hover {
+    border-color: var(--accent);
+  }
+  .rag-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+  }
+  .rag-select select {
+    font-size: 12px;
+    font-weight: 500;
+    height: 100%;
+    line-height: 1;
+    padding: 4px 4px;
+    color: var(--text-secondary);
+    background: none;
+    border: none;
+    outline: none;
+    cursor: pointer;
   }
   .rag-select select:focus {
-    border-color: var(--accent);
+    border: none;
+    outline: none;
+  }
+  .dr-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
   }
   .send {
     margin-left: auto;
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    height: 32px;
+    padding: 0 14px;
   }
   .icon-btn {
     padding: 6px;
+    height: 32px;
+  }
+  @media (max-width: 768px) {
+    .controls {
+      flex-wrap: wrap;
+    }
+    .send {
+      margin-left: auto;
+    }
+    .input-wrap {
+      min-height: 96px;
+      padding: 12px 14px;
+    }
+    .editor {
+      min-height: 60px;
+    }
+  }
+  @media (max-width: 420px) {
+    .controls {
+      gap: 6px;
+    }
+    .rag-select,
+    .switch {
+      flex: 1 1 auto;
+    }
+    .send {
+      flex: 1 1 100%;
+      justify-content: center;
+    }
   }
 </style>

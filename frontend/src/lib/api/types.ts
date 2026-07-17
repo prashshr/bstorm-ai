@@ -9,12 +9,18 @@ export interface ProviderCredentialResponse {
   provider: string;
   endpoint: string;
   has_key: boolean;
+  project_id?: string;
+  region?: string;
+  has_adc?: boolean;
 }
 
 export interface UpsertProviderCredentialRequest {
   provider: string;
   api_key: string;
   endpoint?: string;
+  project_id?: string;
+  region?: string;
+  adc_json?: string;
 }
 
 export interface DiscussionResponse {
@@ -120,6 +126,7 @@ export interface DiscussionState {
   rounds: Record<number, Record<string, ModelResult>>;
   userMessages: Record<number, string>;
   consensus: string;
+  consensuses: Record<number, string>;
   endpoint: string;
   consensusModel: string;
   timeout: number;

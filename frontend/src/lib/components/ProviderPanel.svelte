@@ -157,6 +157,12 @@
   .panel.open {
     transform: translateX(0);
   }
+  @media (max-width: 768px) {
+    .panel {
+      width: 100vw;
+      max-width: 100vw;
+    }
+  }
   .p-head {
     display: flex;
     align-items: center;

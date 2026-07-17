@@ -48,8 +48,8 @@ class AuthStore {
       getToken: () => this.#state.token,
       onUnauthorized: () => this.logout(),
     });
-    const token = sessionStorage.getItem(TOKEN_KEY);
-    const user = sessionStorage.getItem(USER_KEY);
+    const token = localStorage.getItem(TOKEN_KEY);
+    const user = localStorage.getItem(USER_KEY);
     if (token) {
       this.#state.token = token;
       this.#state.user = user;
@@ -89,15 +89,15 @@ class AuthStore {
   #setAuth(token: string, email: string): void {
     this.#state.token = token;
     this.#state.user = email || decodeSub(token) || "user";
-    sessionStorage.setItem(TOKEN_KEY, token);
-    sessionStorage.setItem(USER_KEY, this.#state.user);
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(USER_KEY, this.#state.user);
   }
 
   logout(): void {
     this.#state.token = null;
     this.#state.user = null;
-    sessionStorage.removeItem(TOKEN_KEY);
-    sessionStorage.removeItem(USER_KEY);
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
   }
 }
 

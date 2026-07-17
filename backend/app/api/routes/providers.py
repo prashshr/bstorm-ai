@@ -12,6 +12,17 @@ from app.services.providers.endpoints import normalize_endpoint
 from app.services.providers.factory import get_provider_client
 
 
+def _apply_provider_config(client, credential_row) -> None:
+    """Attach stored provider-specific config (project id, region) to a client
+    instance when the client supports it. Vertex uses these for ADC auth."""
+    project_id = getattr(credential_row, "project_id", None)
+    region = getattr(credential_row, "region", None)
+    if project_id is not None:
+        client.project_id = project_id
+    if region is not None:
+        client.region = region
+
+
 router = APIRouter()
 
 
@@ -32,17 +43,24 @@ def upsert_provider_credential(
         .first()
     )
     encrypted = encrypt_secret(payload.api_key, key=getattr(current_user, "uek", None))
+    adc_encrypted = encrypt_secret(payload.adc_json, key=getattr(current_user, "uek", None)) if payload.adc_json else None
     # Normalize endpoint to canonical form so model discovery + chat work correctly
     normalized_endpoint = normalize_endpoint(payload.endpoint or "")
     if row:
         row.api_key_encrypted = encrypted
         row.endpoint = normalized_endpoint
+        row.project_id = payload.project_id or None
+        row.region = payload.region or None
+        row.adc_json_encrypted = adc_encrypted
     else:
         row = ProviderCredential(
             user_id=current_user.id,
             provider=payload.provider,
             endpoint=normalized_endpoint,
             api_key_encrypted=encrypted,
+            project_id=payload.project_id or None,
+            region=payload.region or None,
+            adc_json_encrypted=adc_encrypted,
         )
         db.add(row)
 
@@ -50,7 +68,10 @@ def upsert_provider_credential(
     return ProviderCredentialResponse(
         provider=payload.provider,
         endpoint=normalized_endpoint,
-        has_key=True,
+        has_key=bool(payload.api_key),
+        project_id=payload.project_id or "",
+        region=payload.region or "",
+        has_adc=bool(payload.adc_json),
     )
 
 
@@ -63,7 +84,14 @@ def list_provider_credentials(
 ) -> list[ProviderCredentialResponse]:
     rows = db.query(ProviderCredential).filter(ProviderCredential.user_id == current_user.id).all()
     return [
-        ProviderCredentialResponse(provider=r.provider, endpoint=r.endpoint or "", has_key=True)
+        ProviderCredentialResponse(
+            provider=r.provider,
+            endpoint=r.endpoint or "",
+            has_key=bool(r.api_key_encrypted),
+            project_id=r.project_id or "",
+            region=r.region or "",
+            has_adc=bool(r.adc_json_encrypted),
+        )
         for r in rows
     ]
 
@@ -94,6 +122,8 @@ async def list_provider_models(
     from app.core.crypto import decrypt_secret
 
     api_key = decrypt_secret(row.api_key_encrypted, key=getattr(current_user, "uek", None))
+    # Pass provider-specific config (e.g. Vertex project/region) to the client.
+    _apply_provider_config(client, row)
     try:
         return await client.list_models(endpoint=row.endpoint or "", api_key=api_key)
     except HTTPException:

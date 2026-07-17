@@ -10,6 +10,11 @@
     models.available.map((m) => `${providers.active}::${m}`),
   );
 
+  let allSelected = $derived(
+    models.available.length > 0 &&
+      compositeKeys.every((k) => models.isSelected(k)),
+  );
+
   async function retestAll() {
     await models.checkAllHealth(compositeKeys);
   }
@@ -58,8 +63,15 @@
     <div class="hint">No models found for this provider.</div>
   {:else}
     <div class="bulk">
-      <button class="btn btn-ghost btn-sm" onclick={selectAll}>Select all</button>
-      <button class="btn btn-ghost btn-sm" onclick={clearAll}>Clear</button>
+      <button
+        class="btn btn-ghost btn-sm"
+        onclick={allSelected ? clearAll : selectAll}
+      >
+        {allSelected ? "Unselect all" : "Select all"}
+      </button>
+      {#if !allSelected && models.selected.length > 0}
+        <button class="btn btn-ghost btn-sm" onclick={clearAll}>Clear</button>
+      {/if}
     </div>
     <div class="grid" role="group" aria-label="Model selection">
       {#each models.available as model (model)}

@@ -5,9 +5,22 @@
   import ContributionBars from "./ContributionBars.svelte";
   import Icon from "./Icon.svelte";
 
-  let consensus = $derived(discussion.data.consensus);
+  interface Props {
+    roundNum?: number;
+    text?: string;
+  }
+  let { roundNum = 0, text = "" }: Props = $props();
+
+  // Fall back to the global latest consensus when no specific round is given.
+  let consensus = $derived(
+    text || (roundNum ? discussion.data.consensuses[roundNum] : "") ||
+      discussion.data.consensus,
+  );
   let rendered = $derived(safeRenderMarkdown(consensus));
-  let generating = $derived(discussion.phase === "synthesizing");
+  let generating = $derived(
+    discussion.phase === "synthesizing" &&
+      (roundNum === 0 || roundNum === discussion.currentRound),
+  );
 
   let copied = $state(false);
   async function copy() {
@@ -19,43 +32,43 @@
 </script>
 
 <section class="consensus" aria-live="polite">
-  <div class="c-head">
-    <h2><Icon name="star" size="sm" /> Consensus Synthesis</h2>
-    <div class="c-head-right">
-      {#if discussion.data.consensusModel}
-        <span class="c-model"
-          >via {discussion.data.consensusModel.split("::")[1]}</span
-        >
-      {/if}
-      {#if consensus}
-        <button
-          class="btn btn-ghost btn-sm"
-          title="Copy consensus"
-          onclick={copy}
-        >
-          <Icon name={copied ? "check" : "copy"} size="sm" />
-        </button>
-      {/if}
+   <div class="c-head">
+      <h2><Icon name="star" size="sm" /> Consensus</h2>
+      <div class="c-head-right">
+        {#if discussion.data.consensusModel}
+          <span class="c-model"
+            >via {discussion.data.consensusModel.split("::")[1]}</span
+          >
+        {/if}
+        {#if consensus}
+          <button
+            class="btn btn-ghost btn-sm"
+            title="Copy consensus"
+            onclick={copy}
+          >
+            <Icon name={copied ? "check" : "copy"} size="sm" />
+          </button>
+        {/if}
+       </div>
     </div>
-  </div>
 
-  {#if generating}
-    <div class="generating">
-      <span class="spinner"></span> Synthesizing consensus…
-    </div>
-  {:else if consensus}
-    <div class="markdown c-body">{@html rendered}</div>
-    <ContributionBars />
-  {:else if discussion.data.status === "completed"}
-    <div class="empty">No consensus was generated.</div>
-  {/if}
+    {#if generating}
+     <div class="generating">
+       <span class="spinner"></span> Synthesizing consensus…
+     </div>
+   {:else if consensus}
+     <div class="markdown c-body">{@html rendered}</div>
+     <ContributionBars />
+   {:else if discussion.data.status === "completed"}
+     <div class="empty">No consensus was generated.</div>
+   {/if}
 </section>
 
 <style>
   .consensus {
     background: var(--bg-secondary);
     border: 1px solid var(--border);
-    border-left: 3px solid var(--accent);
+    border-left: 3px solid var(--accent-light);
     border-radius: var(--radius);
     padding: 14px 16px;
     margin-top: 16px;
@@ -71,7 +84,9 @@
     align-items: center;
     gap: 8px;
     margin: 0;
-    font-size: 15px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent-light);
   }
   .c-head-right {
     display: flex;
@@ -83,8 +98,8 @@
     color: var(--text-tertiary);
   }
   .c-body {
-    font-size: 14px;
-    line-height: 1.7;
+    font-size: 13px;
+    line-height: 1.6;
   }
   .generating {
     display: flex;

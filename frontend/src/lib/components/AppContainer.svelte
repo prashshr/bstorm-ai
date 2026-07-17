@@ -8,21 +8,35 @@
   import DebugPanel from "./DebugPanel.svelte";
 
   let panelOpen = $state(false);
+  let sidebarCollapsed = $state(false);
+  let sidebarMobileOpen = $state(false);
+  let sidebarWidth = $state<number>(
+    Number(localStorage.getItem("aiEnsembleSidebarWidth")) || 260,
+  );
 
   const hasActive = $derived(
     discussion.data.id != null || discussion.data.question !== "" || discussion.running,
   );
+
+  const headerOffset = $derived(sidebarCollapsed ? 56 : sidebarWidth);
 </script>
 
-<div class="shell">
-  <AppHeader onToggleSessions={() => {}} onTogglePanel={() => (panelOpen = !panelOpen)} />
+<div class="shell" style="--sidebar-w:{sidebarCollapsed ? 56 : sidebarWidth}px">
+  <AppHeader
+    onTogglePanel={() => (panelOpen = !panelOpen)}
+    onToggleSessions={() => (sidebarMobileOpen = !sidebarMobileOpen)}
+  />
   <div class="body">
-    <ChatSessions />
+    <ChatSessions
+      bind:collapsed={sidebarCollapsed}
+      bind:paneWidth={sidebarWidth}
+      bind:mobileOpen={sidebarMobileOpen}
+    />
     <main class="main-area">
       {#if hasActive}
-        <ChatMessages />
+        <ChatMessages onEditModels={() => (panelOpen = true)} />
       {:else}
-        <ChatHome />
+        <ChatHome onEditModels={() => (panelOpen = true)} />
       {/if}
     </main>
   </div>
@@ -52,6 +66,9 @@
   @media (max-width: 768px) {
     .body {
       flex-direction: column;
+    }
+    .shell {
+      --sidebar-w: 0px;
     }
   }
 </style>

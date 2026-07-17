@@ -12,6 +12,11 @@
   let atBottom = $state(true);
   let showJump = $derived(!atBottom && discussion.running);
 
+  interface Props {
+    onEditModels?: () => void;
+  }
+  let { onEditModels }: Props = $props();
+
   function onScroll() {
     if (!scrollEl) return;
     const gap = scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight;
@@ -56,11 +61,18 @@
     </div>
   </div>
 
-  <div class="scroll-area" bind:this={scrollEl} onscroll={onScroll}>
+   <div class="scroll-area" bind:this={scrollEl} onscroll={onScroll}>
     {#each roundNums as rn (rn)}
-      <div class="turn">
+      <div class="turn" class:followup={rn > 1}>
+        {#if rn > 1}
+          <div class="followup-divider">
+            <span class="followup-badge">
+              <Icon name="corner-down-right" size="sm" /> Follow-up (turn {rn}) — building on the previous consensus
+            </span>
+          </div>
+        {/if}
         <div class="user-msg" data-testid="user-message-{rn}">
-          <span class="user-label">You</span>
+          <span class="user-label">{rn === 1 ? "You" : "You · follow-up"}</span>
           <p>{discussion.data.userMessages[rn] ?? ""}</p>
         </div>
 
@@ -70,9 +82,7 @@
           {/each}
         </div>
 
-        {#if rn === roundNums[roundNums.length - 1]}
-          <ConsensusSection />
-        {/if}
+        <ConsensusSection roundNum={rn} />
       </div>
     {/each}
 
@@ -89,7 +99,7 @@
     </button>
   {/if}
 
-  <ChatInput />
+  <ChatInput {onEditModels} />
 </div>
 
 <style>
@@ -98,6 +108,9 @@
     display: flex;
     flex-direction: column;
     min-height: 0;
+    min-width: 0;
+    width: 100%;
+    position: relative;
   }
   .chat-header {
     flex-shrink: 0;
@@ -139,6 +152,25 @@
   }
   .turn {
     margin-bottom: 18px;
+  }
+  .followup-divider {
+    display: flex;
+    align-items: center;
+    margin: 4px 0 14px;
+  }
+  .followup-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--accent-light);
+    background: color-mix(in srgb, var(--accent-light) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-light) 35%, transparent);
+    border-radius: 999px;
+    padding: 4px 10px;
   }
   .user-msg {
     display: flex;
