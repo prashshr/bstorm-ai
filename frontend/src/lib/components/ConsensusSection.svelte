@@ -11,10 +11,12 @@
   }
   let { roundNum = 0, text = "" }: Props = $props();
 
-  // Fall back to the global latest consensus when no specific round is given.
+  // Show this round's own consensus. Never fall back to the global/latest
+  // consensus, otherwise a round without its own synthesis would display the
+  // previous turn's consensus (e.g. an old consensus appearing below a new
+  // follow-up question).
   let consensus = $derived(
-    text || (roundNum ? discussion.data.consensuses[roundNum] : "") ||
-      discussion.data.consensus,
+    text || (roundNum ? discussion.data.consensuses[roundNum] ?? "" : discussion.data.consensus),
   );
   let rendered = $derived(safeRenderMarkdown(consensus));
   let generating = $derived(
