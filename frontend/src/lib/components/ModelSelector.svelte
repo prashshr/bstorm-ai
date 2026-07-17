@@ -1,6 +1,7 @@
 <script lang="ts">
   import { models } from "../stores/models.svelte";
   import { providers } from "../stores/providers.svelte";
+  import { providerDisplayName } from "../utils/helpers";
   import Icon from "./Icon.svelte";
 
   let { collapsible = false } = $props<{ collapsible?: boolean }>();
@@ -56,7 +57,10 @@
   {#if collapsible && collapsed}
     <!-- collapsed: list hidden -->
   {:else if models.discovering}
-    <div class="hint">Discovering models…</div>
+    <div class="hint searching">
+      <span class="spinner"></span>
+      Searching models for {providers.active ? providerDisplayName(providers.active) : "provider"}…
+    </div>
   {:else if !providers.active}
     <div class="hint">Select a provider from the sidebar to load models.</div>
   {:else if models.available.length === 0}
@@ -139,6 +143,26 @@
     padding: 12px;
     background: var(--bg-tertiary);
     border-radius: var(--radius);
+  }
+  .hint.searching {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-secondary);
+  }
+  .spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
   .grid {
     display: grid;
