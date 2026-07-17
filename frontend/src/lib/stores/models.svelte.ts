@@ -4,6 +4,8 @@ import { debug } from "./debug.svelte";
 import { providers } from "./providers.svelte";
 import { splitModelKey } from "../utils/helpers";
 
+const STORAGE_KEY = "aiEnsembleModels";
+
 class ModelsStore {
   #available = $state<string[]>([]);
   #selected = $state<string[]>([]);
@@ -40,6 +42,61 @@ class ModelsStore {
     return this.#selected.includes(compositeKey);
   }
 
+  /** Whether a provider already has a cached model list (from a prior session),
+   *  so verifyAll can skip re-discovering it on reload. */
+  hasCache(provider: string): boolean {
+    return (
+      !!this.#allByProvider[provider] &&
+      this.#allByProvider[provider].length > 0
+    );
+  }
+
+  /** Point the active model list at a provider, using the cached discovery
+   *  when present so the MODELS section shows already-found models immediately
+   *  after a reload (no re-search needed). */
+  focusProvider(provider: string): void {
+    this.#available = this.#allByProvider[provider] ?? [];
+  }
+
+  /** Persist discovered models + current selection so a browser reload keeps
+   *  the already-found models and chosen selection instead of re-discovering
+   *  from scratch. */
+  persist(): void {
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          selected: this.#selected,
+          allByProvider: this.#allByProvider,
+        }),
+      );
+    } catch {
+      /* ignore quota / private-mode errors */
+    }
+  }
+
+  /** Restore discovered models + selection from localStorage. Returns true if
+   *  anything was restored (so callers can skip an unnecessary re-discovery). */
+  restore(): boolean {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return false;
+      const data = JSON.parse(raw) as {
+        selected?: string[];
+        allByProvider?: Record<string, string[]>;
+      };
+      if (data.allByProvider && Object.keys(data.allByProvider).length > 0) {
+        this.#allByProvider = data.allByProvider;
+      }
+      if (data.selected && data.selected.length > 0) {
+        this.#selected = data.selected;
+      }
+      return Object.keys(this.#allByProvider).length > 0;
+    } catch {
+      return false;
+    }
+  }
+
   async discover(provider: string): Promise<void> {
     this.#discovering = true;
     try {
@@ -50,6 +107,7 @@ class ModelsStore {
         [provider]: discovered,
       };
       providers.markVerified(provider);
+      this.persist();
       debug.log(`Discovered ${discovered.length} models for ${provider}`);
     } catch (e) {
       this.#available = [];
@@ -66,18 +124,22 @@ class ModelsStore {
     } else {
       this.#selected = [...this.#selected, compositeKey];
     }
+    this.persist();
   }
 
   remove(compositeKey: string): void {
     this.#selected = this.#selected.filter((m) => m !== compositeKey);
+    this.persist();
   }
 
   setSelected(models: string[]): void {
     this.#selected = [...models];
+    this.persist();
   }
 
   clearSelection(): void {
     this.#selected = [];
+    this.persist();
   }
 
   /** Background health check for one model via a minimal proxy chat call. */

@@ -34,6 +34,7 @@ class ProvidersStore {
       debug.log(`Loaded ${this.#list.length} providers`);
       if (!this.#active && this.#list.length > 0) {
         this.#active = this.#list[0].provider;
+        models.focusProvider(this.#active);
       }
     } catch (e) {
       debug.log(`Failed to load providers: ${e}`, "error");
@@ -44,6 +45,7 @@ class ProvidersStore {
 
   select(provider: string | null): void {
     this.#active = provider;
+    if (provider) models.focusProvider(provider);
   }
 
   find(provider: string): ProviderCredentialResponse | undefined {
@@ -67,6 +69,7 @@ class ProvidersStore {
       });
       await this.load();
       this.#active = provider;
+      models.focusProvider(provider);
       debug.log(`Saved provider ${provider}`);
       return true;
     } catch (e) {
@@ -93,17 +96,21 @@ class ProvidersStore {
     this.#verified = new Set(this.#verified).add(provider);
   }
 
-  /** Re-discover models for every saved provider so verified (green) state
-   *  and the global model list are restored after a page reload. */
+  /** Re-discover models for every saved provider. Providers that already have
+   *  a cached model list from a previous session are skipped so a browser
+   *  reload does not re-probe Vertex from scratch — the already-found models
+   *  and current selection stay put. Call discover() directly (e.g. refresh
+   *  button) to force a fresh search. */
   async verifyAll(): Promise<void> {
     await Promise.all(
-      this.#list.map((p) =>
-        models
+      this.#list.map((p) => {
+        if (models.hasCache(p.provider)) return Promise.resolve();
+        return models
           .discover(p.provider)
           .catch((e) =>
             debug.log(`Provider ${p.provider} re-verify failed: ${e}`, "warn"),
-          ),
-      ),
+          );
+      }),
     );
   }
 }
