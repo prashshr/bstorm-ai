@@ -17,7 +17,7 @@
   }: Props = $props();
 
    let text = $state("");
-   let ragMode = $state<"model-only" | "model-self">("model-self");
+   let ragMode = $state<"model-self" | "model-only">("model-self");
    let deepResearch = $state(false);
    let attachments = $state<AttachedFile[]>([]);
    let dragover = $state(false);
@@ -25,13 +25,48 @@
    let editorEl = $state<HTMLDivElement | null>(null);
    let showAdvanced = $state(false);
    let instructions = $state("");
-   let responseFormat = $state("default");
-   let summaryFormat = $state<"elaborate" | "compact" | "default">("default");
+   let responseFormat = $state<"compact" | "elaborate" | "custom">("compact");
+   let responseFormatText = $state(
+     "Respond concisely: lead with a short direct answer, then a tight bullet list of key points. Avoid filler and repetition.",
+   );
+   let summaryFormat = $state<"compact" | "elaborate" | "custom">("compact");
+   let summaryFormatText = $state(
+     "Provide a compact synthesis: a one-paragraph verdict followed by a short bullet list of the main agreements and differences.",
+   );
    let summaryInstructions = $state("");
    let timeout = $state(120);
    let maxTokens = $state(6000);
    let consensusModel = $state("");
    let totalRounds = $state(1);
+   let showInfo = $state(false);
+
+   const RESPONSE_PRESETS: Record<string, string> = {
+     compact:
+       "Respond concisely: lead with a short direct answer, then a tight bullet list of key points. Avoid filler and repetition.",
+     elaborate:
+       "Respond in detail with thorough reasoning, examples where helpful, and a clear structure. Explore nuance and trade-offs.",
+   };
+   const SUMMARY_PRESETS: Record<string, string> = {
+     compact:
+       "Provide a compact synthesis: a one-paragraph verdict followed by a short bullet list of the main agreements and differences.",
+     elaborate:
+       "Provide an elaborate synthesis: a full structured write-up covering each model's position, points of consensus, and remaining disagreements.",
+   };
+
+   // Selecting a preset auto-fills the (editable) text field. "custom" leaves
+   // the current text untouched so the user can write their own.
+   function applyResponsePreset(preset: string) {
+     responseFormat = preset as "compact" | "elaborate" | "custom";
+     if (preset !== "custom" && RESPONSE_PRESETS[preset]) {
+       responseFormatText = RESPONSE_PRESETS[preset];
+     }
+   }
+   function applySummaryPreset(preset: string) {
+     summaryFormat = preset as "compact" | "elaborate" | "custom";
+     if (preset !== "custom" && SUMMARY_PRESETS[preset]) {
+       summaryFormatText = SUMMARY_PRESETS[preset];
+     }
+   }
 
    $effect(() => {
      if (autofocus && editorEl) editorEl.focus();
@@ -105,7 +140,9 @@
           ragMode,
           deepResearch: deepResearch,
           responseFormat,
+          responseFormatText,
           summaryFormat,
+          summaryFormatText,
           summaryInstructions,
         });
       } else {
@@ -115,7 +152,7 @@
             .map((a) => `\n\n--- Attached: ${a.name} ---\n${a.content}`)
             .join("");
         }
-        await discussion.nextTurn(full);
+        await discussion.nextTurn(full, models.selected);
       }
     } finally {
       sending = false;
@@ -216,7 +253,7 @@
 
     {#if discussion.data.id == null}
       <div class="advanced">
-        <button
+         <button
           type="button"
           class="adv-toggle"
           onclick={() => (showAdvanced = !showAdvanced)}
@@ -225,8 +262,33 @@
           <Icon name={showAdvanced ? "chevron-down" : "chevron-right"} size="sm" />
           Advanced settings
         </button>
+        <span
+          class="info-wrap"
+          role="note"
+          tabindex="0"
+          onmouseenter={() => (showInfo = true)}
+          onmouseleave={() => (showInfo = false)}
+          onfocus={() => (showInfo = true)}
+          onblur={() => (showInfo = false)}
+          aria-label="Advanced settings help"
+        >
+          <Icon name="info" size="sm" />
+          {#if showInfo}
+            <span class="info-pop">
+              <strong>Consensus Model</strong> — model that writes the final synthesis (defaults to the first selected model).<br />
+              <strong>Number of Rounds</strong> — how many discussion passes run before a final consensus.<br />
+              <strong>Response Format</strong> — instruction each model follows when answering. Pick Compact/Elaborate to auto-fill, or Custom to write your own (all editable).<br />
+              <strong>Discussion / Summary Format</strong> — instruction the consensus model follows when synthesizing. Same Compact/Elaborate/Custom options.<br />
+              <strong>Custom Instructions</strong> — global rule applied to every model on every turn.<br />
+              <strong>Response Timeout</strong> — seconds to wait per model before giving up.<br />
+              <strong>Max Tokens / Response</strong> — cap on each model's output length.<br />
+              <strong>RAG Retrieval Mode</strong> — Model/Self retrieves context from your knowledge base; Model-Only skips it.<br />
+              <strong>Deep Research</strong> — lets models run web search between rounds for fresh information.
+            </span>
+          {/if}
+        </span>
 
-        {#if showAdvanced}
+         {#if showAdvanced}
           <div class="adv-panel">
             <div class="adv-grid">
               <div class="adv-field">
@@ -240,24 +302,6 @@
               </div>
 
               <div class="adv-field">
-                <label for="pf-response">Response Format</label>
-                <select id="pf-response" bind:value={responseFormat}>
-                  <option value="default">Default — let the model decide</option>
-                  <option value="compact">Compact — precise, bullet points</option>
-                  <option value="elaborate">Elaborate — detailed with reasoning</option>
-                </select>
-              </div>
-
-              <div class="adv-field">
-                <label for="pf-summary">Discussion / Summary Format</label>
-                <select id="pf-summary" bind:value={summaryFormat}>
-                  <option value="default">Default — let consensus model decide</option>
-                  <option value="compact">Compact — quick verdict</option>
-                  <option value="elaborate">Elaborate — full synthesis</option>
-                </select>
-              </div>
-
-              <div class="adv-field">
                 <label for="pf-rounds">Number of Rounds</label>
                 <select id="pf-rounds" bind:value={totalRounds}>
                   <option value={1}>1 Round</option>
@@ -265,7 +309,53 @@
                   <option value={3}>3 Rounds</option>
                 </select>
               </div>
+            </div>
 
+            <div class="adv-field">
+              <label for="pf-response-preset">Response Format</label>
+              <select
+                id="pf-response-preset"
+                value={responseFormat}
+                onchange={(e) => applyResponsePreset((e.currentTarget as HTMLSelectElement).value)}
+              >
+                <option value="compact">Compact (default)</option>
+                <option value="elaborate">Elaborate</option>
+                <option value="custom">Custom</option>
+              </select>
+              <textarea
+                id="pf-response-text"
+                rows="2"
+                bind:value={responseFormatText}
+                placeholder="Instruction sent to each model about how to format its response…"
+              ></textarea>
+            </div>
+
+            <div class="adv-field">
+              <label for="pf-summary-preset">Discussion / Summary Format</label>
+              <select
+                id="pf-summary-preset"
+                value={summaryFormat}
+                onchange={(e) => applySummaryPreset((e.currentTarget as HTMLSelectElement).value)}
+              >
+                <option value="compact">Compact (default)</option>
+                <option value="elaborate">Elaborate</option>
+                <option value="custom">Custom</option>
+              </select>
+              <textarea
+                id="pf-summary-text"
+                rows="2"
+                bind:value={summaryFormatText}
+                placeholder="Instruction sent to the consensus model about how to synthesize…"
+              ></textarea>
+            </div>
+
+            <div class="adv-field">
+              <label for="pf-instructions">Custom Instructions (optional — applies to every model & turn)</label>
+              <textarea id="pf-instructions" rows="2" bind:value={instructions}
+                placeholder="E.g., Always cite your sources…"></textarea>
+            </div>
+
+            <div class="adv-grid adv-grid-2">
               <div class="adv-field">
                 <label for="pf-timeout">Response Timeout (sec)</label>
                 <input id="pf-timeout" type="number" min="10" max="300" bind:value={timeout} />
@@ -277,16 +367,23 @@
               </div>
             </div>
 
-            <div class="adv-field">
-              <label for="pf-instructions">Custom Instructions (optional — overrides response format)</label>
-              <textarea id="pf-instructions" rows="2" bind:value={instructions}
-                placeholder="E.g., Format as bullet points…"></textarea>
-            </div>
+            <div class="adv-grid adv-grid-2">
+              <div class="adv-field">
+                <label for="pf-rag">RAG Retrieval Mode</label>
+                <select id="pf-rag" bind:value={ragMode} data-testid="rag-mode-select" aria-label="RAG mode">
+                  <option value="model-self">Model/Self (Default)</option>
+                  <option value="model-only">Model-Only</option>
+                </select>
+              </div>
 
-            <div class="adv-field">
-              <label for="pf-summinst">Custom Summary Instructions (optional)</label>
-              <textarea id="pf-summinst" rows="2" bind:value={summaryInstructions}
-                placeholder="E.g., Format the final synthesis as a comparison table…"></textarea>
+              <div class="adv-field adv-inline">
+                <label class="switch inline" class:on={deepResearch} title="Deep Research (web search between rounds)">
+                  <input type="checkbox" bind:checked={deepResearch} />
+                  <span class="track" aria-hidden="true"><span class="thumb"></span></span>
+                  <Icon name="search" size="sm" />
+                  <span class="dr-label">Deep Research</span>
+                </label>
+              </div>
             </div>
           </div>
         {/if}
@@ -312,21 +409,6 @@
         />
       </label>
 
-      <div class="rag-select" title="RAG retrieval mode">
-        <span class="rag-label">RAG</span>
-        <select bind:value={ragMode} data-testid="rag-mode-select" aria-label="RAG mode">
-          <option value="model-self">Model/Self (Default)</option>
-          <option value="model-only">Model-Only</option>
-        </select>
-      </div>
-
-      <label class="switch" class:on={deepResearch} title="Deep Research (web search between rounds)">
-        <input type="checkbox" bind:checked={deepResearch} />
-        <span class="track" aria-hidden="true"><span class="thumb"></span></span>
-        <Icon name="search" size="sm" />
-        <span class="dr-label">Deep Research</span>
-      </label>
-
       <button
         class="btn btn-primary send"
         data-testid="chat-send"
@@ -346,9 +428,14 @@
     border-top: 1px solid var(--border);
     background: var(--bg-secondary);
     padding: 10px 16px;
+    max-height: 60vh;
+    overflow-y: auto;
   }
   .advanced {
     margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
   .adv-toggle {
     display: inline-flex;
@@ -365,6 +452,45 @@
   .adv-toggle:hover {
     color: var(--text-secondary);
   }
+  .info-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    color: var(--text-tertiary);
+    cursor: help;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+  }
+  .info-wrap:hover,
+  .info-wrap:focus {
+    color: var(--text-secondary);
+    outline: none;
+    border-color: var(--accent);
+  }
+  .info-pop {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 0;
+    z-index: 50;
+    width: min(360px, 80vw);
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-elevated, #fff);
+    color: var(--text-secondary);
+    font-size: 11.5px;
+    line-height: 1.5;
+    font-weight: 400;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+    text-align: left;
+  }
+  .info-pop strong {
+    color: var(--text-primary);
+  }
   .adv-panel {
     margin-top: 8px;
     padding: 12px;
@@ -374,11 +500,16 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
+    max-height: 46vh;
+    overflow-y: auto;
   }
   .adv-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 10px;
+  }
+  .adv-grid-2 {
+    grid-template-columns: 1fr 1fr;
   }
   .adv-field {
     display: flex;
@@ -605,6 +736,11 @@
   .rag-select select:focus {
     border: none;
     outline: none;
+  }
+  .switch.inline {
+    height: auto;
+    padding: 4px 10px;
+    align-self: flex-start;
   }
   .dr-label {
     font-size: 12px;

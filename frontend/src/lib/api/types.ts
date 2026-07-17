@@ -3,6 +3,8 @@
 export interface TokenResponse {
   access_token: string;
   token_type: string;
+  // Present only for mobile clients; stored in OS secure storage.
+  refresh_token?: string | null;
 }
 
 export interface ProviderCredentialResponse {
@@ -139,9 +141,11 @@ export interface DiscussionState {
   ragMode: "model-only" | "model-self";
   deep_research: boolean;
   retrieved_context: string | null;
-  summaryFormat: "elaborate" | "compact" | "default";
+  summaryFormat: "elaborate" | "compact" | "default" | "custom";
+  summaryFormatText: string;
   summaryInstructions: string;
   responseFormat: string;
+  responseFormatText: string;
 }
 
 export interface DiscussionAggregateStats {

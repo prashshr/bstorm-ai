@@ -47,8 +47,10 @@ function emptyState(): DiscussionState {
     deep_research: false,
     retrieved_context: null,
     summaryFormat: "default",
+    summaryFormatText: "",
     summaryInstructions: "",
     responseFormat: "default",
+    responseFormatText: "",
   };
 }
 
@@ -183,7 +185,9 @@ class DiscussionStore {
     ragMode: DiscussionState["ragMode"];
     deepResearch: boolean;
     responseFormat: string;
+    responseFormatText: string;
     summaryFormat: DiscussionState["summaryFormat"];
+    summaryFormatText: string;
     summaryInstructions: string;
   }): Promise<void> {
     this.#abort = new AbortController();
@@ -208,7 +212,9 @@ class DiscussionStore {
       ragMode: opts.ragMode,
       deep_research: opts.deepResearch,
       responseFormat: opts.responseFormat,
+      responseFormatText: opts.responseFormatText,
       summaryFormat: opts.summaryFormat,
+      summaryFormatText: opts.summaryFormatText,
       summaryInstructions: opts.summaryInstructions,
       status: "in_progress",
       timestamp: Date.now(),
@@ -235,8 +241,14 @@ class DiscussionStore {
     await this.runRound(1);
   }
 
-  /** Append a follow-up user message and run the next chat turn. */
-  async nextTurn(followUp: string): Promise<void> {
+  /**
+   * Append a follow-up user message and run the next chat turn.
+   * `modelKeys` is the final model list after any add/remove happened since
+   * the previous turn — the next round (and every round after it) uses exactly
+   * this set, so mid-discussion model changes take effect immediately.
+   * When omitted, the existing discussion model list is kept.
+   */
+  async nextTurn(followUp: string, modelKeys?: string[]): Promise<void> {
     if (!followUp.trim()) return;
     if (!this.#running) {
       this.#abort = new AbortController();
@@ -245,6 +257,15 @@ class DiscussionStore {
     const roundNum = Object.keys(this.#data.rounds).length + 1;
     this.#data.userMessages = { ...this.#data.userMessages, [roundNum]: followUp };
     if (!this.#data.title) this.#data.title = followUp.slice(0, 60);
+    // Adopt the latest model selection so the next turn reflects any
+    // models added or removed since the discussion started / last turn.
+    if (modelKeys && modelKeys.length > 0) {
+      this.#data.models = [...modelKeys];
+      this.#data.stats = {
+        ...this.#data.stats,
+        modelCount: modelKeys.length,
+      };
+    }
     this.#data = { ...this.#data };
     this.persist();
     await this.runRound(roundNum);
@@ -526,8 +547,9 @@ class DiscussionStore {
       prompt += `Building on the previous responses above, continue the discussion with your own analysis. Refine or challenge earlier views where useful.\n`;
     }
 
-    if (this.#data.responseFormat && this.#data.responseFormat !== "default") {
-      prompt += `\nRespond in ${this.#data.responseFormat} format.\n`;
+    const respInstr = this.#data.responseFormatText?.trim();
+    if (respInstr) {
+      prompt += `\nResponse format: ${respInstr}\n`;
     }
     return prompt;
   }

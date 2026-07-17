@@ -9,9 +9,9 @@
   import LoginPage from "./lib/components/LoginPage.svelte";
   import AppContainer from "./lib/components/AppContainer.svelte";
 
-  onMount(() => {
+  onMount(async () => {
     theme.init();
-    auth.init();
+    await auth.init();
     discussion.restore();
     if (auth.isAuthenticated) {
       providers.load().then(() => providers.verifyAll());

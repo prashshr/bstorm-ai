@@ -12,15 +12,24 @@ from app.services.providers.endpoints import normalize_endpoint
 from app.services.providers.factory import get_provider_client
 
 
-def _apply_provider_config(client, credential_row) -> None:
-    """Attach stored provider-specific config (project id, region) to a client
-    instance when the client supports it. Vertex uses these for ADC auth."""
+def _apply_provider_config(client, credential_row, uek: str | None = None) -> None:
+    """Attach stored provider-specific config (project id, region, ADC JSON) to
+    a client instance when the client supports it. Vertex uses these for ADC auth."""
     project_id = getattr(credential_row, "project_id", None)
     region = getattr(credential_row, "region", None)
     if project_id is not None:
         client.project_id = project_id
     if region is not None:
         client.region = region
+    # Vertex per-user ADC JSON (decrypted from the stored credential).
+    adc_encrypted = getattr(credential_row, "adc_json_encrypted", None)
+    if adc_encrypted and uek:
+        try:
+            from app.core.crypto import decrypt_secret
+
+            client.adc_json = decrypt_secret(adc_encrypted, key=uek)
+        except Exception:
+            pass
 
 
 router = APIRouter()
@@ -122,8 +131,8 @@ async def list_provider_models(
     from app.core.crypto import decrypt_secret
 
     api_key = decrypt_secret(row.api_key_encrypted, key=getattr(current_user, "uek", None))
-    # Pass provider-specific config (e.g. Vertex project/region) to the client.
-    _apply_provider_config(client, row)
+    # Pass provider-specific config (e.g. Vertex project/region, ADC JSON) to the client.
+    _apply_provider_config(client, row, uek=getattr(current_user, "uek", None))
     try:
         return await client.list_models(endpoint=row.endpoint or "", api_key=api_key)
     except HTTPException:
@@ -216,12 +225,27 @@ async def test_provider_connection(
     from app.core.crypto import decrypt_secret
     api_key = decrypt_secret(row.api_key_encrypted, key=getattr(current_user, "uek", None))
     client = get_provider_client(provider)
+    _apply_provider_config(client, row, uek=getattr(current_user, "uek", None))
+
+    # Pick a model name that the provider actually understands. A hardcoded
+    # "gpt-4o-mini" fails on non-OpenAI providers (e.g. Vertex), producing a
+    # spurious KO in the connection test.
+    test_model = "gpt-4o-mini"
+    if provider == "vertex":
+        # Prefer a model we know the project can reach; fall back to a probe.
+        test_model = "gemini-2.5-flash"
+        try:
+            discovered = await client.list_models(endpoint=row.endpoint or "", api_key=api_key)
+            if discovered:
+                test_model = discovered[0]
+        except Exception:
+            pass
 
     try:
         result = await client.chat(
             endpoint=row.endpoint or "",
             api_key=api_key,
-            model="gpt-4o-mini",  # generic model name that most providers accept for testing
+            model=test_model,
             prompt="Respond with just the word: connected",
             max_tokens=16,
             temperature=0,

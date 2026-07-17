@@ -12,11 +12,22 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: str
     password: str
+    # If "mobile", the response also includes a refresh_token and the access
+    # token carries a server session id (sid) instead of the UEK, so the UEK
+    # never leaves the backend. Web clients omit this (legacy flow unchanged).
+    client: str | None = None
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
 
 
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    # Present only for mobile clients. Stored in OS secure storage (Keystore/
+    # Keychain), never in localStorage. Absent for web clients.
+    refresh_token: str | None = None
 
 
 class UserResponse(BaseModel):

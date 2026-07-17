@@ -41,8 +41,10 @@ function seed(enabled: boolean) {
     deep_research: false,
     retrieved_context: null,
     summaryFormat: "default",
+    summaryFormatText: "",
     summaryInstructions: "",
     responseFormat: "default",
+    responseFormatText: "",
   };
   discussion.load(state);
   return enabled;

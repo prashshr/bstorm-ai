@@ -33,6 +33,23 @@ class ProviderCredential(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class RefreshToken(Base):
+    """Server-side record of an issued refresh token (mobile clients).
+    Only the SHA-256 hash is stored; the raw token is shown to the client once.
+    Supports revocation (logout) and device scoping."""
+
+    __tablename__ = "refresh_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(128), index=True)
+    sid: Mapped[str] = mapped_column(String(64), index=True)
+    device_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    revoked: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class Discussion(Base):
     __tablename__ = "discussions"
 

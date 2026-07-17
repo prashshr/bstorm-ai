@@ -14,7 +14,10 @@ import type {
   UpsertProviderCredentialRequest,
 } from "./types";
 
-const BASE = "";
+// On the web this is empty (same-origin via nginx). For the Capacitor Android
+// app, set VITE_API_BASE to the public backend URL (e.g. the live site) at
+// build time so API calls leave the WebView and hit the real backend.
+const BASE = import.meta.env.VITE_API_BASE ?? "";
 
 export class ApiError extends Error {
   status: number;
@@ -95,10 +98,24 @@ export const api = {
       false,
     );
   },
-  login(email: string, password: string): Promise<TokenResponse> {
+  login(email: string, password: string, client?: string): Promise<TokenResponse> {
     return request<TokenResponse>(
       "/api/auth/login",
-      { method: "POST", body: JSON.stringify({ email, password }) },
+      { method: "POST", body: JSON.stringify({ email, password, client }) },
+      false,
+    );
+  },
+  refresh(refreshToken: string): Promise<TokenResponse> {
+    return request<TokenResponse>(
+      "/api/auth/refresh",
+      { method: "POST", body: JSON.stringify({ refresh_token: refreshToken }) },
+      false,
+    );
+  },
+  logout(refreshToken: string): Promise<{ ok: boolean }> {
+    return request<{ ok: boolean }>(
+      "/api/auth/logout",
+      { method: "POST", body: JSON.stringify({ refresh_token: refreshToken }) },
       false,
     );
   },
@@ -226,7 +243,7 @@ export const api = {
     const token = getToken();
     if (token) headers.set("Authorization", `Bearer ${token}`);
 
-    const resp = await fetch("/api/proxy/chat/stream", {
+    const resp = await fetch(`${BASE}/api/proxy/chat/stream`, {
       method: "POST",
       headers,
       body: JSON.stringify(body),

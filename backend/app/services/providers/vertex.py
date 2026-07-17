@@ -145,9 +145,69 @@ class VertexClient(ProviderClient):
     # ------------------------------------------------------------------
     async def list_models(self, endpoint: str, api_key: str) -> list[str]:
         # Vertex does not expose a simple public "list" without per-project IAM
-        # probing. We return the curated catalog (auto-detected model set) and
-        # rely on the user selecting models their project can access.
-        return list(VERTEX_CATALOG)
+        # probing. We "smart-discover": probe each candidate model against a
+        # regionPriority list and return only the models that actually respond
+        # for this GCP project (mirrors the jorsm/vertex-ai-models-chat-provider
+        # "Smart Discovery" behaviour). This is what makes the health checks
+        # show OK instead of KO — only reachable models are surfaced.
+        return await self.discover_models()
+
+    async def discover_models(self) -> list[str]:
+        """Probe candidate models across prioritized regions and return the
+        working subset for the first region that yields any responses."""
+        regions = REGION_PRIORITY
+        last_err: Exception | None = None
+        for region in regions:
+            working: list[str] = []
+            for model in VERTEX_CATALOG:
+                try:
+                    await self._ping(model, region)
+                    working.append(model)
+                except Exception as exc:  # noqa: BLE001
+                    # Authentication errors are fatal for every region — bubble up.
+                    if "401" in str(exc) or "Authentication" in str(exc) or "invalid" in str(exc).lower():
+                        last_err = exc
+                        break
+                    last_err = exc
+                    continue
+            if working:
+                # Cache the working region so chat() reuses the same host.
+                self.region = region
+                return working
+        if last_err:
+            # Surface the underlying error so the UI can report why discovery failed.
+            raise last_err
+        return []
+
+    async def _ping(self, model: str, region: str) -> None:
+        """Minimal generateContent call (maxOutputTokens=1) to verify a model
+        is reachable for the given project/region."""
+        token = self._access_token()
+        publisher = "anthropic" if model in _ANTHROPIC_MODELS else "google"
+        host_region = "us-central1" if region == "global" else region
+        url = (
+            f"https://{host_region}-aiplatform.googleapis.com/v1"
+            f"/projects/{self.project_id or os.getenv('GOOGLE_CLOUD_PROJECT')}/locations/{region}"
+            f"/publishers/{publisher}/models/{model}:generateContent"
+        )
+        if model in _ANTHROPIC_MODELS:
+            payload = {
+                "anthropic_version": "vertex-2023-10-16",
+                "max_tokens": 1,
+                "messages": [{"role": "user", "content": "ping"}],
+            }
+        else:
+            payload = {
+                "contents": [{"role": "user", "parts": [{"text": "ping"}]}],
+                "generationConfig": {"maxOutputTokens": 1},
+            }
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(url, json=payload, headers=headers)
+            resp.raise_for_status()
 
     async def chat(
         self,

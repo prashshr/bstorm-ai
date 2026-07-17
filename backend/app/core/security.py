@@ -23,3 +23,17 @@ def create_access_token(subject: str, extra_claims: dict = None) -> str:
     if extra_claims:
         payload.update(extra_claims)
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+
+
+def create_refresh_token(subject: str, extra_claims: dict = None) -> str:
+    """Long-lived, opaque-to-client token used only at /api/auth/refresh.
+    Carries `sid` (server session id) but NEVER the UEK."""
+    expire = datetime.now(timezone.utc) + timedelta(days=settings.refresh_token_expire_days)
+    payload = {"sub": subject, "type": "refresh", "exp": expire}
+    if extra_claims:
+        payload.update(extra_claims)
+    return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+
+
+def decode_token(token: str) -> dict:
+    return jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
