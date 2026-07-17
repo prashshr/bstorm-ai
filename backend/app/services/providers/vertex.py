@@ -153,10 +153,18 @@ class VertexClient(ProviderClient):
         return await self.discover_models()
 
     async def discover_models(self) -> list[str]:
-        """Probe candidate models across prioritized regions and return the
-        working subset for the first region that yields any responses."""
+        """Probe candidate models across all prioritized regions and return the
+        union of models reachable in ANY region. Vertex publishes different
+        models per region, so we must check every region rather than stopping
+        at the first one with a hit — otherwise region-specific models are missed.
+
+        The region that yields the most models is cached for chat() so normal
+        traffic uses a single, well-populated host.
+        """
         regions = REGION_PRIORITY
         last_err: Exception | None = None
+        auth_err: Exception | None = None
+        found_by_region: dict[str, list[str]] = {}
         for region in regions:
             working: list[str] = []
             for model in VERTEX_CATALOG:
@@ -166,18 +174,33 @@ class VertexClient(ProviderClient):
                 except Exception as exc:  # noqa: BLE001
                     # Authentication errors are fatal for every region — bubble up.
                     if "401" in str(exc) or "Authentication" in str(exc) or "invalid" in str(exc).lower():
-                        last_err = exc
+                        auth_err = exc
                         break
                     last_err = exc
                     continue
             if working:
-                # Cache the working region so chat() reuses the same host.
-                self.region = region
-                return working
-        if last_err:
-            # Surface the underlying error so the UI can report why discovery failed.
-            raise last_err
-        return []
+                found_by_region[region] = working
+
+        if not found_by_region:
+            if auth_err:
+                # Surface the underlying auth error so the UI can report why
+                # discovery failed.
+                raise auth_err
+            if last_err:
+                raise last_err
+            return []
+
+        # Union of models across all regions (preserve catalog order).
+        union: list[str] = []
+        for model in VERTEX_CATALOG:
+            if any(model in models for models in found_by_region.values()):
+                union.append(model)
+
+        # Prefer the region with the most models for chat(); fall back to the
+        # first prioritized region that had any hit.
+        best_region = max(found_by_region, key=lambda r: len(found_by_region[r]))
+        self.region = best_region
+        return union
 
     async def _ping(self, model: str, region: str) -> None:
         """Minimal generateContent call (maxOutputTokens=1) to verify a model
