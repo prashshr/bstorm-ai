@@ -117,7 +117,7 @@ export const PROVIDER_PRESETS = [
   { key: "openai", name: "OpenAI Official", endpoint: "https://api.openai.com/v1" },
   { key: "perplexity", name: "Perplexity AI", endpoint: "https://api.perplexity.ai" },
   {
-    key: "google-vertex",
+    key: "vertex",
     name: "Google Vertex",
     endpoint: "https://us-central1-aiplatform.googleapis.com/v1",
   },
