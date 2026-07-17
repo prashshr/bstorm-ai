@@ -120,7 +120,10 @@
                   <ProviderForm initialProvider={p.provider} ondone={() => (editing = null)} />
                 </details>
                 {#if providers.isVerified(p.provider) && providers.active === p.provider}
-                  <ModelSelector />
+                  <details class="settings-details" open>
+                    <summary>Models</summary>
+                    <ModelSelector />
+                  </details>
                 {/if}
               </div>
             {/if}
