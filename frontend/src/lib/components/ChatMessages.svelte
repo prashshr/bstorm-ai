@@ -50,6 +50,25 @@
       {#if discussion.running}
         <ProgressStepper compact />
       {/if}
+      {#if discussion.data.use_rag || discussion.data.retrieved_context}
+        <div
+          class="rag-status"
+          class:ok={!!discussion.data.retrieved_context}
+          class:fail={discussion.data.use_rag && !discussion.data.retrieved_context && !discussion.running}
+          class:loading={discussion.phase === "searching"}
+        >
+          <span class="rag-dot"></span>
+          <span class="rag-text">
+            {#if discussion.phase === "searching"}
+              Searching the web…
+            {:else if discussion.data.retrieved_context}
+              RAG: {Math.round(discussion.data.retrieved_context.length / 1000)} KB context retrieved
+            {:else if discussion.data.use_rag}
+              RAG: No context retrieved (search failed)
+            {/if}
+          </span>
+        </div>
+      {/if}
     </div>
     <div class="ch-right">
       {#if discussion.running}
@@ -137,6 +156,43 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .rag-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+  }
+  .rag-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-tertiary);
+    flex-shrink: 0;
+  }
+  .rag-status.loading .rag-dot {
+    background: var(--accent);
+    animation: rag-pulse 1.2s ease-in-out infinite;
+  }
+  .rag-status.ok .rag-dot {
+    background: #22c55e;
+  }
+  .rag-status.ok .rag-text {
+    color: #16a34a;
+  }
+  .rag-status.fail .rag-dot {
+    background: #ef4444;
+  }
+  .rag-status.fail .rag-text {
+    color: #dc2626;
+  }
+  @keyframes rag-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.8); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .rag-status.loading .rag-dot { animation: none; }
   }
   .ch-right {
     display: flex;

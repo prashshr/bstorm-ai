@@ -510,8 +510,32 @@ class DiscussionStore {
   }
 
   #buildPrompt(compositeKey: string, roundNum: number): string {
-    const today = new Date().toISOString().slice(0, 10);
-    let prompt = `Today's date: ${today}\n\n`;
+    const now = new Date();
+    const dateStr = now.toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+    const dateContext =
+      `[SYSTEM NOTICE: Today's date is ${dateStr}. Treat today as the absolute present ` +
+      `moment for your temporal grounding. If you have search, browsing, or real-time ` +
+      `web-access capabilities, you must actively perform live internet search queries ` +
+      `to retrieve and incorporate the latest, up-to-the-minute information from the ` +
+      `most authoritative, reliable, and primary online sources before formulating your ` +
+      `analysis or recommendations. Do not work on pre-training cutoff or stale offline data.]`;
+
+    let prompt = `${dateContext}\n\n`;
+
+    if (this.#data.use_rag) {
+      prompt += `# Data Source Status\n`;
+      if (!this.#data.retrieved_context) {
+        prompt += `Note: Web research (RAG) was enabled but did not return results.\n`;
+      }
+      prompt += `Start your response with EXACTLY ONE LINE:\n`;
+      prompt += `RAG data: [Used/Not Available] | Self Websearch: [Used/Not Available] | Training Data: [Used/Not Available]\n`;
+      prompt += `Then proceed to answer.\n\n`;
+    }
 
     if (this.#data.instructions) {
       prompt += `Global instructions: ${this.#data.instructions}\n\n`;
