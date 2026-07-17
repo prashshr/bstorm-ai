@@ -290,7 +290,7 @@
 
          {#if showAdvanced}
           <div class="adv-panel">
-            <div class="adv-grid">
+            <div class="adv-panel-grid">
               <div class="adv-field">
                 <label for="pf-consensus">Consensus Model</label>
                 <select id="pf-consensus" bind:value={consensusModel}>
@@ -309,53 +309,51 @@
                   <option value={3}>3 Rounds</option>
                 </select>
               </div>
-            </div>
 
-            <div class="adv-field">
-              <label for="pf-response-preset">Response Format</label>
-              <select
-                id="pf-response-preset"
-                value={responseFormat}
-                onchange={(e) => applyResponsePreset((e.currentTarget as HTMLSelectElement).value)}
-              >
-                <option value="compact">Compact (default)</option>
-                <option value="elaborate">Elaborate</option>
-                <option value="custom">Custom</option>
-              </select>
-              <textarea
-                id="pf-response-text"
-                rows="2"
-                bind:value={responseFormatText}
-                placeholder="Instruction sent to each model about how to format its response…"
-              ></textarea>
-            </div>
+              <div class="adv-field span-2">
+                <label for="pf-response-preset">Response Format</label>
+                <select
+                  id="pf-response-preset"
+                  value={responseFormat}
+                  onchange={(e) => applyResponsePreset((e.currentTarget as HTMLSelectElement).value)}
+                >
+                  <option value="compact">Compact (default)</option>
+                  <option value="elaborate">Elaborate</option>
+                  <option value="custom">Custom</option>
+                </select>
+                <textarea
+                  id="pf-response-text"
+                  rows="2"
+                  bind:value={responseFormatText}
+                  placeholder="Instruction sent to each model about how to format its response…"
+                ></textarea>
+              </div>
 
-            <div class="adv-field">
-              <label for="pf-summary-preset">Discussion / Summary Format</label>
-              <select
-                id="pf-summary-preset"
-                value={summaryFormat}
-                onchange={(e) => applySummaryPreset((e.currentTarget as HTMLSelectElement).value)}
-              >
-                <option value="compact">Compact (default)</option>
-                <option value="elaborate">Elaborate</option>
-                <option value="custom">Custom</option>
-              </select>
-              <textarea
-                id="pf-summary-text"
-                rows="2"
-                bind:value={summaryFormatText}
-                placeholder="Instruction sent to the consensus model about how to synthesize…"
-              ></textarea>
-            </div>
+              <div class="adv-field span-2">
+                <label for="pf-summary-preset">Discussion / Summary Format</label>
+                <select
+                  id="pf-summary-preset"
+                  value={summaryFormat}
+                  onchange={(e) => applySummaryPreset((e.currentTarget as HTMLSelectElement).value)}
+                >
+                  <option value="compact">Compact (default)</option>
+                  <option value="elaborate">Elaborate</option>
+                  <option value="custom">Custom</option>
+                </select>
+                <textarea
+                  id="pf-summary-text"
+                  rows="2"
+                  bind:value={summaryFormatText}
+                  placeholder="Instruction sent to the consensus model about how to synthesize…"
+                ></textarea>
+              </div>
 
-            <div class="adv-field">
-              <label for="pf-instructions">Custom Instructions (optional — applies to every model & turn)</label>
-              <textarea id="pf-instructions" rows="2" bind:value={instructions}
-                placeholder="E.g., Always cite your sources…"></textarea>
-            </div>
+              <div class="adv-field span-2">
+                <label for="pf-instructions">Custom Instructions (optional — applies to every model & turn)</label>
+                <textarea id="pf-instructions" rows="2" bind:value={instructions}
+                  placeholder="E.g., Always cite your sources…"></textarea>
+              </div>
 
-            <div class="adv-grid adv-grid-2">
               <div class="adv-field">
                 <label for="pf-timeout">Response Timeout (sec)</label>
                 <input id="pf-timeout" type="number" min="10" max="300" bind:value={timeout} />
@@ -365,9 +363,7 @@
                 <label for="pf-maxtok">Max Tokens / Response</label>
                 <input id="pf-maxtok" type="number" min="500" max="16000" step="500" bind:value={maxTokens} />
               </div>
-            </div>
 
-            <div class="adv-grid adv-grid-2">
               <div class="adv-field">
                 <label for="pf-rag">RAG Retrieval Mode</label>
                 <select id="pf-rag" bind:value={ragMode} data-testid="rag-mode-select" aria-label="RAG mode">
@@ -497,11 +493,17 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     background: var(--bg-tertiary);
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
     max-height: 46vh;
     overflow-y: auto;
+  }
+  .adv-panel-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 14px;
+    align-items: start;
+  }
+  .adv-panel-grid .span-2 {
+    grid-column: 1 / -1;
   }
   .adv-grid {
     display: grid;
