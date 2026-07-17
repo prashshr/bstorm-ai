@@ -339,7 +339,7 @@ class DiscussionStore {
           max_tokens: this.#data.maxTokens,
           temperature: 0.7,
           discussion_id: typeof this.#data.id === "number" ? this.#data.id : null,
-          include_rag_context: this.#data.use_rag && roundNum === 1,
+          include_rag_context: false,
         },
         onEvent,
         this.#abort?.signal,
@@ -365,7 +365,7 @@ class DiscussionStore {
           max_tokens: this.#data.maxTokens,
           temperature: 0.7,
           discussion_id: typeof this.#data.id === "number" ? this.#data.id : null,
-          include_rag_context: this.#data.use_rag && roundNum === 1,
+          include_rag_context: false,
         });
         this.#updateModel(roundNum, compositeKey, {
           status: "complete",
@@ -417,11 +417,39 @@ class DiscussionStore {
       })
       .join("\n\n");
 
-    const prompt = `You are synthesizing a consensus from multiple AI models discussing:\n\n"${this.#data.question}"\n\nHere are all responses:\n\n${allResponses}\n\nProvide a clear, well-structured consensus synthesis${
-      this.#data.summaryInstructions
-        ? ` following these instructions: ${this.#data.summaryInstructions}`
-        : "."
-    }`;
+    const dateStr = new Date().toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+    const dateContext = `[System Notice: Today's date is ${dateStr}. Please synthesize a balanced consensus from all perspectives as of today's date.]`;
+
+    let consensusFormat = "";
+    if (this.#data.summaryInstructions?.trim()) {
+      consensusFormat = `\n\n## Custom Consensus Format Instructions:\n${this.#data.summaryInstructions.trim()}`;
+    } else {
+      const fmt = this.#data.summaryFormat || "elaborate";
+      if (fmt === "compact") {
+        consensusFormat =
+          "\n\nProvide a COMPACT consensus:\n" +
+          "- Start with a 1-sentence verdict\n" +
+          "- Use a weighted score table (4 core points, max 40 points)\n" +
+          "- Bullet-point key agreements and disagreements\n" +
+          "- Output 3 priority recommendations as numbered items\n" +
+          "- Be precise, no fluff";
+      } else {
+        consensusFormat =
+          "\n\nProvide an ELABORATE consensus:\n" +
+          "- Start with a detailed executive verdict (2-3 sentences)\n" +
+          "- Include a full weighted scoring table with rationale\n" +
+          "- Show a council alignment & friction matrix\n" +
+          "- Explain excluded points and why they were deprioritized\n" +
+          "- End with actionable recommendations";
+      }
+    }
+
+    const prompt = `${dateContext}\n\nSynthesize a balanced consensus from all perspectives.\n\n"${this.#data.question}"\n\nAll model responses:\n\n${allResponses}${consensusFormat}`;
 
     try {
       const res = await api.chat({
@@ -536,6 +564,9 @@ class DiscussionStore {
       prompt += `RAG data: [Used/Not Available] | Self Websearch: [Used/Not Available] | Training Data: [Used/Not Available]\n`;
       prompt += `Then proceed to answer.\n\n`;
     }
+    if (this.#data.retrieved_context) {
+      prompt += `# Retrieved Web Search Context\n${this.#data.retrieved_context}\n\n`;
+    }
 
     if (this.#data.instructions) {
       prompt += `Global instructions: ${this.#data.instructions}\n\n`;
@@ -568,7 +599,7 @@ class DiscussionStore {
     prompt += `User (turn ${roundNum}): ${currentMsg}\n\n`;
 
     if (turnCount > 1) {
-      prompt += `Building on the previous responses above, continue the discussion with your own analysis. Refine or challenge earlier views where useful.\n`;
+      prompt += `Review all previous responses above and provide your refined analysis building upon what has been discussed. Focus on areas where you can add value or offer a different perspective.\n`;
     }
 
     const respInstr = this.#data.responseFormatText?.trim();
