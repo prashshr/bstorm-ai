@@ -115,13 +115,13 @@
             </div>
             {#if editing === p.provider}
               <div class="edit-pane">
-                {#if providers.isVerified(p.provider) && providers.active === p.provider}
-                  <ModelSelector />
-                {/if}
-                <details class="settings-details">
+                <details class="settings-details" open>
                   <summary>Settings</summary>
                   <ProviderForm initialProvider={p.provider} ondone={() => (editing = null)} />
                 </details>
+                {#if providers.isVerified(p.provider) && providers.active === p.provider}
+                  <ModelSelector />
+                {/if}
               </div>
             {/if}
           </li>
@@ -261,9 +261,9 @@
     list-style: none;
   }
   .settings-details {
-    margin-top: 12px;
     border-top: 1px solid var(--border);
     padding-top: 8px;
+    margin-bottom: 12px;
   }
   .settings-details summary {
     cursor: pointer;
