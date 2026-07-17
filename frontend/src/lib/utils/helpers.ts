@@ -93,6 +93,15 @@ export async function copyToClipboard(text: string): Promise<boolean> {
   }
 }
 
+export function randomSuffix(len = 5): string {
+  const chars = "abcdefghijklmnopqrstuvwxyz";
+  let s = "";
+  for (let i = 0; i < len; i++) {
+    s += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return s;
+}
+
 export function downloadFile(filename: string, content: string, mime: string): void {
   const blob = new Blob([content], { type: mime });
   const url = URL.createObjectURL(blob);

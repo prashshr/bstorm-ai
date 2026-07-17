@@ -381,8 +381,15 @@
     background: var(--bg-tertiary);
   }
   .session.active {
-    background: var(--bg-tertiary);
+    background: color-mix(in srgb, var(--accent) 16%, var(--bg-tertiary));
     box-shadow: inset 3px 0 0 var(--accent);
+  }
+  .session.active .session-btn {
+    color: var(--text-primary);
+    font-weight: 700;
+  }
+  .session.active .session-btn :global(svg) {
+    color: var(--accent);
   }
   .session-btn {
     flex: 1;
@@ -410,7 +417,8 @@
     opacity: 0;
     padding: 4px;
   }
-  .session:hover .s-del {
+  .session:hover .s-del,
+  .session.active .s-del {
     opacity: 1;
   }
   .danger {
