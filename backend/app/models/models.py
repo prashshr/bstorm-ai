@@ -50,6 +50,24 @@ class RefreshToken(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class SessionStore(Base):
+    """Persistent store of mobile session UEKs, keyed by opaque sid.
+
+    Mobile clients receive an access token carrying only a `sid`; the server
+    resolves the user's UEK from here. Persisting it (encrypted with the
+    server key) means UEKs survive backend process restarts, so the discussion
+    list keeps decrypting titles after a pod restart instead of showing
+    encrypted blobs.
+    """
+
+    __tablename__ = "session_store"
+
+    sid: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    uek_encrypted: Mapped[str] = mapped_column(Text)
+    exp: Mapped[float] = mapped_column(default=0.0)
+
+
 class Discussion(Base):
     __tablename__ = "discussions"
 
