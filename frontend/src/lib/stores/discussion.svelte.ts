@@ -359,7 +359,21 @@ class DiscussionStore {
     if (this.#data.consensusEnabled) {
       await this.generateConsensus(roundNum);
     }
-    this.finish();
+
+    const total = this.#data.totalRounds || 1;
+    if (roundNum < total) {
+      // Auto-advance to the next round so the models can refine their
+      // answers based on the previous round's results and consensus.
+      const nextRound = roundNum + 1;
+      this.#data.userMessages = {
+        ...this.#data.userMessages,
+        [nextRound]: `Continue refining the analysis. Review all previous rounds including their model responses and consensus. Provide a refined, enhanced response that builds on the best insights so far.`,
+      };
+      this.persist();
+      await this.runRound(nextRound);
+    } else {
+      this.finish();
+    }
   }
 
   async queryModel(compositeKey: string, roundNum: number): Promise<void> {

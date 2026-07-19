@@ -91,7 +91,7 @@
           </div>
         {/if}
         <div class="user-msg" data-testid="user-message-{rn}">
-          <span class="user-label">{rn === 1 ? "You" : "You · follow-up"}</span>
+          <span class="user-label">{rn === 1 ? "You" : (discussion.data.userMessages[rn] ?? "").startsWith("Continue refining the analysis") ? "Auto-continue" : "You · follow-up"}</span>
           <p>{discussion.data.userMessages[rn] ?? ""}</p>
           {#each discussion.attachmentsForRound(rn) as att (att.name)}
             {#if att.type.startsWith("image/")}
