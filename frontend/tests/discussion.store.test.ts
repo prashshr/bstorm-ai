@@ -41,10 +41,10 @@ function seed(enabled: boolean) {
     ragMode: "model-self",
     deep_research: false,
     retrieved_context: null,
-    summaryFormat: "default",
+    summaryFormat: "compact",
     summaryFormatText: "",
     summaryInstructions: "",
-    responseFormat: "default",
+    responseFormat: "none",
     responseFormatText: "",
   };
   discussion.load(state);

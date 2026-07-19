@@ -26,14 +26,10 @@
    let showAdvanced = $state(false);
    let consensusEnabled = $state(true);
    let instructions = $state("");
-   let responseFormat = $state<"compact" | "elaborate" | "custom">("compact");
-    let responseFormatText = $state(
-      "Simply get information from all responses. Do not add any more information from your side or elsewhere. analyze all the responses, get the common points and the not common points and share in very short precise format a best consensus. No additional explanations.",
-    );
-   let summaryFormat = $state<"compact" | "elaborate" | "custom">("compact");
-    let summaryFormatText = $state(
-      "Simply get information from all responses. Do not add any more information from your side or elsewhere. analyze all the responses, get the common points and the not common points and share in very short precise format a best consensus. No additional explanations.",
-    );
+   let responseFormatText = $state("");
+   let summaryFormatText = $state(
+     "Simply get information from all responses. Do not add any more information from your side or elsewhere. analyze all the responses, get the common points and the not common points and share in very short precise format a best consensus. No additional explanations.",
+   );
    let summaryInstructions = $state("");
    let timeout = $state(120);
    let maxTokens = $state(6000);
@@ -42,29 +38,34 @@
    let showInfo = $state(false);
 
     const RESPONSE_PRESETS: Record<string, string> = {
+      none: "",
       compact:
         "Simply get information from all responses. Do not add any more information from your side or elsewhere. analyze all the responses, get the common points and the not common points and share in very short precise format a best consensus. No additional explanations.",
       elaborate:
        "Respond in detail with thorough reasoning, examples where helpful, and a clear structure. Explore nuance and trade-offs.",
    };
     const SUMMARY_PRESETS: Record<string, string> = {
+      none: "",
       compact:
         "Simply get information from all responses. Do not add any more information from your side or elsewhere. analyze all the responses, get the common points and the not common points and share in very short precise format a best consensus. No additional explanations.",
       elaborate:
        "Provide an elaborate synthesis: a full structured write-up covering each model's position, points of consensus, and remaining disagreements.",
    };
 
+   let responseFormat = $state<"none" | "compact" | "elaborate" | "custom">("none");
+   let summaryFormat = $state<"none" | "compact" | "elaborate" | "custom">("compact");
+
    // Selecting a preset auto-fills the (editable) text field. "custom" leaves
    // the current text untouched so the user can write their own.
    function applyResponsePreset(preset: string) {
-     responseFormat = preset as "compact" | "elaborate" | "custom";
-     if (preset !== "custom" && RESPONSE_PRESETS[preset]) {
+     responseFormat = preset as "none" | "compact" | "elaborate" | "custom";
+     if (preset !== "custom" && RESPONSE_PRESETS[preset] !== undefined) {
        responseFormatText = RESPONSE_PRESETS[preset];
      }
    }
    function applySummaryPreset(preset: string) {
-     summaryFormat = preset as "compact" | "elaborate" | "custom";
-     if (preset !== "custom" && SUMMARY_PRESETS[preset]) {
+     summaryFormat = preset as "none" | "compact" | "elaborate" | "custom";
+     if (preset !== "custom" && SUMMARY_PRESETS[preset] !== undefined) {
        summaryFormatText = SUMMARY_PRESETS[preset];
      }
    }
@@ -380,7 +381,8 @@
                   value={responseFormat}
                   onchange={(e) => applyResponsePreset((e.currentTarget as HTMLSelectElement).value)}
                 >
-                  <option value="compact">Compact (default)</option>
+                  <option value="none">None</option>
+                  <option value="compact">Compact</option>
                   <option value="elaborate">Elaborate</option>
                   <option value="custom">Custom</option>
                 </select>
@@ -399,6 +401,7 @@
                   value={summaryFormat}
                   onchange={(e) => applySummaryPreset((e.currentTarget as HTMLSelectElement).value)}
                 >
+                  <option value="none">None</option>
                   <option value="compact">Compact (default)</option>
                   <option value="elaborate">Elaborate</option>
                   <option value="custom">Custom</option>

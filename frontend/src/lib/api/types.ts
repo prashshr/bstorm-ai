@@ -149,10 +149,10 @@ export interface DiscussionState {
   ragMode: "model-only" | "model-self";
   deep_research: boolean;
   retrieved_context: string | null;
-  summaryFormat: "elaborate" | "compact" | "default" | "custom";
+  summaryFormat: "none" | "compact" | "elaborate" | "custom";
   summaryFormatText: string;
   summaryInstructions: string;
-  responseFormat: string;
+  responseFormat: "none" | "compact" | "elaborate" | "custom";
   responseFormatText: string;
 }
 

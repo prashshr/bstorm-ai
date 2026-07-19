@@ -48,10 +48,10 @@ function emptyState(): DiscussionState {
     ragMode: "model-self",
     deep_research: false,
     retrieved_context: null,
-    summaryFormat: "default",
+    summaryFormat: "compact",
     summaryFormatText: "",
     summaryInstructions: "",
-    responseFormat: "default",
+    responseFormat: "none",
     responseFormatText: "",
   };
 }
@@ -195,7 +195,7 @@ class DiscussionStore {
     maxTokens: number;
     ragMode: DiscussionState["ragMode"];
     deepResearch: boolean;
-    responseFormat: string;
+    responseFormat: DiscussionState["responseFormat"];
     responseFormatText: string;
     summaryFormat: DiscussionState["summaryFormat"];
     summaryFormatText: string;
@@ -277,7 +277,7 @@ class DiscussionStore {
       maxTokens?: number;
       ragMode?: DiscussionState["ragMode"];
       deepResearch?: boolean;
-      responseFormat?: string;
+      responseFormat?: DiscussionState["responseFormat"];
       responseFormatText?: string;
       summaryFormat?: DiscussionState["summaryFormat"];
       summaryFormatText?: string;
