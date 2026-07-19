@@ -27,9 +27,9 @@
    let consensusEnabled = $state(true);
    let instructions = $state("");
    let responseFormat = $state<"compact" | "elaborate" | "custom">("compact");
-   let responseFormatText = $state(
-     "Respond concisely: lead with a short direct answer, then a tight bullet list of key points. Avoid filler and repetition.",
-   );
+    let responseFormatText = $state(
+      "Simply get information from all responses. Do not add any more information from your side or elsewhere. analyze all the responses, get the common points and the not common points and share in very short precise format a best consensus. No additional explanations.",
+    );
    let summaryFormat = $state<"compact" | "elaborate" | "custom">("compact");
     let summaryFormatText = $state(
       "Simply get information from all responses. Do not add any more information from your side or elsewhere. analyze all the responses, get the common points and the not common points and share in very short precise format a best consensus. No additional explanations.",
@@ -41,10 +41,10 @@
    let totalRounds = $state(1);
    let showInfo = $state(false);
 
-   const RESPONSE_PRESETS: Record<string, string> = {
-     compact:
-       "Respond concisely: lead with a short direct answer, then a tight bullet list of key points. Avoid filler and repetition.",
-     elaborate:
+    const RESPONSE_PRESETS: Record<string, string> = {
+      compact:
+        "Simply get information from all responses. Do not add any more information from your side or elsewhere. analyze all the responses, get the common points and the not common points and share in very short precise format a best consensus. No additional explanations.",
+      elaborate:
        "Respond in detail with thorough reasoning, examples where helpful, and a clear structure. Explore nuance and trade-offs.",
    };
     const SUMMARY_PRESETS: Record<string, string> = {
