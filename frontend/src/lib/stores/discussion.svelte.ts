@@ -1,5 +1,6 @@
 import { api } from "../api/client";
 import type {
+  ChatAttachment,
   Contribution,
   DiscussionState,
   ModelResult,
@@ -60,6 +61,14 @@ class DiscussionStore {
   #currentRound = $state(0);
   #phase = $state<ProgressPhase>("idle");
   #abort: AbortController | null = null;
+  // Attachments added on a given turn, keyed by round number. Only that round
+  // sends them to the models (each new upload belongs to its own message).
+  #attachmentsByRound: Record<number, ChatAttachment[]> = {};
+
+  /** Attachments uploaded on a given turn, for rendering in the chat UI. */
+  attachmentsForRound(roundNum: number): ChatAttachment[] {
+    return this.#attachmentsByRound[roundNum] ?? [];
+  }
 
   get data() {
     return this.#data;
@@ -189,6 +198,7 @@ class DiscussionStore {
     summaryFormat: DiscussionState["summaryFormat"];
     summaryFormatText: string;
     summaryInstructions: string;
+    attachments?: ChatAttachment[];
   }): Promise<void> {
     this.#abort = new AbortController();
     this.#running = true;
@@ -216,6 +226,7 @@ class DiscussionStore {
       summaryFormat: opts.summaryFormat,
       summaryFormatText: opts.summaryFormatText,
       summaryInstructions: opts.summaryInstructions,
+      attachments: opts.attachments ? opts.attachments.map((a) => ({ name: a.name, size: 0, type: a.type, content: a.content })) : [],
       status: "in_progress",
       timestamp: Date.now(),
       stats: { ...emptyState().stats, modelCount: opts.models.length },
@@ -238,6 +249,9 @@ class DiscussionStore {
     }
 
     this.persist();
+    this.#attachmentsByRound = opts.attachments?.length
+      ? { 1: opts.attachments }
+      : {};
     await this.runRound(1);
   }
 
@@ -248,7 +262,7 @@ class DiscussionStore {
    * this set, so mid-discussion model changes take effect immediately.
    * When omitted, the existing discussion model list is kept.
    */
-  async nextTurn(followUp: string, modelKeys?: string[]): Promise<void> {
+  async nextTurn(followUp: string, modelKeys?: string[], attachments?: ChatAttachment[]): Promise<void> {
     if (!followUp.trim()) return;
     if (!this.#running) {
       this.#abort = new AbortController();
@@ -256,6 +270,10 @@ class DiscussionStore {
     }
     const roundNum = Object.keys(this.#data.rounds).length + 1;
     this.#data.userMessages = { ...this.#data.userMessages, [roundNum]: followUp };
+    if (attachments && attachments.length > 0) {
+      this.#data.attachments = attachments.map((a) => ({ name: a.name, size: 0, type: a.type, content: a.content }));
+      this.#attachmentsByRound[roundNum] = attachments;
+    }
     if (!this.#data.title) this.#data.title = followUp.slice(0, 60);
     // Adopt the latest model selection so the next turn reflects any
     // models added or removed since the discussion started / last turn.
@@ -316,6 +334,7 @@ class DiscussionStore {
     this.#updateModel(roundNum, compositeKey, { status: "connecting", text: "" });
 
     const prompt = this.#buildPrompt(compositeKey, roundNum);
+    const roundAttachments = this.#attachmentsByRound[roundNum] ?? [];
 
     try {
       const onEvent = (ev: StreamEvent) => {
@@ -340,6 +359,7 @@ class DiscussionStore {
           temperature: 0.7,
           discussion_id: typeof this.#data.id === "number" ? this.#data.id : null,
           include_rag_context: false,
+          attachments: roundAttachments.length ? roundAttachments : undefined,
         },
         onEvent,
         this.#abort?.signal,
@@ -366,6 +386,7 @@ class DiscussionStore {
           temperature: 0.7,
           discussion_id: typeof this.#data.id === "number" ? this.#data.id : null,
           include_rag_context: false,
+          attachments: roundAttachments.length ? roundAttachments : undefined,
         });
         this.#updateModel(roundNum, compositeKey, {
           status: "complete",

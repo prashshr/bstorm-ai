@@ -90,7 +90,8 @@
     if (!fileList) return;
     for (const file of Array.from(fileList)) {
       if (file.size > 10 * 1024 * 1024) continue;
-      const content = await file.text();
+      const isImage = file.type.startsWith("image/");
+      const content = isImage ? await file.arrayBuffer().then(buf => btoa(String.fromCharCode(...new Uint8Array(buf)))) : await file.text();
       attachments = [
         ...attachments,
         { name: file.name, size: file.size, type: file.type, content },
@@ -122,6 +123,13 @@
     if (!question || sending) return;
     if (models.selected.length === 0) return;
     const attach = attachments;
+    // Attachments handed to the backend as multimodal content (images) and/or
+    // appended text. Images are sent via the `attachments` field; text files
+    // are also added inline so the model can read them.
+    const chatAttachments = attach.map((a) => ({ name: a.name, type: a.type, content: a.content }));
+    // Only genuine text files are inlined into the prompt; images are sent as
+    // multimodal content (never as base64 text, which would render as garbage).
+    const textAttachments = attach.filter((a) => a.type.startsWith("text/"));
     if (editorEl) editorEl.innerHTML = "";
     text = "";
     attachments = [];
@@ -144,15 +152,16 @@
           summaryFormat,
           summaryFormatText,
           summaryInstructions,
+          attachments: chatAttachments,
         });
       } else {
         let full = question;
-        if (attach.length > 0) {
-          full += attach
+        if (textAttachments.length > 0) {
+          full += textAttachments
             .map((a) => `\n\n--- Attached: ${a.name} ---\n${a.content}`)
             .join("");
         }
-        await discussion.nextTurn(full, models.selected);
+        await discussion.nextTurn(full, models.selected, chatAttachments);
       }
     } finally {
       sending = false;
@@ -167,6 +176,13 @@
   }
 
   function onPaste(e: ClipboardEvent) {
+    // Capture pasted files (images copied to clipboard) as attachments.
+    const files = e.clipboardData?.files;
+    if (files && files.length > 0) {
+      e.preventDefault();
+      handleFiles(files);
+      return;
+    }
     e.preventDefault();
     const html = e.clipboardData?.getData("text/html");
     const textPlain = e.clipboardData?.getData("text/plain") ?? "";
@@ -251,7 +267,7 @@
       onpaste={onPaste}
     ></div>
 
-    {#if discussion.data.id == null}
+    {#if !running}
       <div class="advanced">
          <button
           type="button"
@@ -430,6 +446,7 @@
   .advanced {
     margin-bottom: 8px;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 6px;
   }
@@ -495,6 +512,7 @@
     background: var(--bg-tertiary);
     max-height: 46vh;
     overflow-y: auto;
+    flex-basis: 100%;
   }
   .adv-panel-grid {
     display: grid;

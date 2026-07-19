@@ -1,5 +1,6 @@
 import httpx
 
+from app.schemas.provider_proxy import Attachment
 from app.services.providers.base import ProviderClient
 
 
@@ -28,15 +29,29 @@ class GeminiClient(ProviderClient):
         prompt: str,
         max_tokens: int,
         temperature: float,
+        attachments: list[Attachment] | None = None,
     ) -> str:
         base = endpoint.rstrip("/") if endpoint else "https://generativelanguage.googleapis.com"
         url = f"{base}/v1beta/models/{model}:generateContent?key={api_key}"
+        parts: list[dict] = [{"text": prompt}]
+        if attachments:
+            for att in attachments:
+                if att.type.startswith("image/"):
+                    subtype = att.type.split("/", 1)[1]
+                    parts.append(
+                        {
+                            "inline_data": {
+                                "mime_type": att.type,
+                                "data": att.content,
+                            }
+                        }
+                    )
         payload = {
             "generationConfig": {
                 "temperature": temperature,
                 "maxOutputTokens": max_tokens,
             },
-            "contents": [{"parts": [{"text": prompt}]}],
+            "contents": [{"parts": parts}],
         }
         async with httpx.AsyncClient(timeout=120) as client:
             resp = await client.post(url, json=payload)

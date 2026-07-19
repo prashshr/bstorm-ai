@@ -1,5 +1,8 @@
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator
+from typing import List, Optional
+
+from app.schemas.provider_proxy import Attachment
 
 
 class ProviderClient(ABC):
@@ -16,6 +19,7 @@ class ProviderClient(ABC):
         prompt: str,
         max_tokens: int,
         temperature: float,
+        attachments: Optional[List[Attachment]] = None,
     ) -> str:
         raise NotImplementedError
 
@@ -27,6 +31,9 @@ class ProviderClient(ABC):
         prompt: str,
         max_tokens: int,
         temperature: float,
+        attachments: Optional[List[Attachment]] = None,
     ) -> AsyncGenerator[str, None]:
-        full = await self.chat(endpoint, api_key, model, prompt, max_tokens, temperature)
+        full = await self.chat(
+            endpoint, api_key, model, prompt, max_tokens, temperature, attachments
+        )
         yield full

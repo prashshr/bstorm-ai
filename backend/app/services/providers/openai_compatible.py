@@ -4,7 +4,33 @@ from collections.abc import AsyncGenerator
 import httpx
 from fastapi import HTTPException, status
 
+from app.schemas.provider_proxy import Attachment
 from app.services.providers.base import ProviderClient
+
+
+def _build_openai_content(prompt: str, attachments: list[Attachment] | None):
+    """Build the user message content.
+
+    Returns either a plain string (text only) or a multimodal content array
+    with text + image_url blocks when image attachments are present.
+    """
+    image_parts = []
+    if attachments:
+        for att in attachments:
+            if att.type.startswith("image/"):
+                image_parts.append(
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:{att.type};base64,{att.content}"
+                        },
+                    }
+                )
+    if not image_parts:
+        return prompt
+    content: list[dict] = [{"type": "text", "text": prompt}]
+    content.extend(image_parts)
+    return content
 
 
 class OpenAICompatibleClient(ProviderClient):
@@ -51,13 +77,15 @@ class OpenAICompatibleClient(ProviderClient):
         prompt: str,
         max_tokens: int,
         temperature: float,
+        attachments: list[Attachment] | None = None,
     ) -> str:
         base = endpoint.rstrip("/") if endpoint else "https://api.openai.com/v1"
         url = f"{base}/chat/completions"
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json", "User-Agent": self.USER_AGENT}
+        content = _build_openai_content(prompt, attachments)
         payload = {
             "model": model,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": [{"role": "user", "content": content}],
             "max_tokens": max_tokens,
             "temperature": temperature,
         }
@@ -109,13 +137,15 @@ class OpenAICompatibleClient(ProviderClient):
         prompt: str,
         max_tokens: int,
         temperature: float,
+        attachments: list[Attachment] | None = None,
     ) -> AsyncGenerator[str, None]:
         base = endpoint.rstrip("/") if endpoint else "https://api.openai.com/v1"
         url = f"{base}/chat/completions"
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json", "User-Agent": self.USER_AGENT}
+        content = _build_openai_content(prompt, attachments)
         payload = {
             "model": model,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": [{"role": "user", "content": content}],
             "max_tokens": max_tokens,
             "temperature": temperature,
             "stream": True,

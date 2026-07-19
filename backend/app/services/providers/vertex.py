@@ -240,6 +240,7 @@ class VertexClient(ProviderClient):
         prompt: str,
         max_tokens: int,
         temperature: float,
+        attachments=None,
     ) -> str:
         # `api_key` is ignored for Vertex (auth is via ADC); an explicit token
         # passed here would override, but normally empty.
@@ -253,19 +254,45 @@ class VertexClient(ProviderClient):
         }
 
         if model in _ANTHROPIC_MODELS:
+            blocks = [{"type": "text", "text": prompt}]
+            if attachments:
+                for att in attachments:
+                    if att.type.startswith("image/"):
+                        blocks.append(
+                            {
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": att.type,
+                                    "data": att.content,
+                                },
+                            }
+                        )
             payload = {
                 "anthropic_version": "vertex-2023-10-16",
                 "max_tokens": max_tokens,
                 "temperature": temperature,
-                "messages": [{"role": "user", "content": prompt}],
+                "messages": [{"role": "user", "content": blocks}],
             }
         else:
+            parts = [{"text": prompt}]
+            if attachments:
+                for att in attachments:
+                    if att.type.startswith("image/"):
+                        parts.append(
+                            {
+                                "inline_data": {
+                                    "mime_type": att.type,
+                                    "data": att.content,
+                                }
+                            }
+                        )
             payload = {
                 "generationConfig": {
                     "temperature": temperature,
                     "maxOutputTokens": max_tokens,
                 },
-                "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+                "contents": [{"role": "user", "parts": parts}],
             }
 
         async with httpx.AsyncClient(timeout=120) as client:

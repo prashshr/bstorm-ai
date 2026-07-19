@@ -6,10 +6,27 @@ from urllib.parse import urlparse, parse_qs, unquote
 
 import httpx
 
-from trafilatura import fetch_url, extract
+from trafilatura import extract
 
 from app.core.config import settings
 from app.services.domain_knowledge import enrich_query_with_domains
+
+# Unfetchable from this environment (bot walls / paywalls / SPA). Skip early so
+# the extraction pass does not burn the whole 60s budget on hosts that will
+# never yield text.
+BLOCKED_HOSTS = {
+    "medium.com",
+    "amazon.de",
+    "amazon.com",
+    "amazon.co.uk",
+    "ebay.de",
+    "ebay.com",
+    "ebay-kleinanzeigen.de",
+    "idealo.de",
+    "geizhals.de",
+    "aliexpress.com",
+    "walmart.com",
+}
 
 
 logger = logging.getLogger("ai_ensemble.rag")
@@ -205,26 +222,42 @@ async def search_web(queries: List[str]) -> List[Dict]:
     return all_results[:15]
 
 
-async def extract_content_from_urls(urls: List[str]) -> str:
+async def extract_content_from_urls(urls: List[str], per_url_timeout: float = 8.0) -> str:
     all_text = []
+    headers = {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    }
 
-    for url in urls:
-        logger.info(f"[RAG] Fetching content from: {url}")
-        try:
-            doc = await asyncio.to_thread(fetch_url, url)
-            if doc:
-                text = await asyncio.to_thread(
-                    extract, doc, include_comments=False, include_tables=False
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(per_url_timeout), follow_redirects=True, headers=headers
+    ) as client:
+        for url in urls:
+            host = url.split("/")[2] if "//" in url else url
+            if host in BLOCKED_HOSTS:
+                logger.info(f"[RAG] Skipping blocked host: {host}")
+                continue
+            logger.info(f"[RAG] Fetching content from: {url}")
+            try:
+                try:
+                    resp = await client.get(url)
+                except Exception as e:
+                    logger.warning(f"[RAG] Fetch failed for {url}: {e}")
+                    continue
+                if resp.status_code != 200 or not resp.text:
+                    logger.warning(f"[RAG] No usable response from {url} ({resp.status_code})")
+                    continue
+                doc = await asyncio.to_thread(
+                    extract, resp.text, include_comments=False, include_tables=False
                 )
-                if text:
-                    logger.info(f"[RAG] Extracted {len(text)} chars from {url}")
-                    all_text.append(text)
+                if doc:
+                    logger.info(f"[RAG] Extracted {len(doc)} chars from {url}")
+                    all_text.append(doc)
                 else:
                     logger.warning(f"[RAG] No text extracted from {url}")
-            else:
-                logger.warning(f"[RAG] Failed to fetch {url}")
-        except Exception as e:
-            logger.error(f"[RAG] Error processing {url}: {e}")
+            except Exception as e:
+                logger.error(f"[RAG] Error processing {url}: {e}")
 
     if not all_text:
         logger.warning("[RAG] No content extracted from any URL")
@@ -249,10 +282,9 @@ async def get_retrieved_context(user_prompt: str) -> Optional[str]:
         # (Wikipedia, news, vendor blogs) avoids an all-fail extraction pass.
         # De-prioritise known-unfetchable hosts and keep the rest in ranking
         # order, capped at 10 candidates.
-        blocked_hosts = {"medium.com"}
         candidates = [r for r in search_results if r.get("url")]
         candidates.sort(
-            key=lambda r: (r.get("_source") == "Tavily", r.get("url", "").split("/")[2] in blocked_hosts)
+            key=lambda r: (r.get("_source") == "Tavily", r.get("url", "").split("/")[2] in BLOCKED_HOSTS)
         )
         urls = [r["url"] for r in candidates[:10]]
         logger.info(f"[RAG] Extracting content from {len(urls)} URLs")

@@ -127,6 +127,7 @@ async def proxy_chat(
             prompt=prompt,
             max_tokens=payload.max_tokens,
             temperature=payload.temperature,
+            attachments=payload.attachments or None,
         )
     except httpx.HTTPStatusError as exc:
         body = exc.response.text if exc.response is not None else ""
@@ -188,6 +189,7 @@ async def proxy_chat_stream(
                 prompt=prompt,
                 max_tokens=payload.max_tokens,
                 temperature=payload.temperature,
+                attachments=payload.attachments or None,
             ):
                 full_text += chunk
                 event = json.dumps({"type": "delta", "content": chunk})

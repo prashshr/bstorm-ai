@@ -76,7 +76,7 @@
   }
   .title-wrap {
     position: absolute;
-    left: 0;
+    left: var(--sidebar-w, 0px);
     right: 0;
     top: 0;
     bottom: 0;

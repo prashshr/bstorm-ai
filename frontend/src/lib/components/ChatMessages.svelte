@@ -93,6 +93,20 @@
         <div class="user-msg" data-testid="user-message-{rn}">
           <span class="user-label">{rn === 1 ? "You" : "You · follow-up"}</span>
           <p>{discussion.data.userMessages[rn] ?? ""}</p>
+          {#each discussion.attachmentsForRound(rn) as att (att.name)}
+            {#if att.type.startsWith("image/")}
+              <img
+                class="att-thumb"
+                src={"data:" + att.type + ";base64," + att.content}
+                alt={att.name}
+                title={att.name}
+              />
+            {:else}
+              <span class="att-chip">
+                <Icon name="file" size="sm" /> {att.name}
+              </span>
+            {/if}
+          {/each}
         </div>
 
         <div class="model-row">
@@ -252,6 +266,26 @@
     color: var(--text-primary);
     white-space: pre-wrap;
     word-break: break-word;
+  }
+  .att-thumb {
+    display: block;
+    max-width: 280px;
+    max-height: 280px;
+    margin-top: 8px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+  }
+  .att-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    padding: 4px 10px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 999px;
   }
   .model-row {
     display: grid;

@@ -60,6 +60,12 @@ export interface MessageResponse {
   created_at: string;
 }
 
+export interface ChatAttachment {
+  name: string;
+  type: string;
+  content: string; // base64 (images) or text content
+}
+
 export interface ChatRequest {
   provider: string;
   model: string;
@@ -69,6 +75,7 @@ export interface ChatRequest {
   temperature?: number;
   discussion_id?: number | null;
   include_rag_context?: boolean;
+  attachments?: ChatAttachment[];
 }
 
 export interface ChatResponse {

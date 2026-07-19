@@ -44,6 +44,7 @@ class PerplexityClient(ProviderClient):
         prompt: str,
         max_tokens: int,
         temperature: float,
+        attachments=None,
     ) -> str:
         base = endpoint.rstrip("/") if endpoint else "https://api.perplexity.ai"
         is_third_party = "/" in model
