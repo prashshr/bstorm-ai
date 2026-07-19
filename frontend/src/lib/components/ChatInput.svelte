@@ -207,6 +207,23 @@
     });
     return tpl.innerHTML;
   }
+
+  // Best-effort detection of vision-capable models by name. Providers that are
+  // known to be text-only (DeepSeek chat/reasoner) will not see attached images.
+  const VISION_RE = /(gpt-4o|gpt-4-visual|gpt-4-turbo|vision|gemini|claude-3|claude-4|llama-3\.2-vision|llava|qwen-vl|pixtral|moondream|ministral|gemma-3|internvl|smolvlm|aya-vision|o1|o3|o4)/i;
+  const TEXT_ONLY_RE = /(deepseek|reasoner|o1-mini|o3-mini|text-|instruct)/i;
+
+  function modelSupportsVision(key: string): boolean {
+    // If it explicitly matches a text-only pattern, assume no vision.
+    if (TEXT_ONLY_RE.test(key) && !VISION_RE.test(key)) return false;
+    return VISION_RE.test(key);
+  }
+
+  const hasImageAttachment = $derived(attachments.some((a) => a.type.startsWith("image/")));
+  const selectionHasVision = $derived(
+    models.selected.length > 0 && models.selected.some(modelSupportsVision)
+  );
+  const imageButNoVision = $derived(hasImageAttachment && !selectionHasVision);
 </script>
 
 <div class="chat-input-bar">
@@ -242,6 +259,12 @@
             <button class="rm" onclick={() => removeFile(f.name)} aria-label="Remove {f.name}">×</button>
           </span>
         {/each}
+      </div>
+    {/if}
+    {#if imageButNoVision}
+      <div class="vision-warn" role="status">
+        <Icon name="alert" size="sm" />
+        Image attached, but the selected model(s) may not support vision (e.g. DeepSeek is text-only). Use a vision-capable model — GPT-4o, Gemini, Claude 3.5+ — to let it see the image.
       </div>
     {/if}
   </div>
@@ -556,6 +579,23 @@
     flex-wrap: wrap;
     gap: 6px;
     margin-bottom: 8px;
+  }
+  .vision-warn {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: #b45309;
+    background: color-mix(in srgb, #f59e0b 14%, transparent);
+    border: 1px solid color-mix(in srgb, #f59e0b 40%, transparent);
+    border-radius: var(--radius);
+    padding: 7px 10px;
+    margin-bottom: 8px;
+  }
+  .vision-warn :global(svg) {
+    flex-shrink: 0;
+    margin-top: 1px;
   }
   .selected-models {
     display: flex;
