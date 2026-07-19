@@ -136,6 +136,7 @@ export interface DiscussionState {
   userMessages: Record<number, string>;
   consensus: string;
   consensuses: Record<number, string>;
+  consensusEnabled: boolean;
   endpoint: string;
   consensusModel: string;
   timeout: number;

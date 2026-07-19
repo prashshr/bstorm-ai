@@ -28,6 +28,7 @@ function emptyState(): DiscussionState {
     userMessages: {},
     consensus: "",
     consensuses: {},
+    consensusEnabled: true,
     endpoint: "",
     consensusModel: "",
     timeout: 120,
@@ -186,6 +187,7 @@ class DiscussionStore {
     question: string;
     models: string[];
     instructions: string;
+    consensusEnabled: boolean;
     endpoint: string;
     consensusModel: string;
     totalRounds: number;
@@ -226,6 +228,7 @@ class DiscussionStore {
       summaryFormat: opts.summaryFormat,
       summaryFormatText: opts.summaryFormatText,
       summaryInstructions: opts.summaryInstructions,
+      consensusEnabled: opts.consensusEnabled,
       attachments: opts.attachments ? opts.attachments.map((a) => ({ name: a.name, size: 0, type: a.type, content: a.content })) : [],
       status: "in_progress",
       timestamp: Date.now(),
@@ -262,7 +265,26 @@ class DiscussionStore {
    * this set, so mid-discussion model changes take effect immediately.
    * When omitted, the existing discussion model list is kept.
    */
-  async nextTurn(followUp: string, modelKeys?: string[], attachments?: ChatAttachment[]): Promise<void> {
+  async nextTurn(
+    followUp: string,
+    modelKeys?: string[],
+    attachments?: ChatAttachment[],
+    settings?: {
+      instructions?: string;
+      consensusModel?: string;
+      totalRounds?: number;
+      timeout?: number;
+      maxTokens?: number;
+      ragMode?: DiscussionState["ragMode"];
+      deepResearch?: boolean;
+      responseFormat?: string;
+      responseFormatText?: string;
+      summaryFormat?: DiscussionState["summaryFormat"];
+      summaryFormatText?: string;
+      summaryInstructions?: string;
+      consensusEnabled?: boolean;
+    },
+  ): Promise<void> {
     if (!followUp.trim()) return;
     if (!this.#running) {
       this.#abort = new AbortController();
@@ -283,6 +305,21 @@ class DiscussionStore {
         ...this.#data.stats,
         modelCount: modelKeys.length,
       };
+    }
+    if (settings) {
+      if (settings.instructions !== undefined) this.#data.instructions = settings.instructions;
+      if (settings.consensusModel !== undefined) this.#data.consensusModel = settings.consensusModel;
+      if (settings.totalRounds !== undefined) this.#data.totalRounds = settings.totalRounds;
+      if (settings.timeout !== undefined) this.#data.timeout = settings.timeout;
+      if (settings.maxTokens !== undefined) this.#data.maxTokens = settings.maxTokens;
+      if (settings.ragMode !== undefined) this.#data.ragMode = settings.ragMode;
+      if (settings.deepResearch !== undefined) this.#data.deep_research = settings.deepResearch;
+      if (settings.responseFormat !== undefined) this.#data.responseFormat = settings.responseFormat;
+      if (settings.responseFormatText !== undefined) this.#data.responseFormatText = settings.responseFormatText;
+      if (settings.summaryFormat !== undefined) this.#data.summaryFormat = settings.summaryFormat;
+      if (settings.summaryFormatText !== undefined) this.#data.summaryFormatText = settings.summaryFormatText;
+      if (settings.summaryInstructions !== undefined) this.#data.summaryInstructions = settings.summaryInstructions;
+      if (settings.consensusEnabled !== undefined) this.#data.consensusEnabled = settings.consensusEnabled;
     }
     this.#data = { ...this.#data };
     this.persist();
@@ -319,9 +356,9 @@ class DiscussionStore {
 
     this.persist();
 
-    // Multi-turn: only the final round synthesizes a consensus, then stop.
-    // The UI drives follow-ups via nextTurn().
-    await this.generateConsensus(roundNum);
+    if (this.#data.consensusEnabled) {
+      await this.generateConsensus(roundNum);
+    }
     this.finish();
   }
 

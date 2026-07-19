@@ -24,6 +24,7 @@
    let sending = $state(false);
    let editorEl = $state<HTMLDivElement | null>(null);
    let showAdvanced = $state(false);
+   let consensusEnabled = $state(true);
    let instructions = $state("");
    let responseFormat = $state<"compact" | "elaborate" | "custom">("compact");
    let responseFormatText = $state(
@@ -140,6 +141,7 @@
           question,
           models: models.selected,
           instructions,
+          consensusEnabled,
           endpoint: "",
           consensusModel: consensusModel || models.selected[0],
           totalRounds,
@@ -161,7 +163,21 @@
             .map((a) => `\n\n--- Attached: ${a.name} ---\n${a.content}`)
             .join("");
         }
-        await discussion.nextTurn(full, models.selected, chatAttachments);
+        await discussion.nextTurn(full, models.selected, chatAttachments, {
+          instructions,
+          consensusModel: consensusModel || models.selected[0],
+          totalRounds,
+          timeout,
+          maxTokens,
+          ragMode,
+          deepResearch,
+          responseFormat,
+          responseFormatText,
+          summaryFormat,
+          summaryFormatText,
+          summaryInstructions,
+          consensusEnabled,
+        });
       }
     } finally {
       sending = false;
@@ -290,49 +306,57 @@
       onpaste={onPaste}
     ></div>
 
-    {#if !running}
-      <div class="advanced">
-         <button
-          type="button"
-          class="adv-toggle"
-          onclick={() => (showAdvanced = !showAdvanced)}
-          aria-expanded={showAdvanced}
-        >
-          <Icon name={showAdvanced ? "chevron-down" : "chevron-right"} size="sm" />
-          Advanced settings
-        </button>
-        <span
-          class="info-wrap"
-          role="note"
-          tabindex="0"
-          onmouseenter={() => (showInfo = true)}
-          onmouseleave={() => (showInfo = false)}
-          onfocus={() => (showInfo = true)}
-          onblur={() => (showInfo = false)}
-          aria-label="Advanced settings help"
-        >
-          <Icon name="info" size="sm" />
-          {#if showInfo}
-            <span class="info-pop">
-              <strong>Consensus Model</strong> — model that writes the final synthesis (defaults to the first selected model).<br />
-              <strong>Number of Rounds</strong> — how many discussion passes run before a final consensus.<br />
-              <strong>Response Format</strong> — instruction each model follows when answering. Pick Compact/Elaborate to auto-fill, or Custom to write your own (all editable).<br />
-              <strong>Discussion / Summary Format</strong> — instruction the consensus model follows when synthesizing. Same Compact/Elaborate/Custom options.<br />
-              <strong>Custom Instructions</strong> — global rule applied to every model on every turn.<br />
-              <strong>Response Timeout</strong> — seconds to wait per model before giving up.<br />
-              <strong>Max Tokens / Response</strong> — cap on each model's output length.<br />
-              <strong>RAG Retrieval Mode</strong> — Model/Self retrieves context from your knowledge base; Model-Only skips it.<br />
-              <strong>Deep Research</strong> — lets models run web search between rounds for fresh information.
-            </span>
-          {/if}
-        </span>
+    <div class="advanced">
+       <button
+        type="button"
+        class="adv-toggle"
+        onclick={() => (showAdvanced = !showAdvanced)}
+        aria-expanded={showAdvanced}
+      >
+        <Icon name={showAdvanced ? "chevron-down" : "chevron-right"} size="sm" />
+        Advanced settings
+      </button>
+      <span
+        class="info-wrap"
+        role="note"
+        tabindex="0"
+        onmouseenter={() => (showInfo = true)}
+        onmouseleave={() => (showInfo = false)}
+        onfocus={() => (showInfo = true)}
+        onblur={() => (showInfo = false)}
+        aria-label="Advanced settings help"
+      >
+        <Icon name="info" size="sm" />
+        {#if showInfo}
+          <span class="info-pop">
+            <strong>Consensus</strong> — when enabled, all model responses are synthesized into a single consensus summary. Disable to see each model's raw reply side by side without a final synthesis.<br />
+            <strong>Consensus Model</strong> — model that writes the final synthesis (defaults to the first selected model).<br />
+            <strong>Number of Rounds</strong> — how many discussion passes run before a final consensus.<br />
+            <strong>Response Format</strong> — instruction each model follows when answering. Pick Compact/Elaborate to auto-fill, or Custom to write your own (all editable).<br />
+            <strong>Discussion / Summary Format</strong> — instruction the consensus model follows when synthesizing. Same Compact/Elaborate/Custom options.<br />
+            <strong>Custom Instructions</strong> — global rule applied to every model on every turn.<br />
+            <strong>Response Timeout</strong> — seconds to wait per model before giving up.<br />
+            <strong>Max Tokens / Response</strong> — cap on each model's output length.<br />
+            <strong>RAG Retrieval Mode</strong> — Model/Self retrieves context from your knowledge base; Model-Only skips it.<br />
+            <strong>Deep Research</strong> — lets models run web search between rounds for fresh information.
+          </span>
+        {/if}
+      </span>
 
-         {#if showAdvanced}
+       {#if showAdvanced}
           <div class="adv-panel">
             <div class="adv-panel-grid">
-              <div class="adv-field">
-                <label for="pf-consensus">Consensus Model</label>
-                <select id="pf-consensus" bind:value={consensusModel}>
+              <div class="adv-field adv-inline">
+                <label class="switch inline" class:on={consensusEnabled} title="When enabled, all model responses are synthesized into a consensus summary. When disabled, each model replies individually.">
+                  <input type="checkbox" bind:checked={consensusEnabled} />
+                  <span class="track" aria-hidden="true"><span class="thumb"></span></span>
+                  <span>Consensus</span>
+                </label>
+              </div>
+
+              <div class="adv-field" class:disabled={!consensusEnabled}>
+                <label for="pf-consensus" class:disabled={!consensusEnabled}>Consensus Model</label>
+                <select id="pf-consensus" bind:value={consensusModel} disabled={!consensusEnabled}>
                   <option value="">Auto (first selected model)</option>
                   {#each models.selected as m (m)}
                     <option value={m}>{m.split("::")[1] ?? m}</option>
@@ -340,9 +364,9 @@
                 </select>
               </div>
 
-              <div class="adv-field">
-                <label for="pf-rounds">Number of Rounds</label>
-                <select id="pf-rounds" bind:value={totalRounds}>
+              <div class="adv-field" class:disabled={!consensusEnabled}>
+                <label for="pf-rounds" class:disabled={!consensusEnabled}>Number of Rounds</label>
+                <select id="pf-rounds" bind:value={totalRounds} disabled={!consensusEnabled}>
                   <option value={1}>1 Round</option>
                   <option value={2}>2 Rounds</option>
                   <option value={3}>3 Rounds</option>
@@ -421,11 +445,10 @@
               </div>
             </div>
           </div>
-        {/if}
-      </div>
-    {/if}
-
-    <div class="controls">
+         {/if}
+       </div>
+ 
+     <div class="controls">
       <label class="switch" title="Attach files">
         <button
           class="btn btn-ghost btn-sm icon-btn"
@@ -573,6 +596,13 @@
   .adv-field textarea {
     resize: vertical;
     font-size: 12px;
+  }
+  .adv-field.disabled {
+    opacity: 0.45;
+    pointer-events: none;
+  }
+  .adv-field.disabled label {
+    color: var(--text-tertiary);
   }
   .files {
     display: flex;
