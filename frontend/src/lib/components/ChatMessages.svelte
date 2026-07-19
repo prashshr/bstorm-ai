@@ -49,6 +49,7 @@
       </h2>
       {#if discussion.running}
         <ProgressStepper compact />
+        <span class="round-indicator">Round {discussion.currentRound} of {discussion.data.totalRounds || 1}</span>
       {/if}
       {#if discussion.data.use_rag || discussion.data.retrieved_context}
         <div
@@ -200,6 +201,17 @@
   }
   .rag-status.fail .rag-text {
     color: #dc2626;
+  }
+  .round-indicator {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent-light);
+    background: color-mix(in srgb, var(--accent-light) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-light) 30%, transparent);
+    border-radius: 999px;
+    padding: 2px 8px;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
   @keyframes rag-pulse {
     0%, 100% { opacity: 1; transform: scale(1); }
