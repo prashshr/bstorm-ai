@@ -31,9 +31,9 @@
      "Respond concisely: lead with a short direct answer, then a tight bullet list of key points. Avoid filler and repetition.",
    );
    let summaryFormat = $state<"compact" | "elaborate" | "custom">("compact");
-   let summaryFormatText = $state(
-     "Provide a compact synthesis: a one-paragraph verdict followed by a short bullet list of the main agreements and differences.",
-   );
+    let summaryFormatText = $state(
+      "Simply get information from all responses. Do not add any more information from your side or elsewhere. analyze all the responses, get the common points and the not common points and share in very short precise format a best consensus. No additional explanations.",
+    );
    let summaryInstructions = $state("");
    let timeout = $state(120);
    let maxTokens = $state(6000);
@@ -47,10 +47,10 @@
      elaborate:
        "Respond in detail with thorough reasoning, examples where helpful, and a clear structure. Explore nuance and trade-offs.",
    };
-   const SUMMARY_PRESETS: Record<string, string> = {
-     compact:
-       "Provide a compact synthesis: a one-paragraph verdict followed by a short bullet list of the main agreements and differences.",
-     elaborate:
+    const SUMMARY_PRESETS: Record<string, string> = {
+      compact:
+        "Simply get information from all responses. Do not add any more information from your side or elsewhere. analyze all the responses, get the common points and the not common points and share in very short precise format a best consensus. No additional explanations.",
+      elaborate:
        "Provide an elaborate synthesis: a full structured write-up covering each model's position, points of consensus, and remaining disagreements.",
    };
 
