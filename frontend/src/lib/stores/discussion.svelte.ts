@@ -498,10 +498,17 @@ class DiscussionStore {
     const dateContext = `[System Notice: Today's date is ${dateStr}. Please synthesize a balanced consensus from all perspectives as of today's date.]`;
 
     let consensusFormat = "";
-    if (this.#data.summaryInstructions?.trim()) {
+    const fmt = this.#data.summaryFormat || "compact";
+    if (fmt === "none") {
+      // No format instruction — model decides the output shape.
+    } else if (this.#data.summaryInstructions?.trim()) {
       consensusFormat = `\n\n## Custom Consensus Format Instructions:\n${this.#data.summaryInstructions.trim()}`;
+    } else if (this.#data.summaryFormatText?.trim()) {
+      // Use whatever the user has in the Summary Format text field
+      // (populated by preset or typed manually).
+      consensusFormat = `\n\n${this.#data.summaryFormatText.trim()}`;
     } else {
-      const fmt = this.#data.summaryFormat || "elaborate";
+      // Fallback: hardcoded templates.
       if (fmt === "compact") {
         consensusFormat =
           "\n\nProvide a COMPACT consensus:\n" +
