@@ -567,25 +567,25 @@
   .resize-handle {
     position: absolute;
     top: 0;
-    width: 40px;
-    height: 5px;
+    width: 60px;
+    height: 6px;
     cursor: ns-resize;
     z-index: 10;
   }
   .resize-handle::after {
     content: "";
     display: block;
-    width: 24px;
+    width: 32px;
     height: 2px;
     background: var(--border);
     border-radius: 2px;
-    margin: 1px auto 0;
+    margin: 2px auto 0;
   }
   .resize-handle.left {
-    left: 12px;
+    left: 0;
   }
   .resize-handle.right {
-    right: 12px;
+    right: 0;
   }
   .resize-handle:hover::after {
     background: var(--accent);
