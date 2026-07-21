@@ -37,7 +37,7 @@
    let consensusModel = $state("");
     let totalRounds = $state(1);
    let showInfo = $state(false);
-   let chatMaxHeight = $state<number | null>(null);
+   let chatHeight = $state<number | null>(null);
    let dragging = $state(false);
    let dragStartY = $state(0);
    let dragStartH = $state(300);
@@ -45,7 +45,7 @@
    function startDrag(e: MouseEvent) {
      dragging = true;
      dragStartY = e.clientY;
-     dragStartH = chatMaxHeight ?? 300;
+     dragStartH = chatHeight ?? 300;
      e.preventDefault();
    }
 
@@ -53,7 +53,7 @@
      if (!dragging) return;
      const onMove = (e: MouseEvent) => {
        const delta = dragStartY - e.clientY;
-       chatMaxHeight = Math.max(120, Math.min(600, dragStartH + delta));
+       chatHeight = Math.max(100, Math.min(600, dragStartH + delta));
      };
      const onUp = () => { dragging = false; };
      window.addEventListener("mousemove", onMove);
@@ -312,7 +312,7 @@
   const imageButNoVision = $derived(hasImageAttachment && !selectionHasVision);
 </script>
 
-<div class="chat-input-bar" style={chatMaxHeight != null ? "max-height:" + chatMaxHeight + "px" : ""}>
+<div class="chat-input-bar" style={chatHeight != null ? "height:" + chatHeight + "px" : ""}>
   <div class="resize-handle left" onmousedown={startDrag}></div>
   <div class="resize-handle right" onmousedown={startDrag}></div>
   <div class="attach-row">
@@ -556,8 +556,6 @@
 
 <style>
   .chat-input-bar {
-    flex-shrink: 0;
-    min-height: 0;
     border-top: 1px solid var(--border);
     background: var(--bg-secondary);
     padding: 10px 16px;

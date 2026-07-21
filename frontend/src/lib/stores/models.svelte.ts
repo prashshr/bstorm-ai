@@ -25,9 +25,7 @@ function generateVisionTestImage(): { base64: string; code: string } {
   return { base64: canvas.toDataURL("image/png").split(",")[1], code };
 }
 
-const STORAGE_KEY = "aiEnsembleModels";
-
-const STORAGE_KEY = "aiEnsembleModels";
+  const STORAGE_KEY = "aiEnsembleModels";
 
 class ModelsStore {
   #available = $state<string[]>([]);
