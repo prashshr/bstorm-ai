@@ -89,7 +89,7 @@
           />
           <span class="mname" title={model}>{model}</span>
           {#if modelSupportsVision(model)}
-            <span class="badge badge-vision" title="Supports image attachments">vision</span>
+            <Icon name="image" size="sm" class="vision-icon" title="Supports image attachments" />
           {/if}
           {#if health === "OK"}
             <span class="badge badge-ok">OK</span>
@@ -214,8 +214,8 @@
     border-radius: 3px;
     flex-shrink: 0;
   }
-  .badge-vision {
-    background: color-mix(in srgb, #8b5cf6 18%, transparent);
-    color: #a78bfa;
+  .vision-icon {
+    color: #22c55e;
+    flex-shrink: 0;
   }
 </style>
