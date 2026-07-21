@@ -100,7 +100,7 @@
                   name={editing === p.provider ? "chevron-down" : "chevron-right"}
                   size="sm"
                 />
-                <span class="pname">{providerDisplayName(p.provider)}</span>
+                <span class="pname">{providerDisplayName(p.provider, p.label)}</span>
                 {#if providers.isVerified(p.provider)}
                   <span class="verified" title="Models discovered"></span>
                 {/if}

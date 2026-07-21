@@ -16,7 +16,8 @@
     return 0;
   });
 
-  let presetKey = $state(initialProvider || "openrouter");
+   let presetKey = $state(initialProvider || "openrouter");
+  let label = $state("");
   let apiKey = $state("");
   let endpoint = $state(
     PROVIDER_PRESETS.find((p) => p.key === (initialProvider || "openrouter"))
@@ -29,15 +30,22 @@
   let saving = $state(false);
   let message = $state<{ type: "ok" | "err"; text: string } | null>(null);
 
+  const isCustom = $derived(presetKey === "custom");
+
   const isVertex = $derived(
     presetKey === "google-vertex" || presetKey === "vertex",
   );
 
-  // Prefill project/region/adc when editing an existing provider.
+  // Prefill project/region/adc/label when editing an existing provider.
   if (initialProvider) {
     const existing = providers.find(initialProvider);
     if (existing?.project_id) projectId = existing.project_id;
     if (existing?.region) region = existing.region;
+    if (existing?.label) {
+      label = existing.label;
+    } else if (presetKey === "custom") {
+      label = "Custom OpencodeGo";
+    }
   }
 
   function onPresetChange() {
@@ -74,6 +82,7 @@
     saving = true;
     message = null;
     const ok = await providers.save(presetKey, apiKey, endpoint, {
+      label: isCustom ? label.trim() : "",
       project_id: isVertex ? projectId.trim() : "",
       region: isVertex ? region.trim() : "",
       adc_json: isVertex ? adcJson.trim() : "",
@@ -114,6 +123,16 @@
     bind:value={endpoint}
     placeholder="https://api.example.com/v1"
   />
+
+  {#if isCustom}
+    <label for="pf-custom-label">Provider Name</label>
+    <input
+      id="pf-custom-label"
+      type="text"
+      bind:value={label}
+      placeholder="e.g. My Custom API"
+    />
+  {/if}
 
   {#if isVertex}
     <label class="with-help" for="pf-project">

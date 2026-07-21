@@ -131,8 +131,11 @@ const PRESET_NAME_BY_KEY: Record<string, string> = Object.fromEntries(
 );
 
 /** Human-readable provider name for a credential key, falling back to a
- *  prettified version of the key when no preset matches. */
-export function providerDisplayName(key: string): string {
+ *  prettified version of the key when no preset matches. An optional
+ *  `label` overrides the display name (used for custom providers that
+ *  the user has named). */
+export function providerDisplayName(key: string, label?: string): string {
+  if (label) return label;
   if (PRESET_NAME_BY_KEY[key]) return PRESET_NAME_BY_KEY[key];
   return key
     .split(/[-_]/)

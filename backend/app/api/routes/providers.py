@@ -58,6 +58,7 @@ def upsert_provider_credential(
     if row:
         row.api_key_encrypted = encrypted
         row.endpoint = normalized_endpoint
+        row.label = payload.label or None
         row.project_id = payload.project_id or None
         row.region = payload.region or None
         row.adc_json_encrypted = adc_encrypted
@@ -67,6 +68,7 @@ def upsert_provider_credential(
             provider=payload.provider,
             endpoint=normalized_endpoint,
             api_key_encrypted=encrypted,
+            label=payload.label or None,
             project_id=payload.project_id or None,
             region=payload.region or None,
             adc_json_encrypted=adc_encrypted,
@@ -76,6 +78,7 @@ def upsert_provider_credential(
     db.commit()
     return ProviderCredentialResponse(
         provider=payload.provider,
+        label=payload.label or "",
         endpoint=normalized_endpoint,
         has_key=bool(payload.api_key),
         project_id=payload.project_id or "",
@@ -95,6 +98,7 @@ def list_provider_credentials(
     return [
         ProviderCredentialResponse(
             provider=r.provider,
+            label=r.label or "",
             endpoint=r.endpoint or "",
             has_key=bool(r.api_key_encrypted),
             project_id=r.project_id or "",

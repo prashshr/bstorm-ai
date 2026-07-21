@@ -9,6 +9,7 @@ export interface TokenResponse {
 
 export interface ProviderCredentialResponse {
   provider: string;
+  label?: string;
   endpoint: string;
   has_key: boolean;
   project_id?: string;
@@ -18,6 +19,7 @@ export interface ProviderCredentialResponse {
 
 export interface UpsertProviderCredentialRequest {
   provider: string;
+  label?: string;
   api_key: string;
   endpoint?: string;
   project_id?: string;

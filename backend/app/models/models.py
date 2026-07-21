@@ -25,6 +25,7 @@ class ProviderCredential(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     provider: Mapped[str] = mapped_column(String(100), index=True)
+    label: Mapped[str | None] = mapped_column(String(100), nullable=True)
     endpoint: Mapped[str] = mapped_column(String(500), default="")
     api_key_encrypted: Mapped[str] = mapped_column(Text, default="")
     project_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
