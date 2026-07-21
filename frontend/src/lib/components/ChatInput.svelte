@@ -374,6 +374,14 @@
                 </select>
               </div>
 
+              <div class="adv-field">
+                <label for="pf-rag">RAG Retrieval Mode</label>
+                <select id="pf-rag" bind:value={ragMode} data-testid="rag-mode-select" aria-label="RAG mode">
+                  <option value="model-self">Model/Self (Default)</option>
+                  <option value="model-only">Model-Only</option>
+                </select>
+              </div>
+
               <div class="adv-field span-2">
                 <label for="pf-response-preset">Response Format</label>
                 <select
@@ -428,14 +436,6 @@
               <div class="adv-field">
                 <label for="pf-maxtok">Max Tokens / Response</label>
                 <input id="pf-maxtok" type="number" min="500" max="16000" step="500" bind:value={maxTokens} />
-              </div>
-
-              <div class="adv-field">
-                <label for="pf-rag">RAG Retrieval Mode</label>
-                <select id="pf-rag" bind:value={ragMode} data-testid="rag-mode-select" aria-label="RAG mode">
-                  <option value="model-self">Model/Self (Default)</option>
-                  <option value="model-only">Model-Only</option>
-                </select>
               </div>
 
               <div class="adv-field adv-inline">
