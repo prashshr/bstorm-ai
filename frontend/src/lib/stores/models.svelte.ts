@@ -213,9 +213,15 @@ class ModelsStore {
         temperature: 0,
         attachments: [{ name: "vision.png", type: "image/png", content: base64 }],
       });
-      // Strip whitespace/punctuation from the response and compare.
-      const cleaned = res.output.trim().replace(/[^A-Za-z0-9]/g, "");
-      this.#vision = { ...this.#vision, [compositeKey]: cleaned === code };
+      // The model MUST return the exact 5-char code and nothing else.
+      // Strip whitespace/punctuation, then verify it's exactly 5 chars
+      // and matches the embedded code. Any deviation = not vision.
+      const cleaned = (res.output || "").trim().replace(/[^A-Za-z0-9]/g, "");
+      const matched = cleaned.length === 5 && cleaned === code;
+      if (!matched) {
+        debug.log(`Vision check failed for ${compositeKey}: got "${(res.output || "").trim().slice(0, 40)}" expected "${code}"`);
+      }
+      this.#vision = { ...this.#vision, [compositeKey]: matched };
     } catch (e) {
       const msg = e instanceof Error ? e.message.toLowerCase() : String(e).toLowerCase();
       if (/image|multimodal|unsupported content|type.*not.*accept|format.*not.*support/i.test(msg)) {
