@@ -557,6 +557,7 @@
 <style>
   .chat-input-bar {
     flex-shrink: 0;
+    min-height: 0;
     border-top: 1px solid var(--border);
     background: var(--bg-secondary);
     padding: 10px 16px;
