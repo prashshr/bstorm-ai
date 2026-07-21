@@ -378,6 +378,36 @@
       onpaste={onPaste}
     ></div>
 
+    <div class="chat-controls-row">
+      <label class="attach-btn" title="Attach files">
+        <button
+          class="btn btn-ghost btn-sm icon-btn"
+          type="button"
+          onclick={() => document.getElementById("chat-file")?.click()}
+          aria-label="Attach files"
+        >
+          <Icon name="paperclip" size="sm" />
+        </button>
+        <input
+          id="chat-file"
+          type="file"
+          multiple
+          style="display:none"
+          onchange={(e) => handleFiles((e.target as HTMLInputElement).files)}
+        />
+      </label>
+
+      <button
+        class="btn btn-primary send"
+        data-testid="chat-send"
+        onclick={running ? () => discussion.stop() : send}
+        disabled={!text.trim() && !running || sending || models.selected.length === 0}
+      >
+        <Icon name={running ? "stop" : "arrow-right"} size="sm" />
+        {running ? "Stop" : "Send"}
+      </button>
+    </div>
+
     <div class="advanced">
        <button
         type="button"
@@ -518,39 +548,9 @@
                 </label>
               </div>
             </div>
-          </div>
-         {/if}
-       </div>
- 
-     <div class="controls">
-      <label class="switch" title="Attach files">
-        <button
-          class="btn btn-ghost btn-sm icon-btn"
-          type="button"
-          onclick={() => document.getElementById("chat-file")?.click()}
-          aria-label="Attach files"
-        >
-          <Icon name="paperclip" size="sm" />
-        </button>
-        <input
-          id="chat-file"
-          type="file"
-          multiple
-          style="display:none"
-          onchange={(e) => handleFiles((e.target as HTMLInputElement).files)}
-        />
-      </label>
-
-      <button
-        class="btn btn-primary send"
-        data-testid="chat-send"
-        onclick={running ? () => discussion.stop() : send}
-        disabled={!text.trim() && !running || sending || models.selected.length === 0}
-      >
-        <Icon name={running ? "stop" : "arrow-right"} size="sm" />
-        {running ? "Stop" : "Send"}
-      </button>
-    </div>
+        </div>
+       {/if}
+     </div>
   </div>
 </div>
 
@@ -590,27 +590,37 @@
   .resize-handle:hover::after {
     background: var(--accent);
   }
+  .chat-controls-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 6px 0 4px;
+    gap: 8px;
+  }
+  .attach-btn {
+    display: inline-flex;
+  }
   .advanced {
     margin-bottom: 8px;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
   }
   .adv-toggle {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    background: none;
-    border: none;
-    color: var(--text-tertiary);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-secondary);
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
-    padding: 2px 0;
+    padding: 5px 10px;
+    transition: border-color var(--transition), color var(--transition);
+    width: 100%;
   }
   .adv-toggle:hover {
-    color: var(--text-secondary);
+    border-color: var(--accent);
+    color: var(--text-primary);
   }
   .info-wrap {
     position: relative;
@@ -831,12 +841,6 @@
     color: var(--accent);
     text-decoration: underline;
   }
-  .controls {
-    display: flex;
-    align-items: stretch;
-    gap: 8px;
-    margin-top: 12px;
-  }
   .switch {
     display: inline-flex;
     align-items: center;
@@ -951,7 +955,7 @@
     height: 32px;
   }
   @media (max-width: 768px) {
-    .controls {
+    .chat-controls-row {
       flex-wrap: wrap;
     }
     .send {
@@ -966,7 +970,7 @@
     }
   }
   @media (max-width: 420px) {
-    .controls {
+    .chat-controls-row {
       gap: 6px;
     }
     .rag-select,
