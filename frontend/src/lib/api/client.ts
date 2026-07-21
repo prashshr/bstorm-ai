@@ -221,10 +221,10 @@ export const api = {
 
   // ---- Proxy chat ----
   // Provider/upstream 401s here must not end the user's session.
-  chat(body: ChatRequest): Promise<ChatResponse> {
+  chat(body: ChatRequest, signal?: AbortSignal): Promise<ChatResponse> {
     return request<ChatResponse>(
       "/api/proxy/chat",
-      { method: "POST", body: JSON.stringify(body) },
+      { method: "POST", body: JSON.stringify(body), signal },
       true,
       false,
     );

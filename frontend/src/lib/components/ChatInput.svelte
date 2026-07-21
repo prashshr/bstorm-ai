@@ -2,6 +2,7 @@
   import { discussion } from "../stores/discussion.svelte";
   import { models } from "../stores/models.svelte";
   import { splitModelKey } from "../utils/helpers";
+  import { isSupportedDocument, extractDocumentText } from "../utils/extractDocument";
   import type { AttachedFile } from "../api/types";
   import Icon from "./Icon.svelte";
 
@@ -17,14 +18,14 @@
   }: Props = $props();
 
    let text = $state("");
-   let ragMode = $state<"model-self" | "model-only">("model-self");
+   let ragMode = $state<"model-self" | "model-only">("model-only");
    let deepResearch = $state(false);
    let attachments = $state<AttachedFile[]>([]);
    let dragover = $state(false);
    let sending = $state(false);
    let editorEl = $state<HTMLDivElement | null>(null);
    let showAdvanced = $state(false);
-   let consensusEnabled = $state(true);
+   let consensusEnabled = $state(false);
    let instructions = $state("");
    let responseFormatText = $state("");
    let summaryFormatText = $state(
@@ -34,8 +35,38 @@
    let timeout = $state(120);
    let maxTokens = $state(6000);
    let consensusModel = $state("");
-   let totalRounds = $state(1);
+    let totalRounds = $state(1);
    let showInfo = $state(false);
+   let chatHeight = $state(200);
+   let dragging = $state(false);
+   let dragStartY = $state(0);
+   let dragStartH = $state(200);
+
+   function startDrag(e: MouseEvent) {
+     dragging = true;
+     dragStartY = e.clientY;
+     dragStartH = chatHeight;
+     e.preventDefault();
+   }
+
+   function stopDrag() {
+     dragging = false;
+   }
+
+   $effect(() => {
+     if (!dragging) return;
+     const onMove = (e: MouseEvent) => {
+       const delta = dragStartY - e.clientY;
+       chatHeight = Math.max(100, Math.min(600, dragStartH + delta));
+     };
+     const onUp = () => { dragging = false; };
+     window.addEventListener("mousemove", onMove);
+     window.addEventListener("mouseup", onUp);
+     return () => {
+       window.removeEventListener("mousemove", onMove);
+       window.removeEventListener("mouseup", onUp);
+     };
+   });
 
     const RESPONSE_PRESETS: Record<string, string> = {
       none: "",
@@ -88,17 +119,42 @@
     return (editorEl.innerText ?? "").replace(/ /g, " ").trim();
   }
 
+  const MAX_FILE_SIZE = 100 * 1024 * 1024;
+
   async function handleFiles(fileList: FileList | null) {
     if (!fileList) return;
     for (const file of Array.from(fileList)) {
-      if (file.size > 10 * 1024 * 1024) continue;
+      if (file.size > MAX_FILE_SIZE) {
+        alert(`${file.name} exceeds the 100 MB limit.`);
+        continue;
+      }
       const isImage = file.type.startsWith("image/");
-      const content = isImage ? await file.arrayBuffer().then(buf => btoa(String.fromCharCode(...new Uint8Array(buf)))) : await file.text();
+      let content: string;
+      if (isImage) {
+        content = await blobToBase64(file);
+      } else if (isSupportedDocument(file.type)) {
+        const extracted = await extractDocumentText(file);
+        content = extracted ?? "[Could not extract text from this file format]";
+      } else {
+        content = await file.text();
+      }
       attachments = [
         ...attachments,
         { name: file.name, size: file.size, type: file.type, content },
       ];
     }
+  }
+
+  function blobToBase64(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        resolve(result.split(",")[1] ?? result);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
   }
 
   function removeFile(name: string) {
@@ -129,9 +185,10 @@
     // appended text. Images are sent via the `attachments` field; text files
     // are also added inline so the model can read them.
     const chatAttachments = attach.map((a) => ({ name: a.name, type: a.type, content: a.content }));
-    // Only genuine text files are inlined into the prompt; images are sent as
-    // multimodal content (never as base64 text, which would render as garbage).
-    const textAttachments = attach.filter((a) => a.type.startsWith("text/"));
+    // Only genuine text files and extracted document content are inlined into
+    // the prompt; images are sent as multimodal content (never as base64 text,
+    // which would render as garbage).
+    const textAttachments = attach.filter((a) => !a.type.startsWith("image/"));
     if (editorEl) editorEl.innerHTML = "";
     text = "";
     attachments = [];
@@ -194,11 +251,27 @@
 
   function onPaste(e: ClipboardEvent) {
     // Capture pasted files (images copied to clipboard) as attachments.
+    // Check .files first (standard), then .items for apps like monosnap
+    // that put image blobs in items rather than files.
     const files = e.clipboardData?.files;
     if (files && files.length > 0) {
       e.preventDefault();
       handleFiles(files);
       return;
+    }
+    const items = e.clipboardData?.items;
+    if (items && items.length > 0) {
+      const imageItems = Array.from(items).filter((it) => it.type.startsWith("image/"));
+      if (imageItems.length > 0) {
+        e.preventDefault();
+        const blobs = imageItems
+          .map((it) => it.getAsFile())
+          .filter((f): f is File => f !== null);
+        if (blobs.length > 0) {
+          handleFiles(new FileList(blobs as FileList));
+        }
+        return;
+      }
     }
     e.preventDefault();
     const html = e.clipboardData?.getData("text/html");
@@ -243,7 +316,9 @@
   const imageButNoVision = $derived(hasImageAttachment && !selectionHasVision);
 </script>
 
-<div class="chat-input-bar">
+<div class="chat-input-bar" style="height:{chatHeight}px">
+  <div class="resize-handle left" onmousedown={startDrag}></div>
+  <div class="resize-handle right" onmousedown={startDrag}></div>
   <div class="attach-row">
     {#if models.selected.length > 0}
       <div class="selected-models">
@@ -473,11 +548,11 @@
       <button
         class="btn btn-primary send"
         data-testid="chat-send"
-        onclick={send}
-        disabled={!text.trim() || running || sending || models.selected.length === 0}
+        onclick={running ? () => discussion.stop() : send}
+        disabled={!text.trim() && !running || sending || models.selected.length === 0}
       >
         <Icon name={running ? "stop" : "arrow-right"} size="sm" />
-        {running ? "Running…" : "Send"}
+        {running ? "Stop" : "Send"}
       </button>
     </div>
   </div>
@@ -489,8 +564,35 @@
     border-top: 1px solid var(--border);
     background: var(--bg-secondary);
     padding: 10px 16px;
-    max-height: 60vh;
+    min-height: 100px;
     overflow-y: auto;
+    position: relative;
+  }
+  .resize-handle {
+    position: absolute;
+    top: 0;
+    width: 40px;
+    height: 5px;
+    cursor: ns-resize;
+    z-index: 10;
+  }
+  .resize-handle::after {
+    content: "";
+    display: block;
+    width: 24px;
+    height: 2px;
+    background: var(--border);
+    border-radius: 2px;
+    margin: 1px auto 0;
+  }
+  .resize-handle.left {
+    left: 12px;
+  }
+  .resize-handle.right {
+    right: 12px;
+  }
+  .resize-handle:hover::after {
+    background: var(--accent);
   }
   .advanced {
     margin-bottom: 8px;

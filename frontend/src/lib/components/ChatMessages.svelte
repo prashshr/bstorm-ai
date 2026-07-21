@@ -73,9 +73,14 @@
     </div>
     <div class="ch-right">
       {#if discussion.running}
-        <button class="btn btn-ghost btn-sm" onclick={() => discussion.stop()}>
-          <Icon name="stop" size="sm" /> Stop
-        </button>
+        <div class="stop-group">
+          <button class="btn btn-ghost btn-sm" onclick={() => discussion.stop()}>
+            <Icon name="stop" size="sm" /> Stop
+          </button>
+          <button class="btn btn-ghost btn-sm" onclick={() => discussion.stopAndSummarize()}>
+            <Icon name="star" size="sm" /> Stop & Summarize
+          </button>
+        </div>
       {/if}
       <ChatExport />
     </div>
@@ -225,6 +230,10 @@
     align-items: center;
     gap: 8px;
     flex-shrink: 0;
+  }
+  .stop-group {
+    display: flex;
+    gap: 4px;
   }
   .scroll-area {
     flex: 1;

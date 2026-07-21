@@ -28,6 +28,7 @@ function seed(enabled: boolean) {
     },
     consensus: "",
     consensuses: {},
+    consensusError: "",
     consensusEnabled: true,
     endpoint: "",
     consensusModel: "openai::gpt-4o",

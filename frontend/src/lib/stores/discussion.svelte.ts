@@ -29,6 +29,7 @@ function emptyState(): DiscussionState {
     consensus: "",
     consensuses: {},
     consensusEnabled: true,
+    consensusError: "",
     endpoint: "",
     consensusModel: "",
     timeout: 120,
@@ -531,14 +532,17 @@ class DiscussionStore {
     const prompt = `${dateContext}\n\nSynthesize a balanced consensus from all perspectives.\n\n"${this.#data.question}"\n\nAll model responses:\n\n${allResponses}${consensusFormat}`;
 
     try {
-      const res = await api.chat({
-        provider,
-        model: modelId,
-        prompt,
-        endpoint: cred?.endpoint ?? this.#data.endpoint,
-        max_tokens: this.#data.maxTokens,
-        temperature: 0.5,
-      });
+      const res = await api.chat(
+        {
+          provider,
+          model: modelId,
+          prompt,
+          endpoint: cred?.endpoint ?? this.#data.endpoint,
+          max_tokens: this.#data.maxTokens,
+          temperature: 0.5,
+        },
+        this.#abort?.signal,
+      );
       // Persist the consensus for this specific round so each turn keeps its
       // own synthesis and the conversation reads top-to-bottom in order.
       this.#data.consensuses = {
@@ -546,8 +550,12 @@ class DiscussionStore {
         [roundNum]: res.output,
       };
       this.#data.consensus = res.output;
+      this.#data.consensusError = "";
       this.#data = { ...this.#data };
-    } catch (e) {
+    } catch (e: any) {
+      if (e?.name === "AbortError") return;
+      this.#data.consensusError = `Consensus generation failed: ${e}`;
+      this.#data = { ...this.#data };
       debug.log(`Consensus generation failed: ${e}`, "error");
     }
   }
@@ -584,7 +592,9 @@ class DiscussionStore {
 
   finish(): void {
     this.#running = false;
-    this.#data.status = "completed";
+    if (this.#data.status !== "stopped") {
+      this.#data.status = "completed";
+    }
     this.#phase = "done";
     this.#data = { ...this.#data };
     this.persist();

@@ -10,6 +10,7 @@ data:
       server_name _;
       root /usr/share/nginx/html;
       index index.html;
+      client_max_body_size 100M;
 
       # SPA fallback: serve index.html for unknown client-side routes
       location / {

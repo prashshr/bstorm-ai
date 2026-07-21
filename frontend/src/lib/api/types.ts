@@ -137,6 +137,7 @@ export interface DiscussionState {
   consensus: string;
   consensuses: Record<number, string>;
   consensusEnabled: boolean;
+  consensusError: string;
   endpoint: string;
   consensusModel: string;
   timeout: number;

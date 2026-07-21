@@ -58,6 +58,8 @@
      <div class="generating">
        <span class="spinner"></span> Synthesizing consensus…
      </div>
+   {:else if discussion.data.consensusError}
+     <div class="consensus-error">{discussion.data.consensusError}</div>
    {:else if consensus}
      <div class="markdown c-body">{@html rendered}</div>
      <ContributionBars />
@@ -120,6 +122,14 @@
   }
   .empty {
     color: var(--text-tertiary);
+    font-size: 13px;
+  }
+  .consensus-error {
+    color: #b45309;
+    background: color-mix(in srgb, #f59e0b 14%, transparent);
+    border: 1px solid color-mix(in srgb, #f59e0b 40%, transparent);
+    border-radius: var(--radius);
+    padding: 8px 12px;
     font-size: 13px;
   }
   @keyframes spin {
