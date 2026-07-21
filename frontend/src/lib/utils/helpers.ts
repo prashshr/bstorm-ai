@@ -130,6 +130,15 @@ const PRESET_NAME_BY_KEY: Record<string, string> = Object.fromEntries(
   PROVIDER_PRESETS.map((p) => [p.key, p.name]),
 );
 
+/** Best-effort check whether a model name suggests vision/multimodal support. */
+const VISION_RE = /(gpt-4o|gpt-4-visual|gpt-4-turbo|vision|gemini|claude-3\.5|claude-4|llama-3\.2-vision|llama-4|llava|qwen-vl|qwen2\.5-vl|pixtral|moondream|ministral|gemma-3|internvl|smolvlm|aya-vision|phi-3-vision|phi-4-vision|o1|o4)/i;
+const TEXT_ONLY_RE = /(deepseek|reasoner|o1-mini|o3-mini|text-|instruct)/i;
+
+export function modelSupportsVision(modelName: string): boolean {
+  if (TEXT_ONLY_RE.test(modelName) && !VISION_RE.test(modelName)) return false;
+  return VISION_RE.test(modelName);
+}
+
 /** Human-readable provider name for a credential key, falling back to a
  *  prettified version of the key when no preset matches. An optional
  *  `label` overrides the display name (used for custom providers that

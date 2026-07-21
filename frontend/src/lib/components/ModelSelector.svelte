@@ -1,7 +1,7 @@
 <script lang="ts">
   import { models } from "../stores/models.svelte";
   import { providers } from "../stores/providers.svelte";
-  import { providerDisplayName } from "../utils/helpers";
+  import { providerDisplayName, modelSupportsVision } from "../utils/helpers";
   import Icon from "./Icon.svelte";
 
   let { collapsible = false } = $props<{ collapsible?: boolean }>();
@@ -88,6 +88,9 @@
             onchange={() => models.toggle(key)}
           />
           <span class="mname" title={model}>{model}</span>
+          {#if modelSupportsVision(model)}
+            <span class="badge badge-vision" title="Supports image attachments">vision</span>
+          {/if}
           {#if health === "OK"}
             <span class="badge badge-ok">OK</span>
           {:else if health === "KO"}
@@ -201,5 +204,18 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .badge {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 1px 5px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+  .badge-vision {
+    background: color-mix(in srgb, #8b5cf6 18%, transparent);
+    color: #a78bfa;
   }
 </style>
