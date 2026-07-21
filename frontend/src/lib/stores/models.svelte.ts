@@ -4,8 +4,28 @@ import { debug } from "./debug.svelte";
 import { providers } from "./providers.svelte";
 import { splitModelKey, modelSupportsVision } from "../utils/helpers";
 
-/** Smallest valid image: 1×1 transparent GIF — 35 bytes, costs ~1 token. */
-const PIXEL_GIF_BASE64 = "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+/** Generate a tiny PNG with a random 5-char alphanumeric code rendered on a
+ *  white background. Returns the PNG as base64 and the code so the caller can
+ *  verify the model actually READ the image (not just accepted it). */
+function generateVisionTestImage(): { base64: string; code: string } {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "";
+  for (let i = 0; i < 5; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  const canvas = document.createElement("canvas");
+  canvas.width = 120;
+  canvas.height = 30;
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, 120, 30);
+  ctx.fillStyle = "#000";
+  ctx.font = "bold 20px monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(code, 60, 16);
+  return { base64: canvas.toDataURL("image/png").split(",")[1], code };
+}
+
+const STORAGE_KEY = "aiEnsembleModels";
 
 const STORAGE_KEY = "aiEnsembleModels";
 
@@ -178,31 +198,32 @@ class ModelsStore {
       return;
     }
 
-    // Second: probe vision with a 1×1 GIF attachment. The token cost is ~4
-    // tokens (the prompt is "describe this" + the tiny image). Models that
-    // silently ignore the image (e.g. DeepSeek) still respond OK — we fall
-    // back to the name heuristic for those.
+    // Second: probe vision by embedding a unique code in a tiny PNG and asking
+    // the model to read it back. Only models that return the EXACT code are
+    // marked vision-capable — this catches providers that silently accept image
+    // attachments but don't actually process them (e.g. DeepSeek).
+    const { base64, code } = generateVisionTestImage();
     try {
-      await api.chat({
+      const res = await api.chat({
         provider,
         model,
-        prompt: "describe this",
+        prompt: "reply with only the 5-character code visible in this image",
         endpoint: cred?.endpoint ?? "",
-        max_tokens: 4,
+        max_tokens: 8,
         temperature: 0,
-        attachments: [
-          { name: "pixel.gif", type: "image/gif", content: PIXEL_GIF_BASE64 },
-        ],
+        attachments: [{ name: "vision.png", type: "image/png", content: base64 }],
       });
-      this.#vision = { ...this.#vision, [compositeKey]: true };
+      // Strip whitespace/punctuation from the response and compare.
+      const cleaned = res.output.trim().replace(/[^A-Za-z0-9]/g, "");
+      this.#vision = { ...this.#vision, [compositeKey]: cleaned === code };
     } catch (e) {
       const msg = e instanceof Error ? e.message.toLowerCase() : String(e).toLowerCase();
-      // Provider explicitly rejected the image — model is NOT vision-capable.
       if (/image|multimodal|unsupported content|type.*not.*accept|format.*not.*support/i.test(msg)) {
         this.#vision = { ...this.#vision, [compositeKey]: false };
+        return;
       }
-      // Otherwise the error is likely transient (rate-limit / server error);
-      // skip setting vision status so the name heuristic fallback applies.
+      // Transient error (rate-limit / timeout) — leave vision status unset so
+      // the name heuristic fallback applies.
     }
   }
 
