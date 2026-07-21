@@ -87,6 +87,11 @@ class ModelsStore {
       };
       if (data.allByProvider && Object.keys(data.allByProvider).length > 0) {
         this.#allByProvider = data.allByProvider;
+        for (const prov of Object.keys(data.allByProvider)) {
+          if (data.allByProvider[prov].length > 0) {
+            providers.markVerified(prov);
+          }
+        }
       }
       if (data.selected && data.selected.length > 0) {
         this.#selected = data.selected;

@@ -105,7 +105,10 @@ class ProvidersStore {
   async verifyAll(): Promise<void> {
     await Promise.all(
       this.#list.map((p) => {
-        if (models.hasCache(p.provider)) return Promise.resolve();
+        if (models.hasCache(p.provider)) {
+          this.markVerified(p.provider);
+          return Promise.resolve();
+        }
         return models
           .discover(p.provider)
           .catch((e) =>
