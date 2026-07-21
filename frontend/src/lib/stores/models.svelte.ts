@@ -2,7 +2,10 @@ import { api } from "../api/client";
 import type { HealthStatus } from "../api/types";
 import { debug } from "./debug.svelte";
 import { providers } from "./providers.svelte";
-import { splitModelKey } from "../utils/helpers";
+import { splitModelKey, modelSupportsVision } from "../utils/helpers";
+
+/** Smallest valid image: 1×1 transparent GIF — 35 bytes, costs ~1 token. */
+const PIXEL_GIF_BASE64 = "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 
 const STORAGE_KEY = "aiEnsembleModels";
 
@@ -10,6 +13,7 @@ class ModelsStore {
   #available = $state<string[]>([]);
   #selected = $state<string[]>([]);
   #health = $state<Record<string, HealthStatus>>({});
+  #vision = $state<Record<string, boolean>>({});
   #discovering = $state(false);
   /** All discovered models across every provider, keyed by provider. */
   #allByProvider = $state<Record<string, string[]>>({});
@@ -36,6 +40,10 @@ class ModelsStore {
 
   healthOf(model: string): HealthStatus {
     return this.#health[model] ?? "unknown";
+  }
+
+  visionOf(model: string): boolean | undefined {
+    return this.#vision[model];
   }
 
   isSelected(compositeKey: string): boolean {
@@ -147,13 +155,15 @@ class ModelsStore {
     this.persist();
   }
 
-  /** Background health check for one model via a minimal proxy chat call. */
+  /** Background health check for one model. Tests reachability (text ping)
+   *  AND vision capability (probe with a 1×1 GIF attachment). */
   async checkHealth(compositeKey: string): Promise<void> {
     const { provider, model } = splitModelKey(compositeKey);
     if (!provider || !model) return;
     this.#health = { ...this.#health, [compositeKey]: "testing" };
+    const cred = providers.find(provider);
     try {
-      const cred = providers.find(provider);
+      // First: text-only ping to confirm reachability.
       await api.chat({
         provider,
         model,
@@ -165,6 +175,34 @@ class ModelsStore {
       this.#health = { ...this.#health, [compositeKey]: "OK" };
     } catch {
       this.#health = { ...this.#health, [compositeKey]: "KO" };
+      return;
+    }
+
+    // Second: probe vision with a 1×1 GIF attachment. The token cost is ~4
+    // tokens (the prompt is "describe this" + the tiny image). Models that
+    // silently ignore the image (e.g. DeepSeek) still respond OK — we fall
+    // back to the name heuristic for those.
+    try {
+      await api.chat({
+        provider,
+        model,
+        prompt: "describe this",
+        endpoint: cred?.endpoint ?? "",
+        max_tokens: 4,
+        temperature: 0,
+        attachments: [
+          { name: "pixel.gif", type: "image/gif", content: PIXEL_GIF_BASE64 },
+        ],
+      });
+      this.#vision = { ...this.#vision, [compositeKey]: true };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message.toLowerCase() : String(e).toLowerCase();
+      // Provider explicitly rejected the image — model is NOT vision-capable.
+      if (/image|multimodal|unsupported content|type.*not.*accept|format.*not.*support/i.test(msg)) {
+        this.#vision = { ...this.#vision, [compositeKey]: false };
+      }
+      // Otherwise the error is likely transient (rate-limit / server error);
+      // skip setting vision status so the name heuristic fallback applies.
     }
   }
 

@@ -88,8 +88,8 @@
             onchange={() => models.toggle(key)}
           />
           <span class="mname" title={model}>{model}</span>
-          {#if modelSupportsVision(model)}
-            <Icon name="image" size="sm" class="vision-icon" title="Supports image attachments" />
+          {#if models.visionOf(key) ?? modelSupportsVision(model)}
+            <span class="vision-icon" title="Supports image attachments"><Icon name="image" size="sm" /></span>
           {/if}
           {#if health === "OK"}
             <span class="badge badge-ok">OK</span>
