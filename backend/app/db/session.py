@@ -45,6 +45,12 @@ def init_db() -> None:
             db.commit()
         except Exception:
             db.rollback()
+
+        try:
+            db.execute(text("ALTER TABLE provider_credentials ADD COLUMN label VARCHAR(100)"))
+            db.commit()
+        except Exception:
+            db.rollback()
         finally:
             db.close()
 
