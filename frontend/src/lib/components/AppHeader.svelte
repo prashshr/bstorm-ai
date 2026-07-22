@@ -56,7 +56,6 @@
     position: relative;
     display: flex;
     align-items: center;
-    justify-content: space-between;
     padding: 8px 14px;
     border-bottom: 1px solid var(--border);
     background: var(--bg-secondary);
@@ -68,26 +67,17 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    position: relative;
-    z-index: 2;
+    flex: 0 0 auto;
   }
   .right {
     justify-content: flex-end;
   }
   .title-wrap {
-    position: absolute;
-    left: var(--sidebar-w, 0px);
-    right: 0;
-    top: 0;
-    bottom: 0;
+    flex: 1;
+    min-width: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    pointer-events: none;
-    z-index: 1;
-  }
-  .title-wrap .title {
-    pointer-events: auto;
   }
   .logo {
     width: 36px;

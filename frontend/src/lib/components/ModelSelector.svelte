@@ -16,6 +16,15 @@
       compositeKeys.every((k) => models.isSelected(k)),
   );
 
+  let manualModel = $state("");
+
+  async function addManual() {
+    const m = manualModel.trim();
+    if (!m || !providers.active) return;
+    await models.addManualModel(providers.active, m);
+    manualModel = "";
+  }
+
   async function retestAll() {
     await models.checkAllHealth(compositeKeys);
   }
@@ -64,7 +73,16 @@
   {:else if !providers.active}
     <div class="hint">Select a provider from the sidebar to load models.</div>
   {:else if models.available.length === 0}
-    <div class="hint">No models found for this provider.</div>
+    <div class="hint">No models discovered — try adding one manually:</div>
+    <form class="manual-add" onsubmit={(e) => { e.preventDefault(); addManual(); }}>
+      <input
+        type="text"
+        class="manual-input"
+        placeholder="e.g. gpt-4o, DeepseekAI/deepseek-v4-pro"
+        bind:value={manualModel}
+      />
+      <button class="btn btn-sm" type="submit" disabled={!manualModel.trim()}>Add</button>
+    </form>
   {:else}
     <div class="bulk">
       <button
@@ -152,6 +170,23 @@
     align-items: center;
     gap: 8px;
     color: var(--text-secondary);
+  }
+  .manual-add {
+    display: flex;
+    gap: 8px;
+    margin: 8px 0 4px;
+  }
+  .manual-input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 13px;
+  }
+  .manual-input::placeholder {
+    color: var(--text-tertiary);
   }
   .spinner {
     width: 14px;

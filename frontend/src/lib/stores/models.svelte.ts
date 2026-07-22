@@ -231,6 +231,19 @@ class ModelsStore {
     }
   }
 
+  async addManualModel(provider: string, modelName: string): Promise<void> {
+    const current = this.#allByProvider[provider] ?? [];
+    if (current.includes(modelName)) return;
+    const updated = [...current, modelName];
+    this.#allByProvider = { ...this.#allByProvider, [provider]: updated };
+    if (providers.active === provider) {
+      this.#available = updated;
+    }
+    providers.markVerified(provider);
+    this.persist();
+    debug.log(`Manual model "${modelName}" added for ${provider}`);
+  }
+
   async checkAllHealth(compositeKeys: string[]): Promise<void> {
     for (const key of compositeKeys) {
       await this.checkHealth(key);
