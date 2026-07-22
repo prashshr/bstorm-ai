@@ -11,6 +11,13 @@ const config: CapacitorConfig = {
   android: {
     allowMixedContent: false,
   },
+  plugins: {
+    // Override fetch/XMLHttpRequest with native HTTP on Android/iOS,
+    // bypassing WebView CORS restrictions for cross-origin API calls.
+    CapacitorHttp: {
+      enabled: true,
+    },
+  },
 };
 
 export default config;
