@@ -2,9 +2,9 @@
 
 The AI-Ensemble Android app is a **Capacitor wrapper** of the existing Svelte SPA.
 It uses the **same live backend** (`https://ai-ensemble.samkhya.cloud`). No app
-code is forked — the web bundle is reused.
+code is forked — the web bundle is rebuilt into a self-contained APK.
 
-## Security model (why it's safe for personal use)
+## Security model
 
 - **Server-side keys only.** On mobile login the backend issues a short-lived
   access token that carries a server session id (`sid`) instead of the UEK. The
@@ -16,62 +16,84 @@ code is forked — the web bundle is reused.
 - Backward compatible: web clients still get the legacy `uek`-bearing token and
   are completely unaffected.
 
-## Prerequisites (on your build machine, NOT in the dev container)
+## Prerequisites (on your build machine)
 
-- Node.js 18+ and the frontend `node_modules` installed (`npm install` in `frontend/`).
-- **Android SDK** (cmdline-tools + a platform + build-tools). Easiest: install
+- Node.js 18+ and frontend deps (`npm install` in `frontend/`).
+- **Android SDK** (cmdline-tools + platform + build-tools). Easiest: install
   [Android Studio](https://developer.android.com/studio), open the project's
   `android/` folder once, let it download the SDK.
-- `JAVA_HOME` pointing at JDK 17 or 21 (Capacitor 8 Gradle prefers 17/21).
-- Environment variable for the API base, e.g.:
-  ```bash
-  export VITE_API_BASE="https://ai-ensemble.samkhya.cloud"
-  ```
+- `JAVA_HOME` pointing at JDK 17 or 21.
+- Tailscale on both build machine and phone (for file transfer).
 
 ## Build steps
 
 ```bash
 cd frontend
 
-# 1. Install deps (Capacitor core/cli/android + secure-storage plugin)
-npm install
-
-# 2. Build the SPA (outputs to frontend/dist)
+# 1. Build the SPA with API base pointing at production
 VITE_API_BASE="https://ai-ensemble.samkhya.cloud" npm run build
 
-# 3. Initialize / add the native Android project (first time only)
-npx cap add android        # creates frontend/android/
-
-# 4. Copy the built web assets into the native project
+# 2. Sync web assets into the native Android project
 npx cap sync android
 
-# 5a. Build a debug APK (sideload-friendly, no signing needed)
+# 3. Build debug APK (sideload-friendly, no signing needed)
 cd android && ./gradlew assembleDebug
-
-# 5b. Or open in Android Studio for emulator / device run:
-npx cap open android
 ```
 
-The resulting debug APK is at:
+The resulting APK is at:
 
 ```
 frontend/android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-## Install / test on a device
+## Quick deploy to device
 
-1. Enable **Developer options → USB debugging** on the phone.
-2. `adb install frontend/android/app/build/outputs/apk/debug/app-debug.apk`
-   (or copy the file and tap it; allow "Install from unknown sources").
-3. Open **AI Ensemble**, log in with your existing account. The first request
-   automatically targets the live backend. Tokens are kept in the Keystore.
+```bash
+# Via Tailscale (phone must be active on tailnet)
+tailscale file cp frontend/android/app/build/outputs/apk/debug/app-debug.apk <device-name>:
 
-## Notes
+# Or via ADB (USB debugging)
+adb install frontend/android/app/build/outputs/apk/debug/app-debug.apk
+```
 
-- `capacitor.config.ts` sets `server.url` to the live site so the WebView loads
-  the current SPA; API calls use `VITE_API_BASE` (absolute URLs) so they leave
-  the WebView and hit the real backend. Keep both pointing at the same origin.
-- To ship a release (not required for personal sideload): `./gradlew bundleRelease`
-  after creating an upload keystore (`keytool`) and referencing it in
-  `android/app/build.gradle`.
-- If you change SPA code, rerun `VITE_API_BASE=... npm run build && npx cap sync android`.
+## Install on device
+
+1. **Uninstall** the previous version before installing the new APK (Capacitor
+   caches web assets across installs; fresh install avoids stale cache).
+2. Copy the `.apk` file to the phone (Tailscale, ADB, or cloud storage).
+3. Tap the file and allow "Install from unknown sources".
+4. Open **AI Ensemble**, log in with your existing account. All requests go to
+   the live backend at `https://ai-ensemble.samkhya.cloud`.
+
+## Architecture notes
+
+- `capacitor.config.ts` sets `webDir: "dist"` — the SPA is **bundled into the
+  APK** (no remote URL). API calls use `VITE_API_BASE` (absolute URL baked at
+  build time) so they leave the WebView and hit the real backend.
+- `CapacitorHttp` plugin is **enabled**, overriding `fetch`/`XMLHttpRequest` with
+  Android's native `OkHttp` client. This bypasses WebView CORS restrictions that
+  would otherwise block cross-origin API calls from a `file://` or localhost origin.
+- `android:windowSoftInputMode="adjustResize"` ensures the chatbox resizes when
+  the soft keyboard opens.
+- Dark theme is enforced via `DayNight.NoActionBar` with black status/nav bars.
+
+## Manual model entry
+
+Custom proxy-only endpoints (e.g. Tailscale Aperture) don't support `GET /v1/models`
+for model discovery. After saving such a provider, expand its row in the sidebar
+and type the model name manually (e.g. `DeepseekAI/deepseek-v4-pro`).
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---------|-------------|-----|
+| `Failed to fetch` on login | CORS / CapacitorHttp not enabled | Rebuild with `CapacitorHttp: { enabled: true }` in capacitor config |
+| `Unexpected token '<'` response | `VITE_API_BASE` not set at build time | Rebuild with `VITE_API_BASE=https://ai-ensemble.samkhya.cloud` |
+| No models shown after saving provider | Backend `/v1/models` returns empty for proxy endpoints | Use manual model entry field |
+| Old UI after installing APK | Capacitor cached web assets | **Uninstall first**, then install fresh |
+
+## Changelog (Android-specific)
+
+- **v3.3.0** — Manual model entry; CapacitorHttp for CORS bypass; Tailscale Aperture support
+- **v3.2.1** — Custom provider unique keys; self-contained APK
+- **v3.2.0** — Dark theme, edge-to-edge, keyboard handling, splash screen
