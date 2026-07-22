@@ -17,8 +17,8 @@
 
   let sortedProviders = $derived(
     [...providers.list].sort((a, b) => {
-      const ac = a.provider.toLowerCase() === "custom";
-      const bc = b.provider.toLowerCase() === "custom";
+      const ac = a.provider.toLowerCase().startsWith("custom");
+      const bc = b.provider.toLowerCase().startsWith("custom");
       if (ac !== bc) return ac ? 1 : -1;
       return a.provider.localeCompare(b.provider);
     }),
@@ -34,7 +34,9 @@
   }
 
   async function remove(key: string) {
-    if (confirm(`Remove provider "${key}"? Saved credentials will be deleted.`)) {
+    const p = providers.find(key);
+    const name = p ? providerDisplayName(key, p.label) : key;
+    if (confirm(`Remove provider "${name}"? Saved credentials will be deleted.`)) {
       await providers.remove(key);
       if (editing === key) editing = null;
     }

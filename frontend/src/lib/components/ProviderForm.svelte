@@ -16,12 +16,18 @@
     return 0;
   });
 
-   let presetKey = $state(initialProvider || "openrouter");
+   // Map a provider key to its preset / detect custom providers.
+  function presetFromKey(key: string): string {
+    if (PROVIDER_PRESETS.some((p) => p.key === key)) return key;
+    return "custom";
+  }
+  let presetKey = $state(initialProvider ? presetFromKey(initialProvider) : "openrouter");
   let label = $state("");
   let apiKey = $state("");
   let endpoint = $state(
-    PROVIDER_PRESETS.find((p) => p.key === (initialProvider || "openrouter"))
-      ?.endpoint ?? "",
+    initialProvider
+      ? providers.find(initialProvider)?.endpoint ?? ""
+      : PROVIDER_PRESETS.find((p) => p.key === "openrouter")?.endpoint ?? "",
   );
   let projectId = $state("");
   let region = $state("global");
@@ -29,6 +35,15 @@
   let showKey = $state(false);
   let saving = $state(false);
   let message = $state<{ type: "ok" | "err"; text: string } | null>(null);
+
+  // Each custom provider needs a unique key so multiple custom providers
+  // don't overwrite each other. Generated once when the form mounts.
+  let customKey = $state(
+    initialProvider || `custom_${Math.random().toString(36).substring(2, 8)}`,
+  );
+  let effectiveKey = $derived(
+    presetKey === "custom" ? customKey : presetKey,
+  );
 
   const isCustom = $derived(presetKey === "custom");
 
@@ -43,14 +58,15 @@
     if (existing?.region) region = existing.region;
     if (existing?.label) {
       label = existing.label;
-    } else if (presetKey === "custom") {
-      label = "Custom OpencodeGo";
     }
   }
 
   function onPresetChange() {
     const preset = PROVIDER_PRESETS.find((p) => p.key === presetKey);
     if (preset && preset.key !== "custom") endpoint = preset.endpoint;
+    if (presetKey === "custom" && !initialProvider) {
+      customKey = `custom_${Math.random().toString(36).substring(2, 8)}`;
+    }
     if (isVertex) {
       projectId = "";
       region = "global";
@@ -81,7 +97,7 @@
     }
     saving = true;
     message = null;
-    const ok = await providers.save(presetKey, apiKey, endpoint, {
+    const ok = await providers.save(effectiveKey, apiKey, endpoint, {
       label: isCustom ? label.trim() : "",
       project_id: isVertex ? projectId.trim() : "",
       region: isVertex ? region.trim() : "",
@@ -89,7 +105,7 @@
     });
     if (ok) {
       try {
-        await models.discover(presetKey);
+        await models.discover(effectiveKey);
         message = { type: "ok", text: "Saved and verified" };
       } catch {
         message = {
