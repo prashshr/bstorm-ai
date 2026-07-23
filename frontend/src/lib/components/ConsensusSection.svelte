@@ -125,9 +125,9 @@
     font-size: 13px;
   }
   .consensus-error {
-    color: #b45309;
-    background: color-mix(in srgb, #f59e0b 14%, transparent);
-    border: 1px solid color-mix(in srgb, #f59e0b 40%, transparent);
+    color: var(--error);
+    background: var(--error-bg);
+    border: 1px solid color-mix(in srgb, var(--error) 40%, transparent);
     border-radius: var(--radius);
     padding: 8px 12px;
     font-size: 13px;

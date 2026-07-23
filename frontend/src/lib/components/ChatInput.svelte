@@ -718,9 +718,9 @@
     gap: 6px;
     font-size: 12px;
     line-height: 1.4;
-    color: #b45309;
-    background: color-mix(in srgb, #f59e0b 14%, transparent);
-    border: 1px solid color-mix(in srgb, #f59e0b 40%, transparent);
+     color: var(--warning);
+     background: var(--warning-bg);
+     border: 1px solid color-mix(in srgb, var(--warning) 40%, transparent);
     border-radius: var(--radius);
     padding: 7px 10px;
     margin-bottom: 8px;
