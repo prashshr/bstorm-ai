@@ -79,6 +79,19 @@
     align-items: center;
     justify-content: center;
   }
+  .title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    font-size: 32px;
+    font-weight: 700;
+    /* Shift visual center to align with main content area (offset by sidebar).
+       On mobile sidebar is overlay (--sidebar-w: 0) so no shift. */
+    transform: translateX(calc(var(--sidebar-w, 0px) / 2));
+  }
   .logo {
     width: 36px;
     height: 36px;
@@ -93,16 +106,6 @@
     inset: 5px;
     background: var(--accent);
     border-radius: 50%;
-  }
-  .title {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    background: none;
-    border: none;
-    color: var(--text-primary);
-    font-size: 32px;
-    font-weight: 700;
   }
   .icon-btn {
     padding: 6px;
@@ -143,6 +146,7 @@
     .title {
       font-size: 22px;
       gap: 8px;
+      transform: none;
     }
     .logo {
       width: 26px;

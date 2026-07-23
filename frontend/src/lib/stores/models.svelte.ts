@@ -71,10 +71,7 @@ class ModelsStore {
   /** Whether a provider already has a cached model list (from a prior session),
    *  so verifyAll can skip re-discovering it on reload. */
   hasCache(provider: string): boolean {
-    return (
-      !!this.#allByProvider[provider] &&
-      this.#allByProvider[provider].length > 0
-    );
+    return provider in this.#allByProvider;
   }
 
   /** Point the active model list at a provider, using the cached discovery
@@ -114,9 +111,7 @@ class ModelsStore {
       if (data.allByProvider && Object.keys(data.allByProvider).length > 0) {
         this.#allByProvider = data.allByProvider;
         for (const prov of Object.keys(data.allByProvider)) {
-          if (data.allByProvider[prov].length > 0) {
-            providers.markVerified(prov);
-          }
+          providers.markVerified(prov);
         }
       }
       if (data.selected && data.selected.length > 0) {
@@ -142,8 +137,8 @@ class ModelsStore {
       debug.log(`Discovered ${discovered.length} models for ${provider}`);
     } catch (e) {
       this.#available = [];
+      providers.markVerified(provider);
       debug.log(`Model discovery failed for ${provider}: ${e}`, "error");
-      throw e;
     } finally {
       this.#discovering = false;
     }

@@ -44,13 +44,6 @@
     padding: 24px;
     gap: 6px;
   }
-  .title-row {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-  }
   .tagline {
     margin: 0;
     color: var(--text-secondary);
@@ -63,9 +56,7 @@
     max-width: 720px;
     width: 100%;
     margin: 0 auto;
-    padding-bottom: 24px;
-    padding-left: 16px;
-    padding-right: 16px;
+    padding: 0 16px 24px;
   }
   .hint {
     display: flex;
@@ -84,8 +75,7 @@
       padding: 16px;
     }
     .composer {
-      padding-left: 12px;
-      padding-right: 12px;
+      padding: 0 12px 16px;
     }
   }
 </style>
