@@ -427,6 +427,15 @@ class DiscussionStore {
       this.#recomputeStats();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
+      // Don't fall back if user initiated abort or discussion stopped
+      if (this.#abort?.signal.aborted || !this.#running) {
+        this.#updateModel(roundNum, compositeKey, {
+          status: "error",
+          text: "",
+          error: "Stopped by user",
+        });
+        return;
+      }
       // Fallback to non-streaming
       try {
         const res = await api.chat({
@@ -439,7 +448,16 @@ class DiscussionStore {
           discussion_id: typeof this.#data.id === "number" ? this.#data.id : null,
           include_rag_context: false,
           attachments: roundAttachments.length ? roundAttachments : undefined,
-        });
+        }, this.#abort?.signal);
+        // Guard: don't resurrect a stopped discussion
+        if (!this.#running) {
+          this.#updateModel(roundNum, compositeKey, {
+            status: "error",
+            text: "",
+            error: "Stopped by user",
+          });
+          return;
+        }
         this.#updateModel(roundNum, compositeKey, {
           status: "complete",
           text: res.output,

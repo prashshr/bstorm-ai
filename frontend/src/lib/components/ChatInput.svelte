@@ -19,24 +19,25 @@
   }: Props = $props();
 
    let text = $state("");
-   let ragMode = $state<"model-self" | "model-only">("model-only");
-   let deepResearch = $state(false);
+   let ragMode = $state<"model-self" | "model-only">(discussion.data?.ragMode ?? "model-only");
+   let deepResearch = $state(discussion.data?.deep_research ?? false);
    let attachments = $state<AttachedFile[]>([]);
    let dragover = $state(false);
    let sending = $state(false);
    let editorEl = $state<HTMLDivElement | null>(null);
    let showAdvanced = $state(false);
-   let consensusEnabled = $state(false);
-   let instructions = $state("");
-   let responseFormatText = $state("");
+   let consensusEnabled = $state(discussion.data?.consensusEnabled ?? false);
+   let instructions = $state(discussion.data?.instructions ?? "");
+   let responseFormatText = $state(discussion.data?.responseFormatText ?? "");
    let summaryFormatText = $state(
-     "Simply get information from all responses. Do not add any more information from your side or elsewhere. analyze all the responses, get the common points and the not common points and share in very short precise format a best consensus. No additional explanations.",
+     discussion.data?.summaryFormatText ??
+       "Simply get information from all responses. Do not add any more information from your side or elsewhere. analyze all the responses, get the common points and the not common points and share in very short precise format a best consensus. No additional explanations.",
    );
-   let summaryInstructions = $state("");
-   let timeout = $state(120);
-   let maxTokens = $state(6000);
-   let consensusModel = $state("");
-    let totalRounds = $state(1);
+   let summaryInstructions = $state(discussion.data?.summaryInstructions ?? "");
+   let timeout = $state(discussion.data?.timeout ?? 120);
+   let maxTokens = $state(discussion.data?.maxTokens ?? 6000);
+   let consensusModel = $state(discussion.data?.consensusModel ?? "");
+    let totalRounds = $state(discussion.data?.totalRounds ?? 1);
    let showInfo = $state(false);
    let chatHeight = $state<number | null>(null);
    let dragging = $state(false);
@@ -80,8 +81,8 @@
        "Provide an elaborate synthesis: a full structured write-up covering each model's position, points of consensus, and remaining disagreements.",
    };
 
-   let responseFormat = $state<"none" | "compact" | "elaborate" | "custom">("none");
-   let summaryFormat = $state<"none" | "compact" | "elaborate" | "custom">("compact");
+   let responseFormat = $state<"none" | "compact" | "elaborate" | "custom">(discussion.data?.responseFormat ?? "none");
+   let summaryFormat = $state<"none" | "compact" | "elaborate" | "custom">(discussion.data?.summaryFormat ?? "compact");
 
    // Selecting a preset auto-fills the (editable) text field. "custom" leaves
    // the current text untouched so the user can write their own.
