@@ -19,7 +19,7 @@ spec:
       - name: ghcr-pull-secret
       containers:
       - name: ai-ensemble
-        image: ghcr.io/prashshr/ai-ensemble:v4.0.0
+        image: ghcr.io/prashshr/ai-ensemble:v4.1.0
         imagePullPolicy: IfNotPresent
         ports:
         - name: http
