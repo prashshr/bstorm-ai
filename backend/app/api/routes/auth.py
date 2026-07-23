@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone, timedelta
+import logging
 
 from app.core.limiter import limiter
 from app.core.security import (
@@ -26,7 +27,10 @@ from app.core.crypto import (
     encrypt_field,
     decrypt_field_or_plaintext,
 )
+from cryptography.fernet import InvalidToken
 import hashlib
+
+logger = logging.getLogger("ai_ensemble.auth")
 
 
 router = APIRouter()
@@ -96,9 +100,8 @@ def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)
                 api_key_plain = decrypt_secret(cred.api_key_encrypted)
                 # Re-encrypt using the new user encryption key (UEK)
                 cred.api_key_encrypted = encrypt_secret(api_key_plain, uek)
-            except Exception:
-                # Skip if already migrated or if decryption fails
-                pass
+            except (InvalidToken, ValueError) as e:
+                logger.debug("Skipping credential re-encryption (already migrated or corrupt): %s", e)
 
         # Re-encrypt discussions
         discussions = db.query(Discussion).filter(Discussion.user_id == user.id).all()
@@ -111,8 +114,8 @@ def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)
                 if disc.state_json:
                     plain_state = decrypt_field_or_plaintext(disc.state_json, None)
                     disc.state_json = encrypt_field(plain_state, uek)
-            except Exception:
-                pass
+            except (InvalidToken, ValueError) as e:
+                logger.debug("Skipping discussion re-encryption: %s", e)
 
         # Re-encrypt messages
         messages = db.query(Message).filter(Message.user_id == user.id).all()
@@ -120,8 +123,8 @@ def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)
             try:
                 plain_content = decrypt_field_or_plaintext(msg.content, None)
                 msg.content = encrypt_field(plain_content, uek)
-            except Exception:
-                pass
+            except (InvalidToken, ValueError) as e:
+                logger.debug("Skipping message re-encryption: %s", e)
 
         # Re-encrypt search history
         histories = db.query(SearchHistory).filter(SearchHistory.user_id == user.id).all()
@@ -129,8 +132,8 @@ def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)
             try:
                 plain_query = decrypt_field_or_plaintext(hist.query, None)
                 hist.query = encrypt_field(plain_query, uek)
-            except Exception:
-                pass
+            except (InvalidToken, ValueError) as e:
+                logger.debug("Skipping search history re-encryption: %s", e)
 
         db.commit()
         db.refresh(user)
