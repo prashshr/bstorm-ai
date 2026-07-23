@@ -18,8 +18,7 @@ def list_users(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[UserResponse]:
-    # Only allow admin user to list users
-    if current_user.email != "admin@local.ai-ensemble":
+    if not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admin can manage users",
@@ -43,8 +42,7 @@ def delete_user(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> UserDeleteResponse:
-    # Only allow admin user to delete users
-    if current_user.email != "admin@local.ai-ensemble":
+    if not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admin can manage users",

@@ -1,10 +1,12 @@
 from collections.abc import Generator
+import logging
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 from app.core.config import settings
 
+logger = logging.getLogger("ai_ensemble.db")
 
 engine = create_engine(settings.database_url, connect_args={"check_same_thread": False} if settings.database_url.startswith("sqlite") else {})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -21,11 +23,12 @@ def get_db() -> Generator[Session, None, None]:
 
 def init_db() -> None:
     from app.models import models  # noqa: F401
-    from app.core.security import get_password_hash
 
     Base.metadata.create_all(bind=engine)
 
-    # Schema drift fallback: ensure state_json column exists on existing SQLite DBs
+    # Schema drift fallback: ensure columns exist on existing SQLite DBs.
+    # Alembic is now the source of truth for new installs; this is a
+    # compatibility shim for pre-migration SQLite deployments.
     if settings.database_url.startswith("sqlite"):
         db = SessionLocal()
         try:
@@ -51,19 +54,30 @@ def init_db() -> None:
             db.commit()
         except Exception:
             db.rollback()
+
+        # Ensure is_admin column exists on older SQLite databases
+        try:
+            db.execute(text("ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT 0"))
+            db.commit()
+        except Exception:
+            db.rollback()
         finally:
             db.close()
 
-    # Seed default admin user
+    # Migrate legacy admin: set is_admin=True for the hardcoded admin account
+    # if it exists, then log instructions for creating a new admin.
     db = SessionLocal()
     try:
         admin = db.query(models.User).filter(models.User.email == "admin@local.ai-ensemble").first()
-        if not admin:
-            admin = models.User(
-                email="admin@local.ai-ensemble",
-                password_hash=get_password_hash("arhatadmin"),
-            )
-            db.add(admin)
+        if admin and not admin.is_admin:
+            admin.is_admin = True
             db.commit()
+            logger.info("Migrated legacy admin account: admin@local.ai-ensemble now has is_admin=True")
+        if not admin:
+            logger.warning(
+                "No admin account found. Create one with: "
+                "POST /api/auth/register with a secure password, then "
+                " UPDATE users SET is_admin=1 WHERE email='<your-email>';"
+            )
     finally:
         db.close()

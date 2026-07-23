@@ -23,7 +23,7 @@ services:
       - "8444:443"
     volumes:
       - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./frontend:/srv:ro
+      - ./frontend/dist:/srv:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:

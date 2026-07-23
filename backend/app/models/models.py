@@ -1,7 +1,7 @@
 from __future__ import annotations
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -15,6 +15,7 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255))
     encryption_salt: Mapped[str | None] = mapped_column(String(100), nullable=True)
     master_key_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_admin: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
