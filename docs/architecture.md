@@ -145,7 +145,7 @@
 - Provides `get_db()` generator for FastAPI dependency injection
 - Provides `init_db()` which:
   1. Calls `Base.metadata.create_all(bind=engine)` to create tables
-  2. Seeds default admin user `admin@local.ai-ensemble` / `arhatadmin` if not exists
+  2. Seeds default admin user `admin@local.ai-ensemble` if not exists (password must be set via create-admin script)
 
 ### 3.3 Models (SQLAlchemy ORM)
 
@@ -1057,7 +1057,7 @@ Version format: `v<major>.<minor>.<patch>-<YYYYMMDD>` (e.g., `v0.1.0-20260625`)
 
 - Full-screen login overlay with auth gate (blocks app access until authenticated)
 - Login overlay supports Enter key submission
-- Default admin auto-seeded: `admin@local.ai-ensemble` / `arhatadmin`
+- Default admin auto-seeded: `admin@local.ai-ensemble` (use create-admin script to set password)
 - Error/info display within overlay modal
 - Architecture document updated to v0.2.0
 
@@ -1069,7 +1069,7 @@ Version format: `v<major>.<minor>.<patch>-<YYYYMMDD>` (e.g., `v0.1.0-20260625`)
 - k3s deployment with Let's Encrypt TLS
 - Provider abstraction layer (OpenAI-compatible, Gemini, Anthropic)
 - Per-user data isolation for discussions, messages, search history
-- Default admin seeder: `admin@local.ai-ensemble` / `arhatadmin`
+- Default admin seeder: `admin@local.ai-ensemble` (use create-admin script to set password)
 
 ---
 
