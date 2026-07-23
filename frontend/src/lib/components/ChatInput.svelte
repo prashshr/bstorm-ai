@@ -1,7 +1,8 @@
 <script lang="ts">
   import { discussion } from "../stores/discussion.svelte";
   import { models } from "../stores/models.svelte";
-  import { splitModelKey } from "../utils/helpers";
+  import { splitModelKey, VISION_RE, TEXT_ONLY_RE } from "../utils/helpers";
+  import DOMPurify from "dompurify";
   import { isSupportedDocument, extractDocumentText } from "../utils/extractDocument";
   import type { AttachedFile } from "../api/types";
   import Icon from "./Icon.svelte";
@@ -283,21 +284,11 @@
   }
 
   function stripDangerous(html: string): string {
-    const tpl = document.createElement("template");
-    tpl.innerHTML = html;
-    tpl.content.querySelectorAll("script,style,iframe,object,embed,link,meta").forEach((n) => n.remove());
-    tpl.content.querySelectorAll("*").forEach((n) => {
-      Array.from(n.attributes).forEach((a) => {
-        if (/^(on|href|src)/i.test(a.name)) n.removeAttribute(a.name);
-      });
+    return DOMPurify.sanitize(html, {
+      ALLOWED_TAGS: ["b", "i", "em", "strong", "a", "p", "br", "ul", "ol", "li", "code", "pre"],
+      ALLOWED_ATTR: ["href", "target", "rel"],
     });
-    return tpl.innerHTML;
   }
-
-  // Best-effort detection of vision-capable models by name. Providers that are
-  // known to be text-only (DeepSeek chat/reasoner) will not see attached images.
-  const VISION_RE = /(gpt-4o|gpt-4-visual|gpt-4-turbo|vision|gemini|claude-3|claude-4|llama-3\.2-vision|llava|qwen-vl|pixtral|moondream|ministral|gemma-3|internvl|smolvlm|aya-vision|o1|o3|o4)/i;
-  const TEXT_ONLY_RE = /(deepseek|reasoner|o1-mini|o3-mini|text-|instruct)/i;
 
   function modelSupportsVision(key: string): boolean {
     // If it explicitly matches a text-only pattern, assume no vision.

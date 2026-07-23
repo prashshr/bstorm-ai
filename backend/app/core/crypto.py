@@ -1,30 +1,35 @@
 import base64
 import os
 import hashlib
+import logging
 
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
 
 from app.core.config import settings
+
+logger = logging.getLogger("ai_ensemble.crypto")
 
 
 def _fernet() -> Fernet:
     key = settings.credential_encryption_key.encode("utf-8")
-    if len(key) < 32:
-        key = key.ljust(32, b"0")
-    else:
-        key = key[:32]
+    # Use SHA-256 to derive a proper 32-byte key instead of manual padding
+    key = hashlib.sha256(key).digest()
     fkey = base64.urlsafe_b64encode(key)
     return Fernet(fkey)
 
 
-def derive_pdk(password: str, salt_hex: str) -> bytes:
-    """Derive a 32-byte Fernet key from password using PBKDF2-HMAC-SHA256."""
+def derive_pdk(password: str, salt_hex: str, iterations: int = 600_000) -> bytes:
+    """Derive a 32-byte Fernet key from password using PBKDF2-HMAC-SHA256.
+
+    Default iteration count is 600,000 (OWASP 2023+ guidance).
+    Legacy users derived with 100,000 iterations are migrated on next login.
+    """
     salt_bytes = bytes.fromhex(salt_hex)
     pdk_raw = hashlib.pbkdf2_hmac(
         "sha256",
         password.encode("utf-8"),
         salt_bytes,
-        100_000,
+        iterations,
         dklen=32
     )
     return base64.urlsafe_b64encode(pdk_raw)
@@ -63,9 +68,8 @@ def decrypt_secret(value: str, key: str = None) -> str:
         try:
             f = Fernet(key.encode("utf-8"))
             return f.decrypt(value.encode("utf-8")).decode("utf-8")
-        except Exception:
-            # If decryption fails with user-specific key, try legacy fallback
-            pass
+        except (InvalidToken, ValueError) as e:
+            logger.debug("User key decryption failed, trying legacy: %s", e)
     f = _fernet()
     return f.decrypt(value.encode("utf-8")).decode("utf-8")
 
@@ -86,13 +90,13 @@ def decrypt_field_or_plaintext(value: str | None, uek: str | None) -> str | None
         try:
             f = Fernet(uek.encode("utf-8"))
             return f.decrypt(value.encode("utf-8")).decode("utf-8")
-        except Exception:
+        except (InvalidToken, ValueError):
             pass
     # If decryption with uek fails or uek is missing, try legacy server key
     try:
         f = _fernet()
         return f.decrypt(value.encode("utf-8")).decode("utf-8")
-    except Exception:
+    except (InvalidToken, ValueError):
         pass
     # If both decryption attempts fail, it's plaintext
     return value

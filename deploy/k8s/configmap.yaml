@@ -4,8 +4,9 @@ metadata:
   name: ai-ensemble-config
   namespace: ai-ensemble
 data:
+  ENVIRONMENT: "production"
   JWT_ALGORITHM: "HS256"
-  ACCESS_TOKEN_EXPIRE_MINUTES: "1440"
+  ACCESS_TOKEN_EXPIRE_MINUTES: "60"
   DATABASE_URL: "sqlite:////data/ai_ensemble.db"
   CORS_ORIGINS: '["https://ai-ensemble.samkhya.cloud","capacitor://localhost","http://localhost"]'
   SEARXNG_URL: "http://searxng-svc:8080"

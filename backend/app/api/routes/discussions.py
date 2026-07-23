@@ -17,6 +17,8 @@ from app.schemas.discussion import (
     MessageCreateRequest,
     MessageResponse,
 )
+
+logger = logging.getLogger("ai_ensemble.discussions")
 from app.core.crypto import encrypt_field, decrypt_field_or_plaintext
 from app.services.retrieval import get_retrieved_context
 
@@ -55,7 +57,7 @@ async def create_discussion(
         try:
             retrieved_context = await get_retrieved_context(payload.question)
         except Exception as e:
-            print(f"Failed to get retrieved context: {e}")
+            logger.warning("Failed to get retrieved context: %s", e)
 
     encrypted_title = encrypt_field(payload.title, uek)
     encrypted_question = encrypt_field(payload.question, uek)

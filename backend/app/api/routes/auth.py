@@ -136,14 +136,23 @@ def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)
         db.refresh(user)
     else:
         # Normal login: derive PDK and decrypt UEK
+        # Try new iteration count first, fall back to legacy 100K for older users
         try:
-            pdk = derive_pdk(payload.password, user.encryption_salt)
+            pdk = derive_pdk(payload.password, user.encryption_salt, iterations=600_000)
             uek = decrypt_uek(user.master_key_encrypted, pdk)
         except Exception:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Failed to decrypt secure storage key.",
-            )
+            try:
+                legacy_pdk = derive_pdk(payload.password, user.encryption_salt, iterations=100_000)
+                uek = decrypt_uek(user.master_key_encrypted, legacy_pdk)
+                # Re-encrypt with new iteration count for next login
+                new_pdk = derive_pdk(payload.password, user.encryption_salt, iterations=600_000)
+                user.master_key_encrypted = encrypt_uek(uek, new_pdk)
+                db.commit()
+            except Exception:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Failed to decrypt secure storage key.",
+                )
 
     access_token = create_access_token(str(user.id), extra_claims={"uek": uek})
 

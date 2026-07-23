@@ -585,7 +585,7 @@ Two services:
 | **Per-user isolation** | All DB queries filter by `user_id` from JWT; decryption is provably isolated per user as it requires the user-specific UEK. |
 | **CORS** | Restricted to known origins (`samkhya.cloud` + `localhost:3000`) |
 | **HTTPS** | Enforced by Caddy auto-TLS / Let's Encrypt cert-manager |
-| **Encryption key** | `CREDENTIAL_ENCRYPTION_KEY` is retained only as a fallback key for unmigrated legacy users. |
+| **Encryption key** | `CREDENTIAL_ENCRYPTION_KEY` is retained only as a fallback key for unmigrated legacy users. **Important:** For mobile sessions, the UEK is persisted server-side encrypted with this global key. DB access + this key = ability to decrypt all stored data. This is **not** zero-knowledge — it is encrypted-at-rest with a server-held master key. |
 | **JWT secret** | `JWT_SECRET` must be changed per deployment |
 | **API key in transit** | Never sent to frontend after save (only `has_key: true`) |
 | **Token expiry** | Configurable via `ACCESS_TOKEN_EXPIRE_MINUTES` |
