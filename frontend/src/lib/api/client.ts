@@ -140,12 +140,15 @@ export const api = {
   listModels(provider: string): Promise<string[]> {
     return request<string[]>(
       `/api/providers/${encodeURIComponent(provider)}/models`,
+      {},
+      true,
+      false,
     );
   },
   testProvider(provider: string): Promise<{ status: string; message?: string }> {
     return request(`/api/providers/${encodeURIComponent(provider)}/test`, {
       method: "POST",
-    });
+    }, true, false);
   },
 
   // ---- Discussions ----
