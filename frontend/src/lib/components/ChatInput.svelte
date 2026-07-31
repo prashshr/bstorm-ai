@@ -400,11 +400,10 @@
           class="btn btn-ghost btn-sm collapse-btn"
           onclick={toggleCollapse}
           data-testid="chat-input-collapse"
-          title="Collapse composer"
-          aria-label="Collapse composer"
+          title="Minimize composer"
+          aria-label="Minimize composer"
         >
           <Icon name="chevron-down" size="sm" />
-          <span class="collapse-text">Minimize</span>
         </button>
       </div>
     </div>
@@ -627,19 +626,18 @@
 </div>
 
 <style>
-  /* Single Unified Bottom Dock Component - No nested box-in-box */
+  /* Single Unified Bottom Dock Component - Complete 4-sided rectangular outline */
   .chat-input-bar {
     border: 1px solid var(--input-border, #1f1f23);
-    border-bottom: none;
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    border-radius: var(--radius-lg);
     background: var(--input-bg, #16161a);
     padding: 10px 14px 12px;
     width: calc(100% - 32px);
     max-width: 760px;
-    margin: 0 auto;
+    margin: 0 auto 8px;
     position: relative;
     bottom: 0;
-    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
@@ -812,11 +810,12 @@
   .collapse-btn {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 4px 8px;
-    font-size: 12px;
+    justify-content: center;
+    padding: 6px;
     color: var(--text-tertiary);
     border-radius: var(--radius);
+    min-width: 28px;
+    min-height: 28px;
   }
 
   .collapse-btn:hover {
@@ -1155,8 +1154,6 @@
       right: -10px;
     }
 
-    .collapse-text {
-      display: none;
-    }
+    /* Mobile optimization */
   }
 </style>
