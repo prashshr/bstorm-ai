@@ -78,9 +78,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    /* Shift center by half of sidebar width so the top logo is aligned 100% in a straight vertical line with main content center */
-    transform: translateX(calc(var(--sidebar-w, 0px) / 2));
-    transition: transform var(--transition);
+    overflow: hidden;
   }
   .title {
     display: flex;
