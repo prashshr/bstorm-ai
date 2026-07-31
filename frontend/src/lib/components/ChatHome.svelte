@@ -87,14 +87,19 @@
     padding: 8px 14px;
     border: 1px dashed var(--border);
     border-radius: var(--radius);
-    margin-bottom: 8px;
+    margin: 0 auto 8px;
     background: var(--bg-secondary);
-    max-width: 720px;
+    width: calc(100% - 32px);
+    max-width: 760px;
+    box-sizing: border-box;
   }
 
   @media (max-width: 768px) {
     .hero {
       top: 30%;
+    }
+    .hint {
+      width: calc(100% - 16px);
     }
   }
 </style>

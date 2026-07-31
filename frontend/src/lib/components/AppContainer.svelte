@@ -46,15 +46,19 @@
 
 <style>
   .shell {
+    position: relative;
     flex: 1;
     display: flex;
     flex-direction: column;
     min-height: 0;
+    overflow: hidden;
   }
   .body {
+    position: relative;
     flex: 1;
     display: flex;
     min-height: 0;
+    overflow: hidden;
   }
   .main-area {
     flex: 1;

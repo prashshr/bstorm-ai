@@ -139,14 +139,15 @@
 
 <style>
   .backdrop {
-    position: fixed;
+    position: absolute;
     inset: 0;
     background: rgba(0, 0, 0, 0.4);
     z-index: 40;
   }
   .panel {
-    position: fixed;
+    position: absolute;
     top: 0;
+    bottom: 0;
     right: 0;
     height: 100%;
     width: 320px;
@@ -159,6 +160,7 @@
     z-index: 50;
     display: flex;
     flex-direction: column;
+    box-sizing: border-box;
   }
   .panel.open {
     transform: translateX(0);

@@ -465,17 +465,18 @@
   /* ---- Mobile: sidebar becomes a slide-in overlay ---- */
   @media (max-width: 768px) {
     .sessions {
-      position: fixed;
+      position: absolute;
       top: 0;
+      bottom: 0;
       left: 0;
       height: 100%;
-      height: 100dvh;
       width: 280px;
       max-width: 85vw;
       z-index: 60;
       transform: translateX(-100%);
       transition: transform var(--transition);
       box-shadow: var(--shadow-md);
+      box-sizing: border-box;
     }
     .sessions.mobile-open {
       transform: translateX(0);
@@ -485,7 +486,7 @@
     }
     .s-backdrop {
       display: block;
-      position: fixed;
+      position: absolute;
       inset: 0;
       background: rgba(0, 0, 0, 0.5);
       z-index: 55;
