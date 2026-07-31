@@ -843,6 +843,10 @@
 
   .attach-btn {
     display: inline-flex;
+    align-items: center;
+    margin: 0 !important;
+    padding: 0;
+    line-height: 1;
   }
 
   .advanced-wrap {
@@ -850,6 +854,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
+    height: 34px;
   }
 
   .adv-toggle {
@@ -863,8 +868,10 @@
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
-    padding: 6px 10px;
-    min-height: 32px;
+    padding: 0 10px;
+    height: 34px;
+    min-height: 34px;
+    box-sizing: border-box;
     transition: border-color var(--transition), color var(--transition);
   }
 
@@ -1133,15 +1140,24 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    height: 36px;
+    height: 34px;
+    min-height: 34px;
     padding: 0 16px;
     font-size: 13px;
+    box-sizing: border-box;
   }
 
   .icon-btn {
-    padding: 8px;
-    min-height: 36px;
-    min-width: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 34px;
+    min-height: 34px;
+    width: 34px;
+    min-width: 34px;
+    padding: 0;
+    margin: 0;
+    box-sizing: border-box;
   }
 
   /* Mobile and Touch-screen Ergonomics */
