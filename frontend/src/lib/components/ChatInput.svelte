@@ -665,32 +665,32 @@
     overflow: hidden;
   }
 
-  /* Full-width top height drag handle */
+  /* Full-width top height drag handle - Positioned exactly on top border of chatbox */
   .resize-handle.top-bar {
-    position: relative;
-    width: 100%;
+    position: absolute;
+    top: -6px;
+    left: 0;
+    right: 0;
     height: 12px;
-    margin-top: -6px;
-    margin-bottom: 6px;
     cursor: ns-resize;
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 15;
+    z-index: 20;
     touch-action: none;
   }
 
   .drag-indicator {
     width: 38px;
-    height: 4px;
-    background: var(--border-hover);
+    height: 3px;
+    background: var(--border-hover, #2e2e33);
     border-radius: 999px;
     transition: background var(--transition), width var(--transition);
   }
 
   .resize-handle.top-bar:hover .drag-indicator {
     background: var(--accent);
-    width: 50px;
+    width: 48px;
   }
 
   /* Direct Editor Area (Fills space directly inside single card - NO empty gap) */
