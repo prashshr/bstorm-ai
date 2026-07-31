@@ -16,7 +16,7 @@ public class MainActivity extends BridgeActivity {
         getWindow().setNavigationBarColor(android.graphics.Color.TRANSPARENT);
 
         WindowInsetsControllerCompat controller = new WindowInsetsControllerCompat(getWindow(), getWindow().getDecorView());
-        controller.setAppearanceStatusBars(false);
-        controller.setAppearanceNavigationBars(false);
+        controller.setAppearanceLightStatusBars(false);
+        controller.setAppearanceLightNavigationBars(false);
     }
 }

@@ -86,7 +86,7 @@
     </div>
   </div>
 
-   <div class="scroll-area" bind:this={scrollEl} onscroll={onScroll}>
+  <div class="scroll-area" bind:this={scrollEl} onscroll={onScroll}>
     {#each roundNums as rn (rn)}
       <div class="turn" class:followup={rn > 1}>
         {#if rn > 1}
@@ -138,7 +138,9 @@
     </button>
   {/if}
 
-  <ChatInput {onEditModels} />
+  <div class="composer-wrap">
+    <ChatInput {onEditModels} />
+  </div>
 </div>
 
 <style>
@@ -146,10 +148,12 @@
     flex: 1;
     display: flex;
     flex-direction: column;
+    height: 100%;
     min-height: 0;
     min-width: 0;
     width: 100%;
     position: relative;
+    overflow: hidden;
   }
   .chat-header {
     flex-shrink: 0;
@@ -239,7 +243,7 @@
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    padding: 16px;
+    padding: 16px 16px 20px;
   }
   .turn {
     margin-bottom: 18px;
@@ -331,7 +335,7 @@
   }
   .jump {
     position: absolute;
-    bottom: 110px;
+    bottom: 80px;
     left: 50%;
     transform: translateX(-50%);
     display: inline-flex;
@@ -347,6 +351,13 @@
     box-shadow: var(--shadow-md);
     cursor: pointer;
     z-index: 20;
+  }
+  .composer-wrap {
+    flex-shrink: 0;
+    width: 100%;
+    z-index: 10;
+    position: relative;
+    bottom: 0;
   }
   @keyframes spin {
     to {

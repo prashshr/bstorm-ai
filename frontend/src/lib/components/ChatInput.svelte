@@ -40,42 +40,92 @@
   let consensusModel = $state(discussion.data?.consensusModel ?? "");
   let totalRounds = $state(discussion.data?.totalRounds ?? 1);
   let showInfo = $state(false);
-  let chatHeight = $state<number | null>(null);
-  let dragging = $state(false);
-  let dragStartY = $state(0);
-  let dragStartH = $state(300);
 
-  function startDrag(e: PointerEvent) {
+  // Height and Width Resizing
+  let chatHeight = $state<number | null>(null);
+  let chatWidth = $state<number>(
+    Number(localStorage.getItem("aiEnsembleChatWidth")) || 760
+  );
+  let draggingHeight = $state(false);
+  let draggingWidthSide = $state<"left" | "right" | null>(null);
+  let dragStartY = $state(0);
+  let dragStartH = $state(220);
+  let dragStartX = $state(0);
+  let dragStartW = $state(760);
+
+  // Auto-minimize on Android / Mobile when discussion is running
+  $effect(() => {
+    if (discussion.running) {
+      isCollapsed = true;
+    }
+  });
+
+  function startDragHeight(e: PointerEvent) {
     if (isCollapsed) return;
-    dragging = true;
+    draggingHeight = true;
     dragStartY = e.clientY;
-    dragStartH = chatHeight ?? 300;
+    dragStartH = chatHeight ?? 220;
     try {
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    } catch {
-      /* fallback */
-    }
+    } catch { /* fallback */ }
     e.preventDefault();
   }
 
-  function onPointerMove(e: PointerEvent) {
-    if (!dragging || isCollapsed) return;
+  function onPointerMoveHeight(e: PointerEvent) {
+    if (!draggingHeight || isCollapsed) return;
     const delta = dragStartY - e.clientY;
-    chatHeight = Math.max(100, Math.min(600, dragStartH + delta));
+    const maxH = Math.min(560, window.innerHeight * 0.65);
+    chatHeight = Math.max(120, Math.min(maxH, dragStartH + delta));
   }
 
-  function endPointerUp(e: PointerEvent) {
-    if (!dragging) return;
-    dragging = false;
+  function endPointerUpHeight(e: PointerEvent) {
+    if (!draggingHeight) return;
+    draggingHeight = false;
     try {
       (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-    } catch {
-      /* fallback */
-    }
+    } catch { /* fallback */ }
+  }
+
+  function startDragWidth(e: PointerEvent, side: "left" | "right") {
+    draggingWidthSide = side;
+    dragStartX = e.clientX;
+    dragStartW = chatWidth;
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch { /* fallback */ }
+    e.preventDefault();
+  }
+
+  function onPointerMoveWidth(e: PointerEvent) {
+    if (!draggingWidthSide) return;
+    const side = draggingWidthSide;
+    const delta = side === "right" ? e.clientX - dragStartX : dragStartX - e.clientX;
+    const maxW = Math.min(1280, window.innerWidth - 32);
+    chatWidth = Math.max(480, Math.min(maxW, dragStartW + delta * 2));
+    localStorage.setItem("aiEnsembleChatWidth", String(chatWidth));
+  }
+
+  function endPointerUpWidth(e: PointerEvent) {
+    if (!draggingWidthSide) return;
+    draggingWidthSide = null;
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch { /* fallback */ }
   }
 
   function toggleCollapse() {
     isCollapsed = !isCollapsed;
+  }
+
+  function toggleWidthPreset() {
+    if (chatWidth < 900) {
+      chatWidth = 1024;
+    } else if (chatWidth < 1200) {
+      chatWidth = 1240;
+    } else {
+      chatWidth = 760;
+    }
+    localStorage.setItem("aiEnsembleChatWidth", String(chatWidth));
   }
 
   const RESPONSE_PRESETS: Record<string, string> = {
@@ -307,26 +357,50 @@
 <div
   class="chat-input-bar"
   class:collapsed={isCollapsed}
-  style={!isCollapsed && chatHeight != null ? "height:" + chatHeight + "px" : ""}
+  style="--chat-w:{chatWidth}px; {!isCollapsed && chatHeight != null ? 'height:' + chatHeight + 'px;' : ''}"
 >
-  <!-- Unified full-width top drag handle with touch & double-click collapse support -->
+  <!-- Full-width top height drag handle -->
   <div
     class="resize-handle top-bar"
     role="slider"
-    aria-label="Resize chat box"
-    aria-valuenow={chatHeight ?? 300}
+    aria-label="Resize chat box height"
+    aria-valuenow={chatHeight ?? 220}
     tabindex="0"
-    onpointerdown={startDrag}
-    onpointermove={onPointerMove}
-    onpointerup={endPointerUp}
+    onpointerdown={startDragHeight}
+    onpointermove={onPointerMoveHeight}
+    onpointerup={endPointerUpHeight}
     ondblclick={toggleCollapse}
-    title="Drag up/down to resize, double-click to collapse/expand"
+    title="Drag up/down to resize height, double-click to collapse/expand"
   >
     <div class="drag-indicator"></div>
   </div>
 
+  <!-- Left/Right Breadth (Width) Drag Handles -->
+  <div
+    class="width-handle left"
+    role="slider"
+    aria-label="Resize chat box width left"
+    tabindex="0"
+    onpointerdown={(e) => startDragWidth(e, "left")}
+    onpointermove={onPointerMoveWidth}
+    onpointerup={endPointerUpWidth}
+    ondblclick={toggleWidthPreset}
+    title="Drag left/right to resize width, double-click to cycle presets"
+  ></div>
+  <div
+    class="width-handle right"
+    role="slider"
+    aria-label="Resize chat box width right"
+    tabindex="0"
+    onpointerdown={(e) => startDragWidth(e, "right")}
+    onpointermove={onPointerMoveWidth}
+    onpointerup={endPointerUpWidth}
+    ondblclick={toggleWidthPreset}
+    title="Drag left/right to resize width, double-click to cycle presets"
+  ></div>
+
   {#if isCollapsed}
-    <!-- Collapsed Compact View: Minimal space consumption (~44px bar) -->
+    <!-- Collapsed Compact Bar (Auto-minimized during discussions on mobile/Android) -->
     <div class="compact-bar">
       <button
         class="compact-expand-btn"
@@ -335,13 +409,22 @@
         aria-label="Expand chat box"
       >
         <span class="compact-placeholder">
-          <Icon name="message-square" size="sm" />
-          <span>Ask a follow-up or refine discussion…</span>
+          {#if discussion.running}
+            <span class="running-indicator">
+              <span class="pulse-dot"></span>
+              <span>Models responding… Pull up to reply</span>
+            </span>
+          {:else}
+            <Icon name="message-square" size="sm" />
+            <span>Ask a follow-up or refine discussion…</span>
+          {/if}
         </span>
-        <span class="compact-models-pill">
-          {models.selected.length} model{models.selected.length === 1 ? "" : "s"} selected
+        <span class="compact-right">
+          <span class="compact-models-pill">
+            {models.selected.length} model{models.selected.length === 1 ? "" : "s"}
+          </span>
+          <Icon name="chevron-up" size="sm" />
         </span>
-        <Icon name="chevron-up" size="sm" />
       </button>
     </div>
   {:else}
@@ -373,6 +456,16 @@
       </div>
 
       <div class="attach-right">
+        <!-- Width Preset Toggle Button -->
+        <button
+          type="button"
+          class="btn btn-ghost btn-sm width-preset-btn"
+          onclick={toggleWidthPreset}
+          title="Toggle width ({chatWidth}px)"
+        >
+          <Icon name="maximize" size="sm" />
+        </button>
+
         <!-- 1-Click Collapse Button -->
         <button
           type="button"
@@ -472,7 +565,7 @@
             {#if showInfo}
               <span class="info-pop">
                 <strong>Consensus</strong> — synthesized consensus summary.<br />
-                <strong>Consensus Model</strong> — model that writes the final synthesis.<br />
+                <strong>Consensus Model</strong> — model that writes final synthesis.<br />
                 <strong>Rounds</strong> — discussion passes.<br />
                 <strong>Response & Summary Format</strong> — custom format instructions.<br />
                 <strong>RAG Mode</strong> — context retrieval from web/knowledge base.<br />
@@ -612,49 +705,79 @@
 </div>
 
 <style>
+  /* Bottom-Anchored Chatbox Bar */
   .chat-input-bar {
-    border-top: 1px solid var(--border);
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     background: var(--bg-secondary);
     padding: 8px 16px 12px;
-    max-height: 60vh;
-    overflow: visible;
+    width: 100%;
+    max-width: var(--chat-w, 760px);
+    margin: 0 auto;
     position: relative;
+    bottom: 0;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.25);
+    box-sizing: border-box;
     transition: max-height var(--transition), padding var(--transition);
   }
 
   .chat-input-bar.collapsed {
-    padding: 4px 12px 6px;
-    max-height: 52px;
+    padding: 6px 12px 6px;
+    height: 46px !important;
+    max-height: 46px;
     overflow: hidden;
   }
 
-  /* Full-width top drag bar handle */
+  /* Full-width top height drag bar */
   .resize-handle.top-bar {
     position: relative;
     width: 100%;
-    height: 12px;
+    height: 14px;
     margin-top: -6px;
     margin-bottom: 4px;
     cursor: ns-resize;
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 10;
+    z-index: 15;
     touch-action: none;
   }
 
   .drag-indicator {
-    width: 38px;
+    width: 40px;
     height: 4px;
-    background: var(--border);
+    background: var(--border-hover);
     border-radius: 999px;
     transition: background var(--transition), width var(--transition);
   }
 
-  .resize-handle.top-bar:hover .drag-indicator,
-  .resize-handle.top-bar:focus .drag-indicator {
+  .resize-handle.top-bar:hover .drag-indicator {
     background: var(--accent);
-    width: 48px;
+    width: 52px;
+  }
+
+  /* Left/Right Breadth (Width) Drag Handles */
+  .width-handle {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 8px;
+    cursor: ew-resize;
+    z-index: 12;
+    touch-action: none;
+  }
+
+  .width-handle.left {
+    left: -4px;
+  }
+
+  .width-handle.right {
+    right: -4px;
+  }
+
+  .width-handle:hover {
+    background: color-mix(in srgb, var(--accent) 30%, transparent);
   }
 
   /* Compact collapsed view */
@@ -662,7 +785,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: 36px;
+    height: 34px;
   }
 
   .compact-expand-btn {
@@ -696,6 +819,28 @@
     white-space: nowrap;
   }
 
+  .running-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--accent-light);
+    font-weight: 600;
+  }
+
+  .pulse-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+
+  .compact-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
   .compact-models-pill {
     font-size: 11px;
     color: var(--text-tertiary);
@@ -724,6 +869,11 @@
     align-items: center;
     gap: 6px;
     flex-shrink: 0;
+  }
+
+  .width-preset-btn {
+    padding: 4px 6px;
+    color: var(--text-tertiary);
   }
 
   .collapse-btn {
@@ -980,7 +1130,7 @@
     border-radius: var(--radius-lg);
     background: var(--input-bg);
     padding: 12px 14px;
-    min-height: 110px;
+    min-height: 100px;
     display: flex;
     flex-direction: column;
     transition: border-color var(--transition);
@@ -1004,7 +1154,7 @@
     padding: 0;
     outline: none;
     resize: none;
-    min-height: 64px;
+    min-height: 60px;
     max-height: 240px;
     overflow-y: auto;
     line-height: 1.5;
@@ -1099,6 +1249,7 @@
   @media (max-width: 768px) {
     .chat-input-bar {
       padding: 6px 10px max(10px, env(safe-area-inset-bottom, 0px));
+      max-width: 100% !important;
     }
 
     .editor:focus {
@@ -1120,6 +1271,10 @@
     }
 
     .collapse-text {
+      display: none;
+    }
+
+    .width-handle, .width-preset-btn {
       display: none;
     }
   }
