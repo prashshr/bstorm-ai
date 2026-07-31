@@ -15,9 +15,27 @@ import type {
 } from "./types";
 
 // On the web this is empty (same-origin via nginx). For the Capacitor Android
-// app, set VITE_API_BASE to the public backend URL (e.g. the live site) at
-// build time so API calls leave the WebView and hit the real backend.
-const BASE = import.meta.env.VITE_API_BASE ?? "";
+// app or native platforms, default to the public backend URL if VITE_API_BASE
+// is not set, so API calls hit the real backend instead of failing locally.
+export function getBaseUrl(): string {
+  if (import.meta.env.VITE_API_BASE) {
+    return import.meta.env.VITE_API_BASE;
+  }
+  if (typeof window !== "undefined") {
+    const win = window as unknown as {
+      Capacitor?: { isNativePlatform(): boolean; getPlatform(): string };
+    };
+    if (
+      win.Capacitor?.isNativePlatform?.() ||
+      window.location.protocol === "capacitor:" ||
+      window.location.protocol === "file:" ||
+      (window.location.hostname === "localhost" && !window.location.port)
+    ) {
+      return "https://ai-ensemble.samkhya.cloud";
+    }
+  }
+  return "";
+}
 
 export class ApiError extends Error {
   status: number;
@@ -57,7 +75,8 @@ async function request<T>(
     if (token) headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const resp = await fetch(`${BASE}${path}`, { ...options, headers });
+  const baseUrl = getBaseUrl();
+  const resp = await fetch(`${baseUrl}${path}`, { ...options, headers });
 
   if (resp.status === 401) {
     // Only a 401 from our own auth layer should end the session. A 401 that
@@ -246,7 +265,8 @@ export const api = {
     const token = getToken();
     if (token) headers.set("Authorization", `Bearer ${token}`);
 
-    const resp = await fetch(`${BASE}/api/proxy/chat/stream`, {
+    const baseUrl = getBaseUrl();
+    const resp = await fetch(`${baseUrl}/api/proxy/chat/stream`, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
