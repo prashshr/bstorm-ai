@@ -41,19 +41,13 @@
   let totalRounds = $state(discussion.data?.totalRounds ?? 1);
   let showInfo = $state(false);
 
-  // Height and Width Resizing
-  let chatHeight = $state<number | null>(null);
-  let chatWidth = $state<number>(
-    Number(localStorage.getItem("aiEnsembleChatWidth")) || 760
-  );
+  // Height Resizing Bounded strictly UPWARDS within visible bottom space
+  let dockHeight = $state<number | null>(null);
   let draggingHeight = $state(false);
-  let draggingWidthSide = $state<"left" | "right" | null>(null);
   let dragStartY = $state(0);
-  let dragStartH = $state(220);
-  let dragStartX = $state(0);
-  let dragStartW = $state(760);
+  let dragStartH = $state(180);
 
-  // Auto-minimize on Android / Mobile when discussion is running
+  // Auto-minimize on Android / Mobile when discussion is active/running
   $effect(() => {
     if (discussion.running) {
       isCollapsed = true;
@@ -64,7 +58,7 @@
     if (isCollapsed) return;
     draggingHeight = true;
     dragStartY = e.clientY;
-    dragStartH = chatHeight ?? 220;
+    dragStartH = dockHeight ?? 180;
     try {
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     } catch { /* fallback */ }
@@ -74,8 +68,11 @@
   function onPointerMoveHeight(e: PointerEvent) {
     if (!draggingHeight || isCollapsed) return;
     const delta = dragStartY - e.clientY;
-    const maxH = Math.min(560, window.innerHeight * 0.65);
-    chatHeight = Math.max(120, Math.min(maxH, dragStartH + delta));
+    // Bounds: Min 130px, Max min(360px, 42vh).
+    // Prevents the chatbox from being dragged into the middle of the screen!
+    const minH = 130;
+    const maxH = Math.min(360, Math.floor(window.innerHeight * 0.42));
+    dockHeight = Math.max(minH, Math.min(maxH, dragStartH + delta));
   }
 
   function endPointerUpHeight(e: PointerEvent) {
@@ -86,46 +83,8 @@
     } catch { /* fallback */ }
   }
 
-  function startDragWidth(e: PointerEvent, side: "left" | "right") {
-    draggingWidthSide = side;
-    dragStartX = e.clientX;
-    dragStartW = chatWidth;
-    try {
-      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    } catch { /* fallback */ }
-    e.preventDefault();
-  }
-
-  function onPointerMoveWidth(e: PointerEvent) {
-    if (!draggingWidthSide) return;
-    const side = draggingWidthSide;
-    const delta = side === "right" ? e.clientX - dragStartX : dragStartX - e.clientX;
-    const maxW = Math.min(1280, window.innerWidth - 32);
-    chatWidth = Math.max(480, Math.min(maxW, dragStartW + delta * 2));
-    localStorage.setItem("aiEnsembleChatWidth", String(chatWidth));
-  }
-
-  function endPointerUpWidth(e: PointerEvent) {
-    if (!draggingWidthSide) return;
-    draggingWidthSide = null;
-    try {
-      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-    } catch { /* fallback */ }
-  }
-
   function toggleCollapse() {
     isCollapsed = !isCollapsed;
-  }
-
-  function toggleWidthPreset() {
-    if (chatWidth < 900) {
-      chatWidth = 1024;
-    } else if (chatWidth < 1200) {
-      chatWidth = 1240;
-    } else {
-      chatWidth = 760;
-    }
-    localStorage.setItem("aiEnsembleChatWidth", String(chatWidth));
   }
 
   const RESPONSE_PRESETS: Record<string, string> = {
@@ -357,14 +316,14 @@
 <div
   class="chat-input-bar"
   class:collapsed={isCollapsed}
-  style="--chat-w:{chatWidth}px; {!isCollapsed && chatHeight != null ? 'height:' + chatHeight + 'px;' : ''}"
+  style={!isCollapsed && dockHeight != null ? "height:" + dockHeight + "px;" : ""}
 >
   <!-- Full-width top height drag handle -->
   <div
     class="resize-handle top-bar"
     role="slider"
     aria-label="Resize chat box height"
-    aria-valuenow={chatHeight ?? 220}
+    aria-valuenow={dockHeight ?? 180}
     tabindex="0"
     onpointerdown={startDragHeight}
     onpointermove={onPointerMoveHeight}
@@ -374,30 +333,6 @@
   >
     <div class="drag-indicator"></div>
   </div>
-
-  <!-- Left/Right Breadth (Width) Drag Handles -->
-  <div
-    class="width-handle left"
-    role="slider"
-    aria-label="Resize chat box width left"
-    tabindex="0"
-    onpointerdown={(e) => startDragWidth(e, "left")}
-    onpointermove={onPointerMoveWidth}
-    onpointerup={endPointerUpWidth}
-    ondblclick={toggleWidthPreset}
-    title="Drag left/right to resize width, double-click to cycle presets"
-  ></div>
-  <div
-    class="width-handle right"
-    role="slider"
-    aria-label="Resize chat box width right"
-    tabindex="0"
-    onpointerdown={(e) => startDragWidth(e, "right")}
-    onpointermove={onPointerMoveWidth}
-    onpointerup={endPointerUpWidth}
-    ondblclick={toggleWidthPreset}
-    title="Drag left/right to resize width, double-click to cycle presets"
-  ></div>
 
   {#if isCollapsed}
     <!-- Collapsed Compact Bar (Auto-minimized during discussions on mobile/Android) -->
@@ -456,16 +391,6 @@
       </div>
 
       <div class="attach-right">
-        <!-- Width Preset Toggle Button -->
-        <button
-          type="button"
-          class="btn btn-ghost btn-sm width-preset-btn"
-          onclick={toggleWidthPreset}
-          title="Toggle width ({chatWidth}px)"
-        >
-          <Icon name="maximize" size="sm" />
-        </button>
-
         <!-- 1-Click Collapse Button -->
         <button
           type="button"
@@ -705,31 +630,34 @@
 </div>
 
 <style>
-  /* Bottom-Anchored Chatbox Bar */
+  /* Strict Bottom Dock Behavior */
   .chat-input-bar {
     border: 1px solid var(--border);
     border-bottom: none;
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     background: var(--bg-secondary);
     padding: 8px 16px 12px;
-    width: 100%;
-    max-width: var(--chat-w, 760px);
+    width: calc(100% - 32px);
+    max-width: 760px;
     margin: 0 auto;
     position: relative;
     bottom: 0;
     box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.25);
     box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
     transition: max-height var(--transition), padding var(--transition);
   }
 
   .chat-input-bar.collapsed {
     padding: 6px 12px 6px;
-    height: 46px !important;
-    max-height: 46px;
+    height: 44px !important;
+    max-height: 44px;
     overflow: hidden;
   }
 
-  /* Full-width top height drag bar */
+  /* Full-width top height drag handle */
   .resize-handle.top-bar {
     position: relative;
     width: 100%;
@@ -755,29 +683,6 @@
   .resize-handle.top-bar:hover .drag-indicator {
     background: var(--accent);
     width: 52px;
-  }
-
-  /* Left/Right Breadth (Width) Drag Handles */
-  .width-handle {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 8px;
-    cursor: ew-resize;
-    z-index: 12;
-    touch-action: none;
-  }
-
-  .width-handle.left {
-    left: -4px;
-  }
-
-  .width-handle.right {
-    right: -4px;
-  }
-
-  .width-handle:hover {
-    background: color-mix(in srgb, var(--accent) 30%, transparent);
   }
 
   /* Compact collapsed view */
@@ -869,11 +774,6 @@
     align-items: center;
     gap: 6px;
     flex-shrink: 0;
-  }
-
-  .width-preset-btn {
-    padding: 4px 6px;
-    color: var(--text-tertiary);
   }
 
   .collapse-btn {
@@ -1155,7 +1055,7 @@
     outline: none;
     resize: none;
     min-height: 60px;
-    max-height: 240px;
+    max-height: 220px;
     overflow-y: auto;
     line-height: 1.5;
     color: var(--text-primary);
@@ -1249,7 +1149,7 @@
   @media (max-width: 768px) {
     .chat-input-bar {
       padding: 6px 10px max(10px, env(safe-area-inset-bottom, 0px));
-      max-width: 100% !important;
+      width: 100%;
     }
 
     .editor:focus {
@@ -1271,10 +1171,6 @@
     }
 
     .collapse-text {
-      display: none;
-    }
-
-    .width-handle, .width-preset-btn {
       display: none;
     }
   }

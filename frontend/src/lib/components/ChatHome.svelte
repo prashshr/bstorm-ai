@@ -15,7 +15,7 @@
     <p class="tagline">Ask multiple AI models at once and get a consensus synthesis.</p>
   </div>
 
-  <!-- Section 3: Bottom-Anchored Chatbox Composer -->
+  <!-- Section 3: Bottom-Anchored Dock Container -->
   <div class="composer">
     {#if models.selected.length === 0}
       <div class="hint" data-testid="no-models-hint">
@@ -40,14 +40,14 @@
     overflow: hidden;
   }
 
-  /* Fixed Center Content - Strictly centered vertically and horizontally */
+  /* Fixed Center Content - Fixed at top: 35% */
   .hero {
     position: absolute;
-    top: 38%;
+    top: 35%;
     left: 50%;
     transform: translate(-50%, -50%);
     width: calc(100% - 32px);
-    max-width: 500px;
+    max-width: 520px;
     text-align: center;
     pointer-events: auto;
     z-index: 1;
@@ -62,13 +62,12 @@
     text-align: center;
   }
 
-  /* Bottom-Anchored Chatbox Container */
+  /* Bottom-Anchored Dock Container */
   .composer {
     position: absolute;
     bottom: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 100%;
+    left: 0;
+    right: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -95,7 +94,7 @@
 
   @media (max-width: 768px) {
     .hero {
-      top: 32%;
+      top: 30%;
     }
   }
 </style>
