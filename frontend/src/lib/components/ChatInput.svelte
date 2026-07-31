@@ -41,11 +41,11 @@
   let totalRounds = $state(discussion.data?.totalRounds ?? 1);
   let showInfo = $state(false);
 
-  // Height Resizing Bounded strictly UPWARDS within visible bottom space
+  // Dock Height Resizing Bounded strictly UPWARDS
   let dockHeight = $state<number | null>(null);
   let draggingHeight = $state(false);
   let dragStartY = $state(0);
-  let dragStartH = $state(180);
+  let dragStartH = $state(160);
 
   // Auto-minimize on Android / Mobile when discussion is active/running
   $effect(() => {
@@ -58,7 +58,7 @@
     if (isCollapsed) return;
     draggingHeight = true;
     dragStartY = e.clientY;
-    dragStartH = dockHeight ?? 180;
+    dragStartH = dockHeight ?? 160;
     try {
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     } catch { /* fallback */ }
@@ -68,10 +68,9 @@
   function onPointerMoveHeight(e: PointerEvent) {
     if (!draggingHeight || isCollapsed) return;
     const delta = dragStartY - e.clientY;
-    // Bounds: Min 130px, Max min(360px, 42vh).
-    // Prevents the chatbox from being dragged into the middle of the screen!
+    // Bounds: Min 130px, Max min(380px, 42vh).
     const minH = 130;
-    const maxH = Math.min(360, Math.floor(window.innerHeight * 0.42));
+    const maxH = Math.min(380, Math.floor(window.innerHeight * 0.42));
     dockHeight = Math.max(minH, Math.min(maxH, dragStartH + delta));
   }
 
@@ -126,8 +125,6 @@
 
   function autoGrow() {
     if (!editorEl) return;
-    editorEl.style.height = "auto";
-    editorEl.style.height = Math.min(editorEl.scrollHeight, 250) + "px";
     text = readText();
   }
 
@@ -313,17 +310,24 @@
   const imageButNoVision = $derived(hasImageAttachment && !selectionHasVision);
 </script>
 
+<!-- Single Bottom-Docked Chatbox Component (No nested boxes/outer wrappers) -->
 <div
   class="chat-input-bar"
   class:collapsed={isCollapsed}
+  class:dragover
   style={!isCollapsed && dockHeight != null ? "height:" + dockHeight + "px;" : ""}
+  ondragover={onDragOver}
+  ondragleave={onDragLeave}
+  ondrop={onDrop}
+  role="region"
+  aria-label="Chat input"
 >
   <!-- Full-width top height drag handle -->
   <div
     class="resize-handle top-bar"
     role="slider"
     aria-label="Resize chat box height"
-    aria-valuenow={dockHeight ?? 180}
+    aria-valuenow={dockHeight ?? 160}
     tabindex="0"
     onpointerdown={startDragHeight}
     onpointermove={onPointerMoveHeight}
@@ -335,7 +339,7 @@
   </div>
 
   {#if isCollapsed}
-    <!-- Collapsed Compact Bar (Auto-minimized during discussions on mobile/Android) -->
+    <!-- Collapsed Compact Bar -->
     <div class="compact-bar">
       <button
         class="compact-expand-btn"
@@ -363,7 +367,7 @@
       </button>
     </div>
   {:else}
-    <!-- Expanded Composer View -->
+    <!-- Single Unified Chat Card Contents -->
     <div class="attach-row">
       <div class="attach-left">
         {#if models.selected.length > 0}
@@ -391,13 +395,12 @@
       </div>
 
       <div class="attach-right">
-        <!-- 1-Click Collapse Button -->
         <button
           type="button"
           class="btn btn-ghost btn-sm collapse-btn"
           onclick={toggleCollapse}
           data-testid="chat-input-collapse"
-          title="Collapse composer to save reading space"
+          title="Collapse composer"
           aria-label="Collapse composer"
         >
           <Icon name="chevron-down" size="sm" />
@@ -421,239 +424,246 @@
     {#if imageButNoVision}
       <div class="vision-warn" role="status">
         <Icon name="alert" size="sm" />
-        Image attached, but the selected model(s) may not support vision (e.g. DeepSeek is text-only). Use a vision-capable model — GPT-4o, Gemini, Claude 3.5+ — to let it see the image.
+        Image attached, but selected model(s) may not support vision. Use GPT-4o, Gemini, Claude 3.5+.
       </div>
     {/if}
 
+    <!-- Direct Editor Area (Flex 1 fills all height directly inside card without empty gaps) -->
     <div
-      class="input-wrap"
-      class:dragover
-      ondragover={onDragOver}
-      ondragleave={onDragLeave}
-      ondrop={onDrop}
-    >
-      <div
-        class="editor"
-        bind:this={editorEl}
-        contenteditable="true"
-        role="textbox"
-        aria-multiline="true"
-        aria-label="Message"
-        {placeholder}
-        data-testid="chat-input"
-        oninput={autoGrow}
-        onkeydown={onKeydown}
-        onpaste={onPaste}
-      ></div>
+      class="editor"
+      bind:this={editorEl}
+      contenteditable="true"
+      role="textbox"
+      tabindex="0"
+      aria-multiline="true"
+      aria-label="Message"
+      {placeholder}
+      data-testid="chat-input"
+      oninput={autoGrow}
+      onkeydown={onKeydown}
+      onpaste={onPaste}
+    ></div>
 
-      <div class="chat-controls-row">
-        <label class="attach-btn" title="Attach files">
-          <button
-            class="btn btn-ghost btn-sm icon-btn"
-            type="button"
-            onclick={() => document.getElementById("chat-file")?.click()}
-            aria-label="Attach files"
-          >
-            <Icon name="paperclip" size="sm" />
-          </button>
-          <input
-            id="chat-file"
-            type="file"
-            multiple
-            style="display:none"
-            onchange={(e) => handleFiles((e.target as HTMLInputElement).files)}
-          />
-        </label>
+    <!-- Controls Row (Contained neatly inside single card at bottom) -->
+    <div class="chat-controls-row">
+      <label class="attach-btn" title="Attach files">
+        <button
+          class="btn btn-ghost btn-sm icon-btn"
+          type="button"
+          onclick={() => document.getElementById("chat-file")?.click()}
+          aria-label="Attach files"
+        >
+          <Icon name="paperclip" size="sm" />
+        </button>
+        <input
+          id="chat-file"
+          type="file"
+          multiple
+          style="display:none"
+          onchange={(e) => handleFiles((e.target as HTMLInputElement).files)}
+        />
+      </label>
 
-        <div class="advanced-wrap">
-          <button
-            type="button"
-            class="adv-toggle"
-            onclick={() => (showAdvanced = !showAdvanced)}
-            aria-expanded={showAdvanced}
-          >
-            <Icon name="settings" size="sm" />
-            Advanced
-            <Icon name={showAdvanced ? "chevron-down" : "chevron-right"} size="sm" />
-          </button>
-          <span
-            class="info-wrap"
-            role="note"
-            tabindex="0"
-            onmouseenter={() => (showInfo = true)}
-            onmouseleave={() => (showInfo = false)}
-            onfocus={() => (showInfo = true)}
-            onblur={() => (showInfo = false)}
-            aria-label="Advanced settings help"
-          >
-            <Icon name="info" size="sm" />
-            {#if showInfo}
-              <span class="info-pop">
-                <strong>Consensus</strong> — synthesized consensus summary.<br />
-                <strong>Consensus Model</strong> — model that writes final synthesis.<br />
-                <strong>Rounds</strong> — discussion passes.<br />
-                <strong>Response & Summary Format</strong> — custom format instructions.<br />
-                <strong>RAG Mode</strong> — context retrieval from web/knowledge base.<br />
-                <strong>Deep Research</strong> — web search between rounds.
-              </span>
-            {/if}
-          </span>
+      <div class="advanced-wrap">
+        <button
+          type="button"
+          class="adv-toggle"
+          onclick={() => (showAdvanced = !showAdvanced)}
+          aria-expanded={showAdvanced}
+        >
+          <Icon name="settings" size="sm" />
+          Advanced
+          <Icon name={showAdvanced ? "chevron-down" : "chevron-right"} size="sm" />
+        </button>
+        <span
+          class="info-wrap"
+          role="note"
+          onmouseenter={() => (showInfo = true)}
+          onmouseleave={() => (showInfo = false)}
+          onfocus={() => (showInfo = true)}
+          onblur={() => (showInfo = false)}
+          aria-label="Advanced settings help"
+        >
+          <Icon name="info" size="sm" />
+          {#if showInfo}
+            <span class="info-pop">
+              <strong>Consensus</strong> — synthesized consensus summary.<br />
+              <strong>Consensus Model</strong> — model that writes final synthesis.<br />
+              <strong>Rounds</strong> — discussion passes.<br />
+              <strong>Response & Summary Format</strong> — custom format instructions.<br />
+              <strong>RAG Mode</strong> — context retrieval from web/knowledge base.<br />
+              <strong>Deep Research</strong> — web search between rounds.
+            </span>
+          {/if}
+        </span>
 
-          {#if showAdvanced}
-            <div class="adv-panel">
-              <div class="adv-panel-header">
-                <span class="adv-title">Advanced Configuration</span>
-                <button
-                  type="button"
-                  class="btn btn-ghost btn-sm adv-close"
-                  onclick={() => (showAdvanced = false)}
-                  aria-label="Close advanced settings"
-                >×</button>
+        {#if showAdvanced}
+          <div class="adv-panel">
+            <div class="adv-panel-header">
+              <span class="adv-title">Advanced Configuration</span>
+              <button
+                type="button"
+                class="btn btn-ghost btn-sm adv-close"
+                onclick={() => (showAdvanced = false)}
+                aria-label="Close advanced settings"
+              >×</button>
+            </div>
+            <div class="adv-panel-grid">
+              <div class="adv-field adv-inline">
+                <label class="switch inline" class:on={consensusEnabled} title="Enable consensus synthesis">
+                  <input type="checkbox" bind:checked={consensusEnabled} />
+                  <span class="track" aria-hidden="true"><span class="thumb"></span></span>
+                  <span>Consensus</span>
+                </label>
               </div>
-              <div class="adv-panel-grid">
-                <div class="adv-field adv-inline">
-                  <label class="switch inline" class:on={consensusEnabled} title="Enable consensus synthesis">
-                    <input type="checkbox" bind:checked={consensusEnabled} />
-                    <span class="track" aria-hidden="true"><span class="thumb"></span></span>
-                    <span>Consensus</span>
-                  </label>
-                </div>
 
-                <div class="adv-field" class:disabled={!consensusEnabled}>
-                  <label for="pf-consensus" class:disabled={!consensusEnabled}>Consensus Model</label>
-                  <select id="pf-consensus" bind:value={consensusModel} disabled={!consensusEnabled}>
-                    <option value="">Auto (first selected model)</option>
-                    {#each models.selected as m (m)}
-                      <option value={m}>{m.split("::")[1] ?? m}</option>
-                    {/each}
-                  </select>
-                </div>
+              <div class="adv-field" class:disabled={!consensusEnabled}>
+                <label for="pf-consensus" class:disabled={!consensusEnabled}>Consensus Model</label>
+                <select id="pf-consensus" bind:value={consensusModel} disabled={!consensusEnabled}>
+                  <option value="">Auto (first selected model)</option>
+                  {#each models.selected as m (m)}
+                    <option value={m}>{m.split("::")[1] ?? m}</option>
+                  {/each}
+                </select>
+              </div>
 
-                <div class="adv-field" class:disabled={!consensusEnabled}>
-                  <label for="pf-rounds" class:disabled={!consensusEnabled}>Rounds</label>
-                  <select id="pf-rounds" bind:value={totalRounds} disabled={!consensusEnabled}>
-                    <option value={1}>1 Round</option>
-                    <option value={2}>2 Rounds</option>
-                    <option value={3}>3 Rounds</option>
-                  </select>
-                </div>
+              <div class="adv-field" class:disabled={!consensusEnabled}>
+                <label for="pf-rounds" class:disabled={!consensusEnabled}>Rounds</label>
+                <select id="pf-rounds" bind:value={totalRounds} disabled={!consensusEnabled}>
+                  <option value={1}>1 Round</option>
+                  <option value={2}>2 Rounds</option>
+                  <option value={3}>3 Rounds</option>
+                </select>
+              </div>
 
-                <div class="adv-field">
-                  <label for="pf-rag">RAG Retrieval Mode</label>
-                  <select id="pf-rag" bind:value={ragMode} data-testid="rag-mode-select" aria-label="RAG mode">
-                    <option value="model-self">Model/Self (Default)</option>
-                    <option value="model-only">Model-Only</option>
-                  </select>
-                </div>
+              <div class="adv-field">
+                <label for="pf-rag">RAG Retrieval Mode</label>
+                <select id="pf-rag" bind:value={ragMode} data-testid="rag-mode-select" aria-label="RAG mode">
+                  <option value="model-self">Model/Self (Default)</option>
+                  <option value="model-only">Model-Only</option>
+                </select>
+              </div>
 
-                <div class="adv-field span-2">
-                  <label for="pf-response-preset">Response Format</label>
-                  <select
-                    id="pf-response-preset"
-                    value={responseFormat}
-                    onchange={(e) => applyResponsePreset((e.currentTarget as HTMLSelectElement).value)}
-                  >
-                    <option value="none">None</option>
-                    <option value="compact">Compact</option>
-                    <option value="elaborate">Elaborate</option>
-                    <option value="custom">Custom</option>
-                  </select>
-                  <textarea
-                    id="pf-response-text"
-                    rows="2"
-                    bind:value={responseFormatText}
-                    placeholder="Instruction sent to each model about how to format its response…"
-                  ></textarea>
-                </div>
+              <div class="adv-field span-2">
+                <label for="pf-response-preset">Response Format</label>
+                <select
+                  id="pf-response-preset"
+                  value={responseFormat}
+                  onchange={(e) => applyResponsePreset((e.currentTarget as HTMLSelectElement).value)}
+                >
+                  <option value="none">None</option>
+                  <option value="compact">Compact</option>
+                  <option value="elaborate">Elaborate</option>
+                  <option value="custom">Custom</option>
+                </select>
+                <textarea
+                  id="pf-response-text"
+                  rows="2"
+                  bind:value={responseFormatText}
+                  placeholder="Instruction sent to each model about how to format its response…"
+                ></textarea>
+              </div>
 
-                <div class="adv-field span-2">
-                  <label for="pf-summary-preset">Discussion / Summary Format</label>
-                  <select
-                    id="pf-summary-preset"
-                    value={summaryFormat}
-                    onchange={(e) => applySummaryPreset((e.currentTarget as HTMLSelectElement).value)}
-                  >
-                    <option value="none">None</option>
-                    <option value="compact">Compact (default)</option>
-                    <option value="elaborate">Elaborate</option>
-                    <option value="custom">Custom</option>
-                  </select>
-                  <textarea
-                    id="pf-summary-text"
-                    rows="2"
-                    bind:value={summaryFormatText}
-                    placeholder="Instruction sent to consensus model…"
-                  ></textarea>
-                </div>
+              <div class="adv-field span-2">
+                <label for="pf-summary-preset">Discussion / Summary Format</label>
+                <select
+                  id="pf-summary-preset"
+                  value={summaryFormat}
+                  onchange={(e) => applySummaryPreset((e.currentTarget as HTMLSelectElement).value)}
+                >
+                  <option value="none">None</option>
+                  <option value="compact">Compact (default)</option>
+                  <option value="elaborate">Elaborate</option>
+                  <option value="custom">Custom</option>
+                </select>
+                <textarea
+                  id="pf-summary-text"
+                  rows="2"
+                  bind:value={summaryFormatText}
+                  placeholder="Instruction sent to consensus model…"
+                ></textarea>
+              </div>
 
-                <div class="adv-field span-2">
-                  <label for="pf-instructions">Custom Instructions</label>
-                  <textarea id="pf-instructions" rows="2" bind:value={instructions}
-                    placeholder="E.g., Always cite your sources…"></textarea>
-                </div>
+              <div class="adv-field span-2">
+                <label for="pf-instructions">Custom Instructions</label>
+                <textarea id="pf-instructions" rows="2" bind:value={instructions}
+                  placeholder="E.g., Always cite your sources…"></textarea>
+              </div>
 
-                <div class="adv-field">
-                  <label for="pf-timeout">Response Timeout (sec)</label>
-                  <input id="pf-timeout" type="number" min="10" max="300" bind:value={timeout} />
-                </div>
+              <div class="adv-field">
+                <label for="pf-timeout">Response Timeout (sec)</label>
+                <input id="pf-timeout" type="number" min="10" max="300" bind:value={timeout} />
+              </div>
 
-                <div class="adv-field">
-                  <label for="pf-maxtok">Max Tokens / Response</label>
-                  <input id="pf-maxtok" type="number" min="500" max="16000" step="500" bind:value={maxTokens} />
-                </div>
+              <div class="adv-field">
+                <label for="pf-maxtok">Max Tokens / Response</label>
+                <input id="pf-maxtok" type="number" min="500" max="16000" step="500" bind:value={maxTokens} />
+              </div>
 
-                <div class="adv-field adv-inline span-2">
-                  <label class="switch inline" class:on={deepResearch} title="Deep Research (web search between rounds)">
-                    <input type="checkbox" bind:checked={deepResearch} />
-                    <span class="track" aria-hidden="true"><span class="thumb"></span></span>
-                    <Icon name="search" size="sm" />
-                    <span class="dr-label">Deep Research</span>
-                  </label>
-                </div>
+              <div class="adv-field adv-inline span-2">
+                <label class="switch inline" class:on={deepResearch} title="Deep Research (web search between rounds)">
+                  <input type="checkbox" bind:checked={deepResearch} />
+                  <span class="track" aria-hidden="true"><span class="thumb"></span></span>
+                  <Icon name="search" size="sm" />
+                  <span class="dr-label">Deep Research</span>
+                </label>
               </div>
             </div>
-          {/if}
-        </div>
-
-        <button
-          class="btn btn-primary send"
-          data-testid="chat-send"
-          onclick={running ? () => discussion.stop() : send}
-          disabled={!text.trim() && !running || sending || models.selected.length === 0}
-        >
-          <Icon name={running ? "stop" : "arrow-right"} size="sm" />
-          {running ? "Stop" : "Send"}
-        </button>
+          </div>
+        {/if}
       </div>
+
+      <button
+        class="btn btn-primary send"
+        data-testid="chat-send"
+        onclick={running ? () => discussion.stop() : send}
+        disabled={!text.trim() && !running || sending || models.selected.length === 0}
+      >
+        <Icon name={running ? "stop" : "arrow-right"} size="sm" />
+        {running ? "Stop" : "Send"}
+      </button>
     </div>
   {/if}
 </div>
 
 <style>
-  /* Strict Bottom Dock Behavior */
+  /* Single Unified Bottom Dock Component - No nested box-in-box */
   .chat-input-bar {
-    border: 1px solid var(--border);
+    border: 1px solid var(--input-border, #1f1f23);
     border-bottom: none;
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-    background: var(--bg-secondary);
-    padding: 8px 16px 12px;
+    background: var(--input-bg, #16161a);
+    padding: 10px 14px 12px;
     width: calc(100% - 32px);
     max-width: 760px;
     margin: 0 auto;
     position: relative;
     bottom: 0;
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.25);
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
-    transition: max-height var(--transition), padding var(--transition);
+    min-height: 130px;
+    max-height: min(380px, 42vh);
+    transition: border-color var(--transition), max-height var(--transition), padding var(--transition);
+  }
+
+  .chat-input-bar:focus-within {
+    border-color: var(--accent);
+  }
+
+  .chat-input-bar.dragover {
+    border-color: var(--accent);
+    border-style: dashed;
+    background: var(--accent-bg, rgba(255, 92, 0, 0.06));
   }
 
   .chat-input-bar.collapsed {
     padding: 6px 12px 6px;
     height: 44px !important;
-    max-height: 44px;
+    min-height: 44px !important;
+    max-height: 44px !important;
     overflow: hidden;
   }
 
@@ -661,9 +671,9 @@
   .resize-handle.top-bar {
     position: relative;
     width: 100%;
-    height: 14px;
+    height: 12px;
     margin-top: -6px;
-    margin-bottom: 4px;
+    margin-bottom: 6px;
     cursor: ns-resize;
     display: flex;
     align-items: center;
@@ -673,7 +683,7 @@
   }
 
   .drag-indicator {
-    width: 40px;
+    width: 38px;
     height: 4px;
     background: var(--border-hover);
     border-radius: 999px;
@@ -682,7 +692,30 @@
 
   .resize-handle.top-bar:hover .drag-indicator {
     background: var(--accent);
-    width: 52px;
+    width: 50px;
+  }
+
+  /* Direct Editor Area (Fills space directly inside single card - NO empty gap) */
+  .editor {
+    flex: 1;
+    width: 100%;
+    border: none;
+    background: none;
+    padding: 2px 0;
+    outline: none;
+    resize: none;
+    min-height: 50px;
+    overflow-y: auto;
+    line-height: 1.5;
+    color: var(--text-primary);
+    font-size: 14px;
+    box-sizing: border-box;
+  }
+
+  .editor:empty::before {
+    content: attr(placeholder);
+    color: var(--text-tertiary);
+    pointer-events: none;
   }
 
   /* Compact collapsed view */
@@ -690,7 +723,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: 34px;
+    height: 32px;
   }
 
   .compact-expand-btn {
@@ -755,7 +788,7 @@
     border: 1px solid var(--border);
   }
 
-  /* Expanded header row */
+  /* Header row inside card */
   .attach-row {
     display: flex;
     align-items: center;
@@ -1025,49 +1058,6 @@
     cursor: pointer;
   }
 
-  .input-wrap {
-    border: 1px solid var(--input-border);
-    border-radius: var(--radius-lg);
-    background: var(--input-bg);
-    padding: 12px 14px;
-    min-height: 100px;
-    display: flex;
-    flex-direction: column;
-    transition: border-color var(--transition);
-  }
-
-  .input-wrap:focus-within {
-    border-color: var(--accent);
-  }
-
-  .input-wrap.dragover {
-    border-color: var(--accent);
-    border-style: dashed;
-    background: var(--accent-bg, rgba(255, 92, 0, 0.06));
-  }
-
-  .editor {
-    flex: 1;
-    width: 100%;
-    border: none;
-    background: none;
-    padding: 0;
-    outline: none;
-    resize: none;
-    min-height: 60px;
-    max-height: 220px;
-    overflow-y: auto;
-    line-height: 1.5;
-    color: var(--text-primary);
-    font-size: 14px;
-  }
-
-  .editor:empty::before {
-    content: attr(placeholder);
-    color: var(--text-tertiary);
-    pointer-events: none;
-  }
-
   .switch {
     display: inline-flex;
     align-items: center;
@@ -1149,16 +1139,11 @@
   @media (max-width: 768px) {
     .chat-input-bar {
       padding: 6px 10px max(10px, env(safe-area-inset-bottom, 0px));
-      width: 100%;
+      width: calc(100% - 16px);
     }
 
     .editor:focus {
       max-height: 25vh;
-    }
-
-    .input-wrap {
-      min-height: 90px;
-      padding: 10px 12px;
     }
 
     .send {
