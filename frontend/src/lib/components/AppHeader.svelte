@@ -82,28 +82,25 @@
   .title {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     background: none;
     border: none;
     color: var(--text-primary);
-    font-size: 32px;
+    font-size: 20px;
     font-weight: 700;
-    /* Shift visual center to align with main content area (offset by sidebar).
-       On mobile sidebar is overlay (--sidebar-w: 0) so no shift. */
-    transform: translateX(calc(var(--sidebar-w, 0px) / 2));
   }
   .logo {
-    width: 36px;
-    height: 36px;
-    border-radius: 8px;
-    border: 4px solid var(--accent);
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    border: 3px solid var(--accent);
     position: relative;
     flex-shrink: 0;
   }
   .logo::after {
     content: "";
     position: absolute;
-    inset: 5px;
+    inset: 4px;
     background: var(--accent);
     border-radius: 50%;
   }

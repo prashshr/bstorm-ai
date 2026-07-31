@@ -148,7 +148,14 @@
     flex-shrink: 0;
   }
   .copy-btn {
-    padding: 2px 6px;
+    padding: 6px 8px;
+    min-height: 32px;
+    min-width: 32px;
+  }
+  @media (hover: none) {
+    .copy-btn {
+      opacity: 0.9;
+    }
   }
   .status {
     font-size: 11px;

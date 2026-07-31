@@ -83,9 +83,9 @@ async function extractXlsx(file: File): Promise<string> {
 
 async function extractPptx(file: File): Promise<string> {
   const data = await file.arrayBuffer();
-  const zip = await import("@zip.js/zip.js").then((m) => m.ZipReader);
+  const zip = await import("@zip.js/zip.js");
   try {
-    const reader = new zip(new Blob([data]));
+    const reader = new zip.ZipReader(new zip.BlobReader(new Blob([data])));
     const entries = await reader.getEntries();
     const slides: string[] = [];
     const slideFiles = entries
@@ -93,21 +93,16 @@ async function extractPptx(file: File): Promise<string> {
       .sort((a, b) => a.filename.localeCompare(b.filename, undefined, { numeric: true }));
 
     for (const entry of slideFiles) {
-      const writer = new Blob();
-      const writable = new WritableStream({
-        write(chunk) {
-          return writer.write(chunk);
-        },
-      });
-      await entry.getData!(writable);
-      const text = await writer.text();
+      if (!(entry as any).getData) continue;
+      const text = await (entry as any).getData(new zip.TextWriter());
       const parser = new DOMParser();
       const doc = parser.parseFromString(text, "application/xml");
-      const texts = Array.from(doc.querySelectorAll("a:t")).map((t) => t.textContent ?? "");
+      const texts = Array.from(doc.querySelectorAll("a\\:t, t")).map((t) => t.textContent ?? "");
       if (texts.length > 0) {
         slides.push(texts.join(" "));
       }
     }
+    await reader.close();
     return slides.join("\n\n");
   } catch {
     return "[Could not extract text from PPTX file]";

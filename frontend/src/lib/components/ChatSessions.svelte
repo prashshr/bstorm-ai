@@ -251,11 +251,11 @@
   .resizer {
     position: absolute;
     top: 0;
-    right: -2px;
-    width: 3px;
+    right: -5px;
+    width: 10px;
     height: 100%;
     cursor: col-resize;
-    z-index: 5;
+    z-index: 20;
     background: transparent;
   }
   .resizer:hover,
