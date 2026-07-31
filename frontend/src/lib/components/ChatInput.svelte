@@ -793,6 +793,7 @@
     justify-content: space-between;
     gap: 8px;
     margin-bottom: 6px;
+    padding-right: 32px;
   }
 
   .attach-left {
@@ -807,15 +808,24 @@
     flex-shrink: 0;
   }
 
+  /* Minimize Chevron Icon - Positioned strictly inside the top-right corner of the chatbox card */
   .collapse-btn {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    z-index: 25;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 6px;
+    padding: 4px;
     color: var(--text-tertiary);
     border-radius: var(--radius);
-    min-width: 28px;
-    min-height: 28px;
+    width: 26px;
+    height: 26px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    transition: color var(--transition), background var(--transition);
   }
 
   .collapse-btn:hover {
