@@ -14,9 +14,9 @@ The backend container SHALL execute as non-root user `appuser` (UID 1000) with d
 - **THEN** process runs as UID 1000 without root privileges
 
 ### Requirement: Production Image Versioning
-Production container images SHALL be tagged with semantic version tags (e.g. `ghcr.io/prashshr/ai-ensemble-web:v4.2.0`) and pushed to GHCR.
+Production container images SHALL be tagged with semantic version tags (e.g. `ghcr.io/prashshr/ai-ensemble-web:v5.0.0`) and pushed to GHCR.
 
 #### Scenario: Running deployment pipeline
-- **GIVEN** a new release tag `v4.2.0`
+- **GIVEN** a new release tag `v5.0.0`
 - **WHEN** images are built and pushed
 - **THEN** Kubernetes deployments reference exact version tags

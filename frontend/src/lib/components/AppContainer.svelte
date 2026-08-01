@@ -8,7 +8,7 @@
   import DebugPanel from "./DebugPanel.svelte";
 
   let panelOpen = $state(false);
-  let sidebarCollapsed = $state(false);
+  let sidebarCollapsed = $state(true);
   let sidebarMobileOpen = $state(false);
   let sidebarWidth = $state<number>(
     Number(localStorage.getItem("aiEnsembleSidebarWidth")) || 260,

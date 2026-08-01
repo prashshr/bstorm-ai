@@ -78,7 +78,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    overflow: hidden;
+    /* Offset by half the sidebar width so the top header title/logo aligns 100% in a straight vertical line with the center of main area (hero text & chatbox) */
+    transform: translateX(calc(var(--sidebar-w, 0px) / 2));
+    transition: transform var(--transition);
   }
   .title {
     display: flex;
