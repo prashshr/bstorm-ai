@@ -92,8 +92,7 @@
 
   const RESPONSE_PRESETS: Record<string, string> = {
     none: "",
-    compact:
-      "Simply get information from all responses. Do not add any more information from your side or elsewhere. analyze all the responses, get the common points and the not common points and share in very short precise format a best consensus. No additional explanations.",
+    compact: "Provide a direct, concise answer in a brief, structured format.",
     elaborate:
       "Respond in detail with thorough reasoning, examples where helpful, and a clear structure. Explore nuance and trade-offs.",
   };

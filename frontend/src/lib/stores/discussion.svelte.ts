@@ -662,17 +662,8 @@ class DiscussionStore {
 
     let prompt = `${dateContext}\n\n`;
 
-    if (this.#data.use_rag) {
-      prompt += `# Data Source Status\n`;
-      if (!this.#data.retrieved_context) {
-        prompt += `Note: Web research (RAG) was enabled but did not return results.\n`;
-      }
-      prompt += `Start your response with EXACTLY ONE LINE:\n`;
-      prompt += `RAG data: [Used/Not Available] | Self Websearch: [Used/Not Available] | Training Data: [Used/Not Available]\n`;
-      prompt += `Then proceed to answer.\n\n`;
-    }
     if (this.#data.retrieved_context) {
-      prompt += `# Retrieved Web Search Context\n${this.#data.retrieved_context}\n\n`;
+      prompt += `# Web Search Context\n${this.#data.retrieved_context}\n\n`;
     }
 
     if (this.#data.instructions) {
