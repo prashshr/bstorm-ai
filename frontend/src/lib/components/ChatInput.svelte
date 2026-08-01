@@ -26,7 +26,7 @@
   let sending = $state(false);
   let editorEl = $state<HTMLDivElement | null>(null);
   let showAdvanced = $state(false);
-  let isCollapsed = $state(false);
+  let isCollapsed = $state(true);
   let isModelsExpanded = $state(false);
   let consensusEnabled = $state(discussion.data?.consensusEnabled ?? false);
   let instructions = $state(discussion.data?.instructions ?? "");
