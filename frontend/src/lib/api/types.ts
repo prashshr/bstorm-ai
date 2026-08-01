@@ -207,6 +207,33 @@ export type ProgressPhase =
   | "synthesizing"
   | "done";
 
+export interface AgentPersona {
+  id: number;
+  user_id: number;
+  name: string;
+  role_description: string;
+  system_prompt: string;
+  model: string;
+  avatar: string;
+  created_at: string;
+}
+
+export interface AgentPersonaCreateRequest {
+  name: string;
+  role_description?: string;
+  system_prompt?: string;
+  model: string;
+  avatar?: string;
+}
+
+export interface AgentPersonaUpdateRequest {
+  name?: string;
+  role_description?: string;
+  system_prompt?: string;
+  model?: string;
+  avatar?: string;
+}
+
 // Consensus contribution weighting for the interactive bars
 export interface Contribution {
   model: string;

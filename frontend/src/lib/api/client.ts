@@ -1,4 +1,7 @@
 import type {
+  AgentPersona,
+  AgentPersonaCreateRequest,
+  AgentPersonaUpdateRequest,
   ChatRequest,
   ChatResponse,
   DiscussionCreateRequest,
@@ -239,6 +242,26 @@ export const api = {
       `/api/folders/${folderId}/discussions/${discussionId}`,
       { method: "DELETE" },
     );
+  },
+
+  // ---- Personas ----
+  listPersonas(): Promise<AgentPersona[]> {
+    return request<AgentPersona[]>("/api/personas");
+  },
+  createPersona(body: AgentPersonaCreateRequest): Promise<AgentPersona> {
+    return request<AgentPersona>("/api/personas", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  updatePersona(id: number, body: AgentPersonaUpdateRequest): Promise<AgentPersona> {
+    return request<AgentPersona>(`/api/personas/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+  },
+  deletePersona(id: number): Promise<{ deleted: boolean }> {
+    return request(`/api/personas/${id}`, { method: "DELETE" });
   },
 
   // ---- Proxy chat ----

@@ -28,7 +28,7 @@ function emptyState(): DiscussionState {
     userMessages: {},
     consensus: "",
     consensuses: {},
-    consensusEnabled: true,
+    consensusEnabled: false,
     consensusError: "",
     endpoint: "",
     consensusModel: "",

@@ -223,3 +223,49 @@ async def proxy_chat_stream(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.post("/actor-chat/stream")
+@limiter.limit("30/minute")
+async def proxy_actor_chat_stream(
+    request: Request,
+    payload: ChatRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    async def actor_event_stream():
+        try:
+            cred, api_key, endpoint, prompt = await _resolve_credential_and_prompt(
+                payload, db, current_user
+            )
+            client = get_provider_client(payload.provider)
+            _apply_vertex_config(client, cred, uek=current_user.encryption_salt)
+
+            full_text = ""
+            async for chunk in client.chat_stream(
+                endpoint=endpoint,
+                api_key=api_key,
+                model=payload.model,
+                prompt=prompt,
+                max_tokens=payload.max_tokens,
+                temperature=payload.temperature,
+                attachments=payload.attachments or None,
+            ):
+                full_text += chunk
+                event = json.dumps({"type": "delta", "content": chunk})
+                yield f"data: {event}\n\n"
+            event = json.dumps({"type": "done", "content": full_text})
+            yield f"data: {event}\n\n"
+        except Exception as exc:
+            event = json.dumps({"type": "error", "detail": str(exc)})
+            yield f"data: {event}\n\n"
+
+    return StreamingResponse(
+        actor_event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )

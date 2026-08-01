@@ -107,3 +107,16 @@ class SearchHistory(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     query: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class AgentPersona(Base):
+    __tablename__ = "agent_personas"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(100))
+    role_description: Mapped[str] = mapped_column(String(255), default="")
+    system_prompt: Mapped[str] = mapped_column(Text, default="")
+    model: Mapped[str] = mapped_column(String(255))
+    avatar: Mapped[str] = mapped_column(String(50), default="🤖")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

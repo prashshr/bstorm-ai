@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { ModelResult } from "../api/types";
   import { discussion } from "../stores/discussion.svelte";
+  import { personas } from "../stores/personas.svelte";
+  import { agentRuntime } from "../stores/agentRuntime.svelte";
   import { safeRenderMarkdown } from "../utils/markdown";
   import { splitModelKey, copyToClipboard } from "../utils/helpers";
   import Icon from "./Icon.svelte";
@@ -13,6 +15,8 @@
   let { modelKey, roundNum, result }: Props = $props();
 
   let { model } = $derived(splitModelKey(modelKey));
+  let persona = $derived(personas.findForModel(modelKey));
+  let confidence = $derived(agentRuntime.getConfidence(persona?.name ?? model));
   let rendered = $derived(safeRenderMarkdown(result.text));
 
   const statusLabel: Record<string, string> = {
@@ -40,10 +44,18 @@
   aria-live={result.status === "streaming" ? "polite" : "off"}
 >
   <header class="card-head">
-    <span class="model-name" title={model}>
-      <Icon name="bot" size="sm" />
-      {model}
-    </span>
+    <div class="agent-title-wrap">
+      <span class="agent-avatar">{persona?.avatar || "🤖"}</span>
+      <div class="agent-title-info">
+        <span class="model-name" title={model}>
+          {persona?.name || model}
+          {#if persona?.role_description}
+            <span class="role-badge">{persona.role_description}</span>
+          {/if}
+        </span>
+        <span class="model-subtag">{model}</span>
+      </div>
+    </div>
     <div class="head-right">
       <span class="status status-{result.status}">
         {statusLabel[result.status] ?? result.status}
@@ -131,12 +143,45 @@
     justify-content: space-between;
     margin-bottom: 10px;
   }
+  .agent-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  .agent-avatar {
+    font-size: 20px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .agent-title-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
   .model-name {
     display: flex;
     align-items: center;
     gap: 6px;
-    font-weight: 600;
+    font-weight: 700;
     font-size: 13px;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .role-badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    color: var(--text-tertiary);
+  }
+  .model-subtag {
+    font-size: 10.5px;
+    color: var(--text-tertiary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
