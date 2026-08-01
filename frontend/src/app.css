@@ -10,10 +10,10 @@
   --text-primary: #f5f5f7;
   --text-secondary: #a1a1aa;
   --text-tertiary: #71717a;
-  --accent: #d96b27;
-  --accent-light: #d87a43;
-  --accent-dark: #a84500;
-  --accent-hover: #e57833;
+  --accent: #b35d25;
+  --accent-light: #b86d38;
+  --accent-dark: #823b00;
+  --accent-hover: #c2672d;
   --border: #1f1f23;
   --border-hover: #2e2e33;
   --input-bg: #16161a;
@@ -22,12 +22,12 @@
   --error-bg: rgba(239, 68, 68, 0.12);
   --warning: #f59e0b;
   --warning-bg: rgba(245, 158, 11, 0.12);
-  --success: #38a169;
-  --success-bg: rgba(56, 161, 105, 0.12);
-  --proceed: #d96b27;
-  --proceed-hover: #e57833;
-  --discussion-active: #d96b27;
-  --discussion-running: #d87a43;
+  --success: #2b7a4d;
+  --success-bg: rgba(43, 122, 77, 0.10);
+  --proceed: #b35d25;
+  --proceed-hover: #c2672d;
+  --discussion-active: #b35d25;
+  --discussion-running: #b86d38;
 
   /* New design-system additions */
   --radius: 6px;

@@ -1,17 +1,17 @@
 # Change Proposal: Subtle Matte Theme Color Accents
 
 ## Motivation
-The current orange (`#ff5c00`) and green (`#22c55e`) brand accent lines and badges are bright and saturated. To create an easy-on-the-eyes, dim, matte, minimalistic dark design aesthetic, these accent colors should be toned down into more subtle matte shades.
+The orange and green brand accent lines and badges have been desaturated and dimmed 50% further into ultra-subtle, low-saturation matte shades (`#b35d25` orange and `#2b7a4d` sage green) for a dim, minimalistic, ultra-easy-on-the-eyes dark design aesthetic.
 
 ## Proposed Changes
 
 ### 1. Design Token Color Adjustments (`app.css`)
-- **Primary Accent Orange**: Toned down from bright `#ff5c00` to a subtle, dim matte orange `#d96b27` / `#c85a1b`.
-- **Accent Light / Hover**: Adjusted from `#ff7e33` to a muted matte peach `#d87a43`.
-- **Accent Dark**: Adjusted from `#cc5200` to `#a84500`.
-- **Success Green**: Toned down from bright `#22c55e` to a soft matte forest green `#38a169` / `#2e8b57`.
-- **Success Background**: Softened to `rgba(56, 161, 105, 0.12)`.
-- **Active Focus Rings & Active Borders**: Focus outlines and active discussion borders updated to use the muted matte orange.
+- **Primary Accent Orange**: Dimmed 50% further to ultra-subtle matte copper/terracotta `#b35d25`.
+- **Accent Light**: Muted matte clay `#b86d38`.
+- **Accent Dark**: Deep dim sienna `#823b00`.
+- **Accent Hover**: Soft muted copper `#c2672d`.
+- **Success Green**: Dimmed 50% further to soft muted sage green `#2b7a4d`.
+- **Success Background**: Softened to `rgba(43, 122, 77, 0.10)`.
 
 ### 2. Affected Visual Components
 - Active model selection chips and provider icons.
