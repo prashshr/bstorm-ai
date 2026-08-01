@@ -358,7 +358,7 @@
             </span>
           {:else}
             <Icon name="message-square" size="sm" />
-            <span>Ask a follow-up or refine discussion…</span>
+            <span>Ask a question or type a message…</span>
           {/if}
         </span>
         <span class="compact-right">
