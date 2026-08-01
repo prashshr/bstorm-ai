@@ -385,7 +385,7 @@
             {models.selected.length} of {models.all.length} models selected
           </span>
         </div>
-        <Icon name={isModelsExpanded ? "chevron-up" : "chevron-down"} size="sm" />
+        <Icon name={isModelsExpanded ? "chevron-down" : "chevron-up"} size="sm" />
       </button>
 
       {#if isModelsExpanded}
