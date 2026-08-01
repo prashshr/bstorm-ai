@@ -513,14 +513,6 @@
                 >×</button>
               </div>
               <div class="adv-panel-grid">
-                <div class="adv-field adv-inline">
-                  <label class="switch inline" class:on={consensusEnabled} title="Enable consensus synthesis">
-                    <input type="checkbox" bind:checked={consensusEnabled} />
-                    <span class="track" aria-hidden="true"><span class="thumb"></span></span>
-                    <span>Consensus</span>
-                  </label>
-                </div>
-
                 <div class="adv-field" class:disabled={!consensusEnabled}>
                   <label for="pf-consensus" class:disabled={!consensusEnabled}>Consensus Model</label>
                   <select id="pf-consensus" bind:value={consensusModel} disabled={!consensusEnabled}>
@@ -999,13 +991,23 @@
   }
 
   .bottom-switch {
+    display: inline-flex;
+    align-items: center;
     height: 30px;
     padding: 0 8px;
     font-size: 11.5px;
+    margin: 0 !important;
+    box-sizing: border-box;
   }
 
   .switch-text {
     font-size: 11.5px;
+  }
+
+  .rag-dropdown-wrap {
+    display: inline-flex;
+    align-items: center;
+    margin: 0;
   }
 
   .rag-dropdown-wrap select {
@@ -1016,6 +1018,8 @@
     border-radius: var(--radius);
     color: var(--text-secondary);
     padding: 0 8px;
+    margin: 0;
+    box-sizing: border-box;
     cursor: pointer;
   }
 
