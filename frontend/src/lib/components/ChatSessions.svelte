@@ -9,7 +9,7 @@
   import Icon from "./Icon.svelte";
 
   let search = $state("");
-  let { collapsed = $bindable(false), paneWidth = $bindable(260), mobileOpen = $bindable(false) } = $props();
+  let { collapsed = $bindable(true), paneWidth = $bindable(260), mobileOpen = $bindable(false) } = $props();
   let expandedFolders = $state<Record<number, boolean>>({});
   let newFolderName = $state("");
   let addingFolder = $state(false);

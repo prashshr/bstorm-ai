@@ -4,7 +4,7 @@ const VALID: Tab[] = ["new", "current", "history"];
 
 class NavStore {
   #tab = $state<Tab>("new");
-  #sidebarCollapsed = $state(false);
+  #sidebarCollapsed = $state(true);
   #focusMode = $state(false);
   #settingByHash = false;
 
