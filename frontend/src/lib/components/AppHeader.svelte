@@ -67,7 +67,8 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    flex: 0 0 auto;
+    flex: 0 0 140px;
+    min-width: 140px;
   }
   .right {
     justify-content: flex-end;
