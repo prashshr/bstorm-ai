@@ -12,9 +12,18 @@ data:
       index index.html;
       client_max_body_size 100M;
 
-      # SPA fallback: serve index.html for unknown client-side routes
+      # SPA fallback: serve index.html with no-cache headers so clients instantly receive UI updates
       location / {
         try_files $uri $uri/ /index.html;
+        add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+        add_header Pragma "no-cache" always;
+        add_header Expires "0" always;
+      }
+
+      location = /index.html {
+        add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+        add_header Pragma "no-cache" always;
+        add_header Expires "0" always;
       }
 
       # Long-cache hashed assets
