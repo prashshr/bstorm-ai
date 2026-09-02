@@ -135,21 +135,20 @@ async def proxy_chat(
         )
     except httpx.HTTPStatusError as exc:
         body = exc.response.text if exc.response is not None else ""
-        logger.error(f"Provider HTTP error: status={exc.response.status_code}, url={exc.request.url}")
-        detail = "Provider returned an error"
-
-        if exc.response.status_code == 401:
-            detail = f"Authentication failed (401): Invalid API key for {endpoint or payload.provider}"
-        elif exc.response.status_code == 404:
-            detail = f"Endpoint not found (404): {endpoint or payload.provider} - Check your endpoint URL"
-        elif exc.response.status_code == 502:
-            detail = f"Bad Gateway (502): Could not reach the provider at {endpoint or payload.provider} - Check your endpoint URL and connectivity"
-        elif exc.response.status_code == 429:
-            detail = f"Rate limited (429): Too many requests to {payload.provider}"
+        msg = ""
+        try:
+            err_json = json.loads(body)
+            msg = err_json.get("error", {}).get("message") or err_json.get("message") or ""
+        except Exception:
+            pass
+        if not msg:
+            msg = body[:250] if body else (exc.response.reason_phrase or "Provider returned an error")
+        detail = f"Provider error ({exc.response.status_code}): {msg}"
+        logger.error(f"[Proxy Chat Error] status={exc.response.status_code}, url={exc.request.url}: {detail}")
         
         raise HTTPException(
             status_code=exc.response.status_code,
-            detail=f"Provider returned an error: {detail}",
+            detail=detail,
         )
     except httpx.RequestError as exc:
         detail = str(exc)
@@ -201,15 +200,27 @@ async def proxy_chat_stream(
             event = json.dumps({"type": "done", "content": full_text})
             yield f"data: {event}\n\n"
         except httpx.HTTPStatusError as exc:
-            detail = f"Provider returned error: {exc.response.status_code}"
+            body = exc.response.text if exc.response is not None else ""
+            msg = ""
+            try:
+                err_json = json.loads(body)
+                msg = err_json.get("error", {}).get("message") or err_json.get("message") or ""
+            except Exception:
+                pass
+            if not msg:
+                msg = body[:250] if body else (exc.response.reason_phrase or "Provider returned error")
+            detail = f"Provider error ({exc.response.status_code}): {msg}"
+            logger.error(f"[Proxy Stream Error] {detail}")
             event = json.dumps({"type": "error", "detail": detail})
             yield f"data: {event}\n\n"
         except httpx.RequestError as exc:
             detail = f"Provider request failed: {exc}"
+            logger.error(f"[Proxy Stream Error] {detail}")
             event = json.dumps({"type": "error", "detail": str(detail)})
             yield f"data: {event}\n\n"
         except Exception as exc:
             detail = f"Streaming failed: {exc}"
+            logger.error(f"[Proxy Stream Error] {detail}")
             event = json.dumps({"type": "error", "detail": str(detail)})
             yield f"data: {event}\n\n"
 

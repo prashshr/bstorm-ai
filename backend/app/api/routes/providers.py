@@ -237,19 +237,19 @@ async def test_provider_connection(
     client = get_provider_client(provider)
     _apply_provider_config(client, row, uek=getattr(current_user, "uek", None))
 
-    # Pick a model name that the provider actually understands. A hardcoded
-    # "gpt-4o-mini" fails on non-OpenAI providers (e.g. Vertex), producing a
-    # spurious KO in the connection test.
+    # Pick a model name that the provider actually understands.
     test_model = "gpt-4o-mini"
-    if provider == "vertex":
-        # Prefer a model we know the project can reach; fall back to a probe.
+    if provider == "openrouter":
+        test_model = "openai/gpt-4o-mini"
+    elif provider == "vertex":
         test_model = "gemini-2.5-flash"
-        try:
-            discovered = await client.list_models(endpoint=row.endpoint or "", api_key=api_key)
-            if discovered:
-                test_model = discovered[0]
-        except Exception:
-            pass
+
+    try:
+        discovered = await client.list_models(endpoint=row.endpoint or "", api_key=api_key)
+        if discovered:
+            test_model = discovered[0]
+    except Exception:
+        pass
 
     try:
         result = await client.chat(

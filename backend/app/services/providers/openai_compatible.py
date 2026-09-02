@@ -114,7 +114,14 @@ class OpenAICompatibleClient(ProviderClient):
                 if not choices:
                     return ""
                 message = choices[0].get("message", {})
-                return message.get("content", "") or ""
+                content = (
+                    message.get("content")
+                    or message.get("text")
+                    or message.get("reasoning")
+                    or message.get("reasoning_content")
+                    or ""
+                )
+                return str(content) if content else ""
             except httpx.HTTPStatusError as e:
                 body = e.response.text.lower() if e.response is not None else ""
                 # Graceful fallback: if provider rejects image attachments for a text-only model, retry with text prompt
@@ -201,9 +208,15 @@ class OpenAICompatibleClient(ProviderClient):
                                         choices = data.get("choices", [])
                                         if choices:
                                             delta = choices[0].get("delta", {})
-                                            content = delta.get("content", "")
+                                            content = (
+                                                delta.get("content")
+                                                or delta.get("text")
+                                                or delta.get("reasoning")
+                                                or delta.get("reasoning_content")
+                                                or ""
+                                            )
                                             if content:
-                                                yield content
+                                                yield str(content)
                                     except json.JSONDecodeError:
                                         continue
                         return
@@ -220,9 +233,15 @@ class OpenAICompatibleClient(ProviderClient):
                                 choices = data.get("choices", [])
                                 if choices:
                                     delta = choices[0].get("delta", {})
-                                    content = delta.get("content", "")
+                                    content = (
+                                        delta.get("content")
+                                        or delta.get("text")
+                                        or delta.get("reasoning")
+                                        or delta.get("reasoning_content")
+                                        or ""
+                                    )
                                     if content:
-                                        yield content
+                                        yield str(content)
                             except json.JSONDecodeError:
                                 continue
             except httpx.HTTPStatusError as e:
