@@ -209,7 +209,7 @@ class ModelsStore {
         model,
         prompt: "ping",
         endpoint: cred?.endpoint ?? "",
-        max_tokens: 4,
+        max_tokens: 16,
         temperature: 0,
       });
       this.#health = { ...this.#health, [compositeKey]: "OK" };
@@ -218,10 +218,12 @@ class ModelsStore {
       return;
     }
 
-    // Second: probe vision by embedding a unique code in a tiny PNG and asking
-    // the model to read it back. Only models that return the EXACT code are
-    // marked vision-capable — this catches providers that silently accept image
-    // attachments but don't actually process them (e.g. DeepSeek).
+    // Second: probe vision only if model name indicates multimodal support
+    if (!modelSupportsVision(model)) {
+      this.#vision = { ...this.#vision, [compositeKey]: false };
+      return;
+    }
+
     const { base64, code } = generateVisionTestImage();
     try {
       const res = await api.chat({
@@ -229,27 +231,16 @@ class ModelsStore {
         model,
         prompt: "reply with only the 5-character code visible in this image",
         endpoint: cred?.endpoint ?? "",
-        max_tokens: 8,
+        max_tokens: 16,
         temperature: 0,
         attachments: [{ name: "vision.png", type: "image/png", content: base64 }],
       });
-      // The model MUST return the exact 5-char code and nothing else.
-      // Strip whitespace/punctuation, then verify it's exactly 5 chars
-      // and matches the embedded code. Any deviation = not vision.
       const cleaned = (res.output || "").trim().replace(/[^A-Za-z0-9]/g, "");
       const matched = cleaned.length === 5 && cleaned === code;
-      if (!matched) {
-        debug.log(`Vision check failed for ${compositeKey}: got "${(res.output || "").trim().slice(0, 40)}" expected "${code}"`);
-      }
       this.#vision = { ...this.#vision, [compositeKey]: matched };
-    } catch (e) {
-      const msg = e instanceof Error ? e.message.toLowerCase() : String(e).toLowerCase();
-      if (/image|multimodal|unsupported content|type.*not.*accept|format.*not.*support/i.test(msg)) {
-        this.#vision = { ...this.#vision, [compositeKey]: false };
-        return;
-      }
-      // Transient error (rate-limit / timeout) — leave vision status unset so
-      // the name heuristic fallback applies.
+    } catch {
+      // If image probe fails, leave vision status unset or false, but text reachability stays OK
+      this.#vision = { ...this.#vision, [compositeKey]: false };
     }
   }
 
@@ -267,9 +258,21 @@ class ModelsStore {
   }
 
   async checkAllHealth(compositeKeys: string[]): Promise<void> {
-    for (const key of compositeKeys) {
-      await this.checkHealth(key);
-    }
+    const queue = [...compositeKeys];
+    const concurrency = 4;
+    let index = 0;
+
+    const worker = async (): Promise<void> => {
+      while (index < queue.length) {
+        const key = queue[index++];
+        if (!key) break;
+        await this.checkHealth(key);
+        await new Promise((r) => setTimeout(r, 120));
+      }
+    };
+
+    const workers = Array.from({ length: Math.min(concurrency, queue.length) }, () => worker());
+    await Promise.all(workers);
   }
 }
 

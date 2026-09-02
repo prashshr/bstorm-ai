@@ -36,10 +36,20 @@ def _build_openai_content(prompt: str, attachments: list[Attachment] | None):
 class OpenAICompatibleClient(ProviderClient):
     USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
+    def _get_headers(self, api_key: str) -> dict[str, str]:
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "User-Agent": self.USER_AGENT,
+            "HTTP-Referer": "https://ai-ensemble.samkhya.cloud",
+            "X-Title": "AI-Ensemble",
+        }
+        return headers
+
     async def list_models(self, endpoint: str, api_key: str) -> list[str]:
         base = endpoint.rstrip("/") if endpoint else "https://api.openai.com/v1"
         url = f"{base}/models"
-        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json", "User-Agent": self.USER_AGENT}
+        headers = self._get_headers(api_key)
         async with httpx.AsyncClient(timeout=30) as client:
             try:
                 resp = await client.get(url, headers=headers)
@@ -81,7 +91,7 @@ class OpenAICompatibleClient(ProviderClient):
     ) -> str:
         base = endpoint.rstrip("/") if endpoint else "https://api.openai.com/v1"
         url = f"{base}/chat/completions"
-        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json", "User-Agent": self.USER_AGENT}
+        headers = self._get_headers(api_key)
         content = _build_openai_content(prompt, attachments)
         payload = {
             "model": model,
@@ -162,7 +172,7 @@ class OpenAICompatibleClient(ProviderClient):
     ) -> AsyncGenerator[str, None]:
         base = endpoint.rstrip("/") if endpoint else "https://api.openai.com/v1"
         url = f"{base}/chat/completions"
-        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json", "User-Agent": self.USER_AGENT}
+        headers = self._get_headers(api_key)
         content = _build_openai_content(prompt, attachments)
         payload = {
             "model": model,

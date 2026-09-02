@@ -111,7 +111,7 @@ async def _resolve_credential_and_prompt(
 
 
 @router.post("/chat", response_model=ChatResponse)
-@limiter.limit("60/minute")
+@limiter.limit("600/minute")
 async def proxy_chat(
     request: Request,
     payload: ChatRequest,
@@ -171,7 +171,7 @@ async def proxy_chat(
 
 
 @router.post("/chat/stream")
-@limiter.limit("60/minute")
+@limiter.limit("600/minute")
 async def proxy_chat_stream(
     request: Request,
     payload: ChatRequest,
