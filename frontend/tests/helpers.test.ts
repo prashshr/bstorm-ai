@@ -7,6 +7,7 @@ import {
   formatDate,
   normalizeAuthIdentifier,
   copyToClipboard,
+  modelSupportsVision,
   PROVIDER_PRESETS,
 } from "../src/lib/utils/helpers";
 
@@ -112,6 +113,21 @@ describe("debounce", () => {
     vi.advanceTimersByTime(100);
     expect(fn).toHaveBeenCalledTimes(1);
     vi.useRealTimers();
+  });
+});
+
+describe("modelSupportsVision", () => {
+  it("correctly identifies vision-capable models", () => {
+    expect(modelSupportsVision("gpt-4o")).toBe(true);
+    expect(modelSupportsVision("claude-3.5-sonnet")).toBe(true);
+    expect(modelSupportsVision("gemini-2.5-flash")).toBe(true);
+    expect(modelSupportsVision("qwen-vl-plus")).toBe(true);
+  });
+
+  it("correctly identifies text-only models", () => {
+    expect(modelSupportsVision("deepseek-chat")).toBe(false);
+    expect(modelSupportsVision("deepseek-reasoner")).toBe(false);
+    expect(modelSupportsVision("text-davinci-003")).toBe(false);
   });
 });
 

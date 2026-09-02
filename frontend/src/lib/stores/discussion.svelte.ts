@@ -10,7 +10,8 @@ import type {
 import { debug } from "./debug.svelte";
 import { providers } from "./providers.svelte";
 import { history } from "./history.svelte";
-import { colorForModel, splitModelKey } from "../utils/helpers";
+import { models } from "./models.svelte";
+import { colorForModel, splitModelKey, modelSupportsVision } from "../utils/helpers";
 
 const STATE_KEY = "aiEnsembleDiscussionState";
 const MAX_CONCURRENT = 3;
@@ -68,6 +69,68 @@ class DiscussionStore {
   // Attachments added on a given turn, keyed by round number. Only that round
   // sends them to the models (each new upload belongs to its own message).
   #attachmentsByRound: Record<number, ChatAttachment[]> = {};
+  // Cached visual data transcriptions for text-only models, keyed by image attachment name.
+  #imageTranscriptions: Record<string, string> = {};
+
+  #isVisionModel(key: string): boolean {
+    const { model } = splitModelKey(key);
+    return models.visionOf(key) ?? modelSupportsVision(model);
+  }
+
+  async #ensureImageTranscriptions(roundNum: number): Promise<void> {
+    const roundAttach = this.#attachmentsByRound[roundNum] || (roundNum === 1 ? this.#data.attachments : []);
+    const images = roundAttach.filter((a) => a.type?.startsWith("image/"));
+    if (images.length === 0) return;
+
+    // Check if any active model in this round is text-only
+    const hasTextOnly = this.#data.models.some((k) => !this.#isVisionModel(k));
+    if (!hasTextOnly) return;
+
+    // Find an available vision model to transcribe the visual data
+    let bridgeKey = this.#data.models.find((k) => this.#isVisionModel(k));
+    if (!bridgeKey) {
+      bridgeKey = models.favorites.find((k) => this.#isVisionModel(k));
+    }
+    if (!bridgeKey) {
+      bridgeKey = models.all.find((k) => this.#isVisionModel(k));
+    }
+
+    if (!bridgeKey) {
+      debug.log("[Vision Bridge] No vision-capable model found for transcription fallback", "warn");
+      return;
+    }
+
+    const { provider: vProvider, model: vModel } = splitModelKey(bridgeKey);
+    const vCred = providers.find(vProvider);
+
+    for (const img of images) {
+      if (this.#imageTranscriptions[img.name]) continue;
+      try {
+        debug.log(`[Vision Bridge] Transcribing visual data from "${img.name}" using ${vModel}...`);
+        const bridgePrompt =
+          `You are an AI Vision Data Transcriber. Analyze this image thoroughly and extract all visible content with 100% fidelity. ` +
+          `Include all text, numbers, metrics, chart axes/data points, tables, labels, UI elements, code snippets, and structural descriptions in clean markdown. ` +
+          `Be concise, complete, and strictly factual so a text-only AI model can analyze this data accurately.`;
+
+        const res = await api.chat({
+          provider: vProvider,
+          model: vModel,
+          prompt: bridgePrompt,
+          endpoint: vCred?.endpoint ?? "",
+          max_tokens: 1500,
+          temperature: 0.1,
+          attachments: [img],
+        });
+
+        if (res.output?.trim()) {
+          this.#imageTranscriptions[img.name] = res.output.trim();
+          debug.log(`[Vision Bridge] Successfully transcribed "${img.name}" (${res.output.length} chars)`);
+        }
+      } catch (err) {
+        debug.log(`[Vision Bridge] Transcription failed for "${img.name}": ${err}`, "warn");
+      }
+    }
+  }
 
   /** Attachments uploaded on a given turn, for rendering in the chat UI. */
   attachmentsForRound(roundNum: number): ChatAttachment[] {
@@ -339,6 +402,9 @@ class DiscussionStore {
     }
     this.#data = { ...this.#data };
 
+    // Run Vision Bridge transcription for text-only models if image attachments are present
+    await this.#ensureImageTranscriptions(roundNum);
+
     // Bounded concurrency with stagger
     const queue = [...this.#data.models];
     const workers: Promise<void>[] = [];
@@ -388,7 +454,11 @@ class DiscussionStore {
     this.#updateModel(roundNum, compositeKey, { status: "connecting", text: "" });
 
     const prompt = this.#buildPrompt(compositeKey, roundNum);
-    const roundAttachments = this.#attachmentsByRound[roundNum] ?? [];
+    const isVision = this.#isVisionModel(compositeKey);
+    const roundAttachments = this.#attachmentsByRound[roundNum] ?? (roundNum === 1 ? this.#data.attachments : []);
+    const modelAttachments = isVision
+      ? roundAttachments
+      : roundAttachments.filter((a) => !a.type?.startsWith("image/"));
 
     try {
       const onEvent = (ev: StreamEvent) => {
@@ -413,7 +483,7 @@ class DiscussionStore {
           temperature: 0.7,
           discussion_id: typeof this.#data.id === "number" ? this.#data.id : null,
           include_rag_context: false,
-          attachments: roundAttachments.length ? roundAttachments : undefined,
+          attachments: modelAttachments.length ? modelAttachments : undefined,
         },
         onEvent,
         this.#abort?.signal,
@@ -706,11 +776,23 @@ class DiscussionStore {
     const currentMsg = this.#data.userMessages[roundNum] ?? this.#data.question;
     prompt += `User (turn ${roundNum}): ${currentMsg}\n\n`;
 
+    const isVision = this.#isVisionModel(compositeKey);
     const roundAttach = this.#attachmentsByRound[roundNum] || (roundNum === 1 ? this.#data.attachments : []);
     if (roundAttach && roundAttach.length > 0) {
       for (const att of roundAttach) {
-        if (att.content && !att.type?.startsWith("image/") && !currentMsg.includes(att.name)) {
-          prompt += `--- Attached File: ${att.name} ---\n${att.content}\n\n`;
+        if (att.content) {
+          if (att.type?.startsWith("image/")) {
+            if (!isVision) {
+              const transcription = this.#imageTranscriptions[att.name];
+              if (transcription) {
+                prompt += `--- [Visual Data Transcription of Attached Image: ${att.name}] ---\n${transcription}\n[End Visual Data Transcription]\n\n`;
+              } else {
+                prompt += `[Attached image: ${att.name} (Image attached by user — analyzed in text-only mode)]\n\n`;
+              }
+            }
+          } else if (!currentMsg.includes(att.name)) {
+            prompt += `--- Attached File: ${att.name} ---\n${att.content}\n\n`;
+          }
         }
       }
     }

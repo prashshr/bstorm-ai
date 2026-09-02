@@ -442,8 +442,8 @@
 
       {#if imageButNoVision}
         <div class="vision-warn" role="status">
-          <Icon name="alert" size="sm" />
-          Image attached, but selected model(s) may not support vision. Use GPT-4o, Gemini, Claude 3.5+.
+          <Icon name="image" size="sm" />
+          Image attached: Vision Bridge will auto-transcribe visual data for text-only models (or select GPT-4o, Gemini, Claude 3.5+, Qwen-VL for direct vision).
         </div>
       {/if}
 

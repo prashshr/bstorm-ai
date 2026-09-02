@@ -106,6 +106,27 @@ class OpenAICompatibleClient(ProviderClient):
                 message = choices[0].get("message", {})
                 return message.get("content", "") or ""
             except httpx.HTTPStatusError as e:
+                body = e.response.text.lower() if e.response is not None else ""
+                # Graceful fallback: if provider rejects image attachments for a text-only model, retry with text prompt
+                if e.response.status_code == status.HTTP_400_BAD_REQUEST and attachments and any(
+                    k in body for k in ("image", "vision", "multimodal", "unsupported", "content")
+                ):
+                    try:
+                        fallback_payload = {
+                            "model": model,
+                            "messages": [{"role": "user", "content": prompt}],
+                            "max_tokens": max_tokens,
+                            "temperature": temperature,
+                        }
+                        resp = await client.post(url, json=fallback_payload, headers=headers)
+                        resp.raise_for_status()
+                        data = resp.json()
+                        choices = data.get("choices", [])
+                        if choices:
+                            return choices[0].get("message", {}).get("content", "") or ""
+                    except Exception:
+                        pass
+
                 # Handle specific error cases for better error messages
                 if e.response.status_code == status.HTTP_401_UNAUTHORIZED:
                     raise HTTPException(
@@ -195,6 +216,41 @@ class OpenAICompatibleClient(ProviderClient):
                             except json.JSONDecodeError:
                                 continue
             except httpx.HTTPStatusError as e:
+                body = e.response.text.lower() if e.response is not None else ""
+                if e.response.status_code == status.HTTP_400_BAD_REQUEST and attachments and any(
+                    k in body for k in ("image", "vision", "multimodal", "unsupported", "content")
+                ):
+                    try:
+                        fallback_payload = {
+                            "model": model,
+                            "messages": [{"role": "user", "content": prompt}],
+                            "max_tokens": max_tokens,
+                            "temperature": temperature,
+                            "stream": True,
+                        }
+                        async with client.stream("POST", url, json=fallback_payload, headers=headers) as resp_fallback:
+                            resp_fallback.raise_for_status()
+                            async for line in resp_fallback.aiter_lines():
+                                if not line or line.startswith(":"):
+                                    continue
+                                if line.startswith("data: "):
+                                    data_str = line[6:]
+                                    if data_str.strip() == "[DONE]":
+                                        return
+                                    try:
+                                        data = json.loads(data_str)
+                                        choices = data.get("choices", [])
+                                        if choices:
+                                            delta = choices[0].get("delta", {})
+                                            content = delta.get("content", "")
+                                            if content:
+                                                yield content
+                                    except json.JSONDecodeError:
+                                        continue
+                        return
+                    except Exception:
+                        pass
+
                 if e.response.status_code == status.HTTP_401_UNAUTHORIZED:
                     raise HTTPException(
                         status_code=status.HTTP_401_UNAUTHORIZED,
