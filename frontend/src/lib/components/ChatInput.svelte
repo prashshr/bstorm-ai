@@ -1,6 +1,7 @@
 <script lang="ts">
   import { discussion } from "../stores/discussion.svelte";
   import { models } from "../stores/models.svelte";
+  import { userSettings } from "../stores/settings.svelte";
   import { splitModelKey, VISION_RE, TEXT_ONLY_RE } from "../utils/helpers";
   import DOMPurify from "dompurify";
   import { isSupportedDocument, extractDocumentText } from "../utils/extractDocument";
@@ -19,7 +20,7 @@
   }: Props = $props();
 
   let text = $state("");
-  let ragMode = $state<"model-self" | "model-only">(discussion.data?.ragMode ?? "model-only");
+  let ragMode = $state<"model-self" | "model-only">(discussion.data?.ragMode ?? userSettings.data.defaultRagMode);
   let deepResearch = $state(discussion.data?.deep_research ?? false);
   let attachments = $state<AttachedFile[]>([]);
   let dragover = $state(false);
@@ -28,16 +29,40 @@
   let showAdvanced = $state(false);
   let isCollapsed = $state(true);
   let isModelsExpanded = $state(false);
-  let consensusEnabled = $state(discussion.data?.consensusEnabled ?? false);
+  let consensusEnabled = $state(discussion.data?.consensusEnabled ?? userSettings.data.defaultConsensusEnabled);
   let instructions = $state(discussion.data?.instructions ?? "");
-  let responseFormatText = $state(discussion.data?.responseFormatText ?? "");
-  let summaryFormatText = $state(
-    discussion.data?.summaryFormatText ??
-      "Simply get information from all responses. Do not add any more information from your side or elsewhere. analyze all the responses, get the common points and the not common points and share in very short precise format a best consensus. No additional explanations.",
+
+  const RESPONSE_PRESETS: Record<string, string> = {
+    none: "",
+    compact:
+      "STRICT COMPACT FORMAT MANDATE: Provide a direct, highly concise, and brief response. Maximum 2-3 short paragraphs or clean bullet points total. Eliminate all filler, lengthy background context, and unnecessary repetition. Get straight to the point.",
+    elaborate:
+      "ELABORATE FORMAT DIRECTIVE: Respond in deep detail with thorough reasoning, clear structural headings, concrete examples, and an exhaustive evaluation of nuances and trade-offs.",
+  };
+  const SUMMARY_PRESETS: Record<string, string> = {
+    none: "",
+    compact:
+      "STRICT COMPACT SUMMARY MANDATE: Simply get information from all responses. Do not add any more information from your side or elsewhere. Analyze all the responses, get the common points and the not common points and share in very short precise format a best consensus. Maximum 250 words total. No additional explanations.",
+    elaborate:
+      "Provide an elaborate synthesis: a full structured write-up covering each model's position, points of consensus, and remaining disagreements.",
+  };
+
+  let responseFormat = $state<"none" | "compact" | "elaborate" | "custom">(discussion.data?.responseFormat ?? userSettings.data.defaultResponseFormat ?? "compact");
+  let summaryFormat = $state<"none" | "compact" | "elaborate" | "custom">(discussion.data?.summaryFormat ?? userSettings.data.defaultSummaryFormat ?? "compact");
+
+  let responseFormatText = $state(
+    discussion.data?.responseFormatText || (RESPONSE_PRESETS[responseFormat] ?? RESPONSE_PRESETS.compact),
   );
+  let summaryFormatText = $state(
+    discussion.data?.summaryFormatText || (SUMMARY_PRESETS[summaryFormat] ?? SUMMARY_PRESETS.compact),
+  );
+
+  let responseFocused = $state(false);
+  let summaryFocused = $state(false);
+
   let summaryInstructions = $state(discussion.data?.summaryInstructions ?? "");
-  let timeout = $state(discussion.data?.timeout ?? 120);
-  let maxTokens = $state(discussion.data?.maxTokens ?? 6000);
+  let timeout = $state(discussion.data?.timeout ?? userSettings.data.defaultTimeout);
+  let maxTokens = $state(discussion.data?.maxTokens ?? userSettings.data.defaultMaxTokens);
   let consensusModel = $state(discussion.data?.consensusModel ?? "");
   let totalRounds = $state(discussion.data?.totalRounds ?? 1);
   let showInfo = $state(false);
@@ -90,23 +115,6 @@
     isModelsExpanded = !isModelsExpanded;
   }
 
-  const RESPONSE_PRESETS: Record<string, string> = {
-    none: "",
-    compact: "Provide a direct, concise answer in a brief, structured format.",
-    elaborate:
-      "Respond in detail with thorough reasoning, examples where helpful, and a clear structure. Explore nuance and trade-offs.",
-  };
-  const SUMMARY_PRESETS: Record<string, string> = {
-    none: "",
-    compact:
-      "Simply get information from all responses. Do not add any more information from your side or elsewhere. analyze all the responses, get the common points and the not common points and share in very short precise format a best consensus. No additional explanations.",
-    elaborate:
-      "Provide an elaborate synthesis: a full structured write-up covering each model's position, points of consensus, and remaining disagreements.",
-  };
-
-  let responseFormat = $state<"none" | "compact" | "elaborate" | "custom">(discussion.data?.responseFormat ?? "none");
-  let summaryFormat = $state<"none" | "compact" | "elaborate" | "custom">(discussion.data?.summaryFormat ?? "compact");
-
   function applyResponsePreset(preset: string) {
     responseFormat = preset as "none" | "compact" | "elaborate" | "custom";
     if (preset !== "custom" && RESPONSE_PRESETS[preset] !== undefined) {
@@ -149,7 +157,7 @@
       let content: string;
       if (isImage) {
         content = await blobToBase64(file);
-      } else if (isSupportedDocument(file.type)) {
+      } else if (isSupportedDocument(file.type, file.name)) {
         const extracted = await extractDocumentText(file);
         content = extracted ?? "[Could not extract text from this file format]";
       } else {
@@ -200,6 +208,14 @@
     const attach = attachments;
     const chatAttachments = attach.map((a) => ({ name: a.name, type: a.type, content: a.content }));
     const textAttachments = attach.filter((a) => !a.type.startsWith("image/"));
+    
+    let fullQuestion = question;
+    if (textAttachments.length > 0) {
+      fullQuestion += textAttachments
+        .map((a) => `\n\n--- Attached File: ${a.name} ---\n${a.content}`)
+        .join("");
+    }
+
     if (editorEl) editorEl.innerHTML = "";
     text = "";
     attachments = [];
@@ -207,7 +223,7 @@
     try {
       if (discussion.data.id == null) {
         await discussion.start({
-          question,
+          question: fullQuestion,
           models: models.selected,
           instructions,
           consensusEnabled,
@@ -226,13 +242,7 @@
           attachments: chatAttachments,
         });
       } else {
-        let full = question;
-        if (textAttachments.length > 0) {
-          full += textAttachments
-            .map((a) => `\n\n--- Attached: ${a.name} ---\n${a.content}`)
-            .join("");
-        }
-        await discussion.nextTurn(full, models.selected, chatAttachments, {
+        await discussion.nextTurn(fullQuestion, models.selected, chatAttachments, {
           instructions,
           consensusModel: consensusModel || models.selected[0],
           totalRounds,
@@ -452,9 +462,12 @@
         onkeydown={onKeydown}
         onpaste={onPaste}
       ></div>
+    </div>
 
-      <!-- Action Row Inside Input Box (Bottom-Left Attach Plus, Bottom-Right Send) -->
-      <div class="input-box-actions">
+    <!-- BOTTOM SECTION: Bottom Line Controls (Attach, Advanced, Consensus, RAG, Send) -->
+    <div class="bottom-bar-line">
+      <div class="bottom-controls-left">
+        <!-- Attach File Button -->
         <label class="attach-btn" title="Attach files">
           <button
             class="btn btn-ghost btn-sm icon-btn attach-plus-btn"
@@ -473,21 +486,6 @@
           />
         </label>
 
-        <button
-          class="btn btn-primary send"
-          data-testid="chat-send"
-          onclick={running ? () => discussion.stop() : send}
-          disabled={!text.trim() && !running || sending || models.selected.length === 0}
-        >
-          <Icon name={running ? "stop" : "arrow-right"} size="sm" />
-          {running ? "Stop" : "Send"}
-        </button>
-      </div>
-    </div>
-
-    <!-- BOTTOM SECTION: Bottom Line Controls (Advanced, Consensus, RAG, Deep Research) -->
-    <div class="bottom-bar-line">
-      <div class="bottom-controls-left">
         <!-- Advanced Settings Toggle -->
         <div class="advanced-wrap">
           <button
@@ -556,6 +554,10 @@
                     id="pf-response-text"
                     rows="2"
                     bind:value={responseFormatText}
+                    class:preset-prefilled={responseFormat !== "custom" && !responseFocused}
+                    onfocus={() => (responseFocused = true)}
+                    onblur={() => (responseFocused = false)}
+                    oninput={() => (responseFormat = "custom")}
                     placeholder="Instruction sent to each model about how to format its response…"
                   ></textarea>
                 </div>
@@ -576,6 +578,10 @@
                     id="pf-summary-text"
                     rows="2"
                     bind:value={summaryFormatText}
+                    class:preset-prefilled={summaryFormat !== "custom" && !summaryFocused}
+                    onfocus={() => (summaryFocused = true)}
+                    onblur={() => (summaryFocused = false)}
+                    oninput={() => (summaryFormat = "custom")}
                     placeholder="Instruction sent to consensus model…"
                   ></textarea>
                 </div>
@@ -619,7 +625,7 @@
         <div class="rag-dropdown-wrap">
           <select bind:value={ragMode} aria-label="RAG Mode">
             <option value="model-self">RAG: Model/Self</option>
-            <option value="model-only">RAG: Off</option>
+            <option value="model-only">RAG: Model-Only</option>
           </select>
         </div>
       </div>
@@ -646,6 +652,17 @@
             </span>
           {/if}
         </span>
+
+        <!-- Send Button -->
+        <button
+          class="btn btn-primary send"
+          data-testid="chat-send"
+          onclick={running ? () => discussion.stop() : send}
+          disabled={!text.trim() && !running || sending || models.selected.length === 0}
+        >
+          <Icon name={running ? "stop" : "arrow-right"} size="sm" />
+          {running ? "Stop" : "Send"}
+        </button>
 
         <!-- Minimize Symbol Button -->
         <button
@@ -891,13 +908,6 @@
     pointer-events: none;
   }
 
-  .input-box-actions {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-top: 6px;
-  }
-
   .attach-btn {
     display: inline-flex;
     align-items: center;
@@ -910,8 +920,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
+    width: 30px;
+    height: 30px;
     border-radius: var(--radius);
     background: var(--bg-tertiary);
     border: 1px solid var(--border);
@@ -925,14 +935,14 @@
   }
 
   .send {
-    margin-left: auto;
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    height: 32px;
-    min-height: 32px;
+    height: 30px;
+    min-height: 30px;
     padding: 0 14px;
-    font-size: 13px;
+    font-size: 12.5px;
+    font-weight: 600;
     box-sizing: border-box;
     border-radius: var(--radius);
   }
@@ -1160,6 +1170,17 @@
   .adv-field textarea {
     resize: vertical;
     font-size: 12px;
+  }
+
+  .adv-field textarea.preset-prefilled {
+    color: var(--text-tertiary, #8a8a8e);
+    opacity: 0.85;
+  }
+
+  .adv-field textarea:focus,
+  .adv-field textarea:not(.preset-prefilled) {
+    color: var(--text-primary, #f0f0f0);
+    opacity: 1;
   }
 
   .adv-field.disabled {

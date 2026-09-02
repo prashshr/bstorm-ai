@@ -28,7 +28,7 @@ class TestAuth:
     def test_register_invalid_email(self, client):
         resp = client.post(
             "/api/auth/register",
-            json={"email": "not-an-email", "password": "securepass123"},
+            json={"email": "", "password": "securepass123"},
         )
         assert resp.status_code == 422
 

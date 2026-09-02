@@ -88,7 +88,7 @@ class TestRagPipeline:
         ]), patch("app.services.retrieval.extract_content_from_urls", return_value="Extracted content"):
             result = await get_retrieved_context("test query")
             assert result is not None
-            assert "LIVE WEB RESEARCH CONTEXT" in result
+            assert "UNTRUSTED WEB DATA" in result
             assert "[Tavily]" in result
             assert "Extracted content" in result
 

@@ -56,11 +56,10 @@ def upsert_provider_credential(
     adc_encrypted = encrypt_secret(payload.adc_json, key=getattr(current_user, "uek", None)) if payload.adc_json else None
     # Normalize endpoint to canonical form so model discovery + chat work correctly
     normalized_endpoint = normalize_endpoint(payload.endpoint or "")
-    # SSRF protection: reject endpoints that resolve to private/internal addresses
     if normalized_endpoint and not is_safe_provider_url(normalized_endpoint):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Provider endpoint resolves to a private or restricted address. Only public endpoints are allowed.",
+            detail="Provider endpoint URL is invalid. Please enter a valid http:// or https:// URL.",
         )
     if row:
         row.api_key_encrypted = encrypted

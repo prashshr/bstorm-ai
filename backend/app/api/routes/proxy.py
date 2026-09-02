@@ -100,11 +100,10 @@ async def _resolve_credential_and_prompt(
                 )
 
     endpoint = normalize_endpoint(payload.endpoint or cred.endpoint or "")
-    # SSRF protection: reject private/internal addresses at request time
     if endpoint and not is_safe_provider_url(endpoint):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Provider endpoint resolves to a private or restricted address. Only public endpoints are allowed.",
+            detail="Provider endpoint URL is invalid. Please enter a valid http:// or https:// URL.",
         )
     uek = getattr(current_user, "uek", None)
     api_key = decrypt_secret(cred.api_key_encrypted, key=uek)

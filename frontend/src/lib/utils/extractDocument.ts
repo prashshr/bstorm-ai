@@ -38,15 +38,25 @@ const ODF_SPREADSHEET_MIMES = new Set([
   "application/vnd.oasis.opendocument.spreadsheet",
 ]);
 
-export function isSupportedDocument(mimeType: string): boolean {
+export function isSupportedDocument(mimeType: string, fileName: string = ""): boolean {
+  const mime = (mimeType || "").toLowerCase();
+  const ext = fileName.split(".").pop()?.toLowerCase() || "";
+  const supportedExts = new Set([
+    "pdf", "docx", "doc", "xlsx", "xls", "csv", "tsv",
+    "pptx", "ppt", "rtf", "odt", "ods", "txt", "json", "md", "xml",
+    "ipynb", "py", "js", "ts", "jsx", "tsx", "html", "htm", "css",
+    "sh", "bash", "zsh", "yaml", "yml", "toml", "sql", "graphql", "c", "cpp", "h", "java", "kt", "rs", "go"
+  ]);
+
   return (
-    PDF_MIMES.has(mimeType) ||
-    DOCX_MIMES.has(mimeType) ||
-    XLSX_MIMES.has(mimeType) ||
-    PPTX_MIMES.has(mimeType) ||
-    RTF_MIMES.has(mimeType) ||
-    ODF_TEXT_MIMES.has(mimeType) ||
-    ODF_SPREADSHEET_MIMES.has(mimeType)
+    PDF_MIMES.has(mime) ||
+    DOCX_MIMES.has(mime) ||
+    XLSX_MIMES.has(mime) ||
+    PPTX_MIMES.has(mime) ||
+    RTF_MIMES.has(mime) ||
+    ODF_TEXT_MIMES.has(mime) ||
+    ODF_SPREADSHEET_MIMES.has(mime) ||
+    supportedExts.has(ext)
   );
 }
 
@@ -126,29 +136,71 @@ function extractOdfText(_file: File, rawText: string): string {
   return texts.join("\n") || "[Could not extract text from ODF file]";
 }
 
-export async function extractDocumentText(file: File): Promise<string | null> {
-  const mime = file.type;
+async function extractIpynb(file: File): Promise<string> {
+  try {
+    const raw = await file.text();
+    const json = JSON.parse(raw);
+    const cells = json.cells || [];
+    const lines: string[] = [];
+    for (let i = 0; i < cells.length; i++) {
+      const cell = cells[i];
+      const src = Array.isArray(cell.source) ? cell.source.join("") : (cell.source || "");
+      if (cell.cell_type === "markdown") {
+        lines.push(`### Cell ${i + 1} (Markdown):\n${src}`);
+      } else if (cell.cell_type === "code") {
+        lines.push(`### Cell ${i + 1} (Code):\n\`\`\`python\n${src}\n\`\`\``);
+      }
+    }
+    return lines.join("\n\n");
+  } catch {
+    return await file.text();
+  }
+}
 
-  if (PDF_MIMES.has(mime)) {
+export async function extractDocumentText(file: File): Promise<string | null> {
+  const mime = (file.type || "").toLowerCase();
+  const ext = (file.name || "").split(".").pop()?.toLowerCase() || "";
+
+  if (ext === "ipynb") {
+    return extractIpynb(file);
+  }
+  if (PDF_MIMES.has(mime) || ext === "pdf") {
     return extractPdf(file);
   }
-  if (DOCX_MIMES.has(mime)) {
+  if (DOCX_MIMES.has(mime) || ext === "docx" || ext === "doc") {
     return extractDocx(file);
   }
-  if (XLSX_MIMES.has(mime)) {
+  if (
+    XLSX_MIMES.has(mime) ||
+    ext === "xlsx" ||
+    ext === "xls" ||
+    ext === "csv" ||
+    ext === "tsv"
+  ) {
     return extractXlsx(file);
   }
-  if (PPTX_MIMES.has(mime)) {
+  if (PPTX_MIMES.has(mime) || ext === "pptx" || ext === "ppt") {
     return extractPptx(file);
   }
-  if (RTF_MIMES.has(mime)) {
+  if (RTF_MIMES.has(mime) || ext === "rtf") {
     const rawText = await file.text();
     return extractRtf(file, rawText);
   }
-  if (ODF_TEXT_MIMES.has(mime) || ODF_SPREADSHEET_MIMES.has(mime)) {
+  if (
+    ODF_TEXT_MIMES.has(mime) ||
+    ODF_SPREADSHEET_MIMES.has(mime) ||
+    ext === "odt" ||
+    ext === "ods"
+  ) {
     const rawText = await file.text();
     return extractOdfText(file, rawText);
   }
 
-  return null;
+  // Fallback for plain text, json, md, code files
+  try {
+    const text = await file.text();
+    return text || null;
+  } catch {
+    return null;
+  }
 }

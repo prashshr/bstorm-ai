@@ -5,12 +5,12 @@ from pydantic import BaseModel, Field
 
 
 class RegisterRequest(BaseModel):
-    email: str
+    email: str = Field(min_length=1, max_length=255)
     password: str = Field(min_length=8, max_length=128)
 
 
 class LoginRequest(BaseModel):
-    email: str
+    email: str = Field(min_length=1, max_length=255)
     password: str
     # If "mobile", the response also includes a refresh_token and the access
     # token carries a server session id (sid) instead of the UEK, so the UEK

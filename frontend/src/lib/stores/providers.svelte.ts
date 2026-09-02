@@ -57,7 +57,7 @@ class ProvidersStore {
     apiKey: string,
     endpoint: string,
     extra?: { label?: string; project_id?: string; region?: string; adc_json?: string },
-  ): Promise<boolean> {
+  ): Promise<{ ok: boolean; error?: string }> {
     try {
       await api.upsertProvider({
         provider,
@@ -72,10 +72,11 @@ class ProvidersStore {
       this.#active = provider;
       models.focusProvider(provider);
       debug.log(`Saved provider ${provider}`);
-      return true;
-    } catch (e) {
-      debug.log(`Failed to save provider ${provider}: ${e}`, "error");
-      return false;
+      return { ok: true };
+    } catch (e: any) {
+      const errMsg = e?.message || String(e) || "Failed to save provider";
+      debug.log(`Failed to save provider ${provider}: ${errMsg}`, "error");
+      return { ok: false, error: errMsg };
     }
   }
 

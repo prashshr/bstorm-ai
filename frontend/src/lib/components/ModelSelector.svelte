@@ -99,7 +99,22 @@
       {#each models.available as model (model)}
         {@const key = `${providers.active}::${model}`}
         {@const health = models.healthOf(key)}
+        {@const isFav = models.isFavorite(key)}
         <label class="model-chip" class:selected={models.isSelected(key)}>
+          <button
+            type="button"
+            class="star-btn"
+            class:active={isFav}
+            title={isFav ? "Remove from favorites" : "Add to favorites"}
+            aria-label={isFav ? `Remove ${model} from favorites` : `Add ${model} to favorites`}
+            onclick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              models.toggleFavorite(key);
+            }}
+          >
+            <Icon name="star" size="sm" />
+          </button>
           <input
             type="checkbox"
             checked={models.isSelected(key)}
@@ -252,5 +267,34 @@
   .vision-icon {
     color: #22c55e;
     flex-shrink: 0;
+  }
+  .star-btn {
+    background: transparent;
+    border: none;
+    padding: 2px;
+    margin: 0;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-tertiary);
+    border-radius: var(--radius);
+    transition: color var(--transition), transform var(--transition);
+    flex-shrink: 0;
+  }
+  .star-btn:hover {
+    color: #f59e0b;
+    transform: scale(1.18);
+  }
+  .star-btn.active {
+    color: #f59e0b;
+  }
+  .star-btn.active :global(svg) {
+    fill: #f59e0b;
+    stroke: #f59e0b;
+  }
+  .star-btn:not(.active) :global(svg) {
+    fill: transparent;
+    stroke: currentColor;
   }
 </style>

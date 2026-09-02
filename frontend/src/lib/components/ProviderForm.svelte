@@ -97,20 +97,21 @@
     }
     saving = true;
     message = null;
-    const ok = await providers.save(effectiveKey, apiKey, endpoint, {
+    const res = await providers.save(effectiveKey, apiKey, endpoint, {
       label: isCustom ? label.trim() : "",
       project_id: isVertex ? projectId.trim() : "",
       region: isVertex ? region.trim() : "",
       adc_json: isVertex ? adcJson.trim() : "",
     });
-    if (ok) {
+    if (res.ok) {
       try {
         await models.discover(effectiveKey);
         message = { type: "ok", text: "Saved and verified" };
-      } catch {
+      } catch (discErr: any) {
+        const discDetail = discErr?.message || "Check the endpoint URL / API key.";
         message = {
           type: "err",
-          text: "Saved, but model discovery failed. Check the project/region.",
+          text: `Saved, but model discovery failed: ${discDetail}`,
         };
       }
       apiKey = "";
@@ -118,7 +119,7 @@
       adcJson = "";
       ondone?.();
     } else {
-      message = { type: "err", text: "Failed to save provider" };
+      message = { type: "err", text: res.error || "Failed to save provider" };
     }
     saving = false;
   }

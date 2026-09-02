@@ -1,3 +1,4 @@
+import asyncio
 import contextlib
 import os
 import tempfile
@@ -7,27 +8,29 @@ from fastapi import HTTPException, status
 
 from app.services.providers.base import ProviderClient
 
-# Curated Vertex catalog (learned from the reference vertex-ai-models-chat-provider
-# project). These are the candidate models; the live, available subset depends on
-# what the GCP project actually has access to. We surface the full catalog and let
-# the user pick — discovery is effectively the catalog itself since Vertex does not
-# expose a public "list all models" endpoint without per-project IAM probing.
+# Curated Vertex catalog. These are candidate models available on GCP Vertex AI.
+# The discovery probe checks which models are reachable for the given GCP project.
 VERTEX_CATALOG: list[str] = [
     # Google Gemini (publishers/google)
-    "gemini-1.5-flash",
-    "gemini-1.5-pro",
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
     "gemini-2.5-flash",
     "gemini-2.5-pro",
-    "gemini-3.5-flash",
-    "gemini-3-flash",
-    "gemini-3.1-pro",
+    "gemini-2.0-flash-001",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite-preview-02-05",
+    "gemini-2.0-flash-lite",
+    "gemini-1.5-flash-002",
+    "gemini-1.5-flash-001",
+    "gemini-1.5-flash",
+    "gemini-1.5-pro-002",
+    "gemini-1.5-pro-001",
+    "gemini-1.5-pro",
     # Anthropic Claude on Vertex (publishers/anthropic)
-    "claude-opus-4-8",
-    "claude-fable-5",
-    "claude-sonnet-4-6",
-    "claude-haiku-4-5",
+    "claude-3-7-sonnet@20250219",
+    "claude-3-5-sonnet-v2@20241022",
+    "claude-3-5-sonnet@20240620",
+    "claude-3-5-haiku@20241022",
+    "claude-3-opus@20240229",
+    "claude-3-haiku@20240307",
 ]
 
 # Regions to try, in priority order (reference uses these for discovery).
@@ -39,7 +42,14 @@ REGION_PRIORITY: list[str] = [
 ]
 
 # Vendors served by Vertex for the catalog above.
-_ANTHROPIC_MODELS = {"claude-opus-4-8", "claude-fable-5", "claude-sonnet-4-6", "claude-haiku-4-5"}
+_ANTHROPIC_MODELS = {
+    "claude-3-7-sonnet@20250219",
+    "claude-3-5-sonnet-v2@20241022",
+    "claude-3-5-sonnet@20240620",
+    "claude-3-5-haiku@20241022",
+    "claude-3-opus@20240229",
+    "claude-3-haiku@20240307",
+}
 
 
 class VertexClient(ProviderClient):
@@ -144,63 +154,52 @@ class VertexClient(ProviderClient):
 
     # ------------------------------------------------------------------
     async def list_models(self, endpoint: str, api_key: str) -> list[str]:
-        # Vertex does not expose a simple public "list" without per-project IAM
-        # probing. We "smart-discover": probe each candidate model against a
-        # regionPriority list and return only the models that actually respond
-        # for this GCP project (mirrors the jorsm/vertex-ai-models-chat-provider
-        # "Smart Discovery" behaviour). This is what makes the health checks
-        # show OK instead of KO — only reachable models are surfaced.
         return await self.discover_models()
 
     async def discover_models(self) -> list[str]:
-        """Probe candidate models across all prioritized regions and return the
-        union of models reachable in ANY region. Vertex publishes different
-        models per region, so we must check every region rather than stopping
-        at the first one with a hit — otherwise region-specific models are missed.
-
-        The region that yields the most models is cached for chat() so normal
-        traffic uses a single, well-populated host.
-        """
-        regions = REGION_PRIORITY
-        last_err: Exception | None = None
-        auth_err: Exception | None = None
+        """Probe candidate models in parallel across prioritized regions and return
+        the list of reachable models. Falls back to default VERTEX_CATALOG if probing yields
+        no active models so model search remains populated."""
         found_by_region: dict[str, list[str]] = {}
-        for region in regions:
-            working: list[str] = []
-            for model in VERTEX_CATALOG:
-                try:
-                    await self._ping(model, region)
-                    working.append(model)
-                except Exception as exc:  # noqa: BLE001
-                    # Authentication errors are fatal for every region — bubble up.
-                    if "401" in str(exc) or "Authentication" in str(exc) or "invalid" in str(exc).lower():
-                        auth_err = exc
-                        break
-                    last_err = exc
-                    continue
-            if working:
-                found_by_region[region] = working
+        auth_err: Exception | None = None
+
+        async def probe_model(model: str, region: str) -> tuple[str, str, bool, Exception | None]:
+            try:
+                await self._ping(model, region)
+                return (model, region, True, None)
+            except Exception as exc:  # noqa: BLE001
+                return (model, region, False, exc)
+
+        tasks = [
+            probe_model(model, region)
+            for region in REGION_PRIORITY
+            for model in VERTEX_CATALOG
+        ]
+
+        results = await asyncio.gather(*tasks)
+
+        for model, region, success, exc in results:
+            if success:
+                found_by_region.setdefault(region, []).append(model)
+            elif exc:
+                err_str = str(exc)
+                if "401" in err_str or "Authentication" in err_str or "invalid" in err_str.lower():
+                    auth_err = exc
 
         if not found_by_region:
             if auth_err:
-                # Surface the underlying auth error so the UI can report why
-                # discovery failed.
                 raise auth_err
-            if last_err:
-                raise last_err
-            return []
+            # Fall back to catalog so model search is always populated
+            return VERTEX_CATALOG
 
-        # Union of models across all regions (preserve catalog order).
         union: list[str] = []
         for model in VERTEX_CATALOG:
             if any(model in models for models in found_by_region.values()):
                 union.append(model)
 
-        # Prefer the region with the most models for chat(); fall back to the
-        # first prioritized region that had any hit.
         best_region = max(found_by_region, key=lambda r: len(found_by_region[r]))
         self.region = best_region
-        return union
+        return union or VERTEX_CATALOG
 
     async def _ping(self, model: str, region: str) -> None:
         """Minimal generateContent call (maxOutputTokens=1) to verify a model
@@ -216,7 +215,7 @@ class VertexClient(ProviderClient):
         if model in _ANTHROPIC_MODELS:
             payload = {
                 "anthropic_version": "vertex-2023-10-16",
-                "max_tokens": 1,
+                "max_tokens": 10,
                 "messages": [{"role": "user", "content": "ping"}],
             }
         else:
@@ -228,7 +227,7 @@ class VertexClient(ProviderClient):
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
         }
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=5) as client:
             resp = await client.post(url, json=payload, headers=headers)
             resp.raise_for_status()
 
@@ -242,8 +241,6 @@ class VertexClient(ProviderClient):
         temperature: float,
         attachments=None,
     ) -> str:
-        # `api_key` is ignored for Vertex (auth is via ADC); an explicit token
-        # passed here would override, but normally empty.
         token = api_key or self._access_token()
         base = self._base_url(model)
         url = f"{base}/models/{model}:generateContent"

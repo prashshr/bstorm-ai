@@ -30,6 +30,7 @@ function generateVisionTestImage(): { base64: string; code: string } {
 class ModelsStore {
   #available = $state<string[]>([]);
   #selected = $state<string[]>([]);
+  #favorites = $state<string[]>([]);
   #health = $state<Record<string, HealthStatus>>({});
   #vision = $state<Record<string, boolean>>({});
   #discovering = $state(false);
@@ -41,6 +42,9 @@ class ModelsStore {
   }
   get selected() {
     return this.#selected;
+  }
+  get favorites() {
+    return this.#favorites;
   }
   get health() {
     return this.#health;
@@ -68,6 +72,19 @@ class ModelsStore {
     return this.#selected.includes(compositeKey);
   }
 
+  isFavorite(compositeKey: string): boolean {
+    return this.#favorites.includes(compositeKey);
+  }
+
+  toggleFavorite(compositeKey: string): void {
+    if (this.#favorites.includes(compositeKey)) {
+      this.#favorites = this.#favorites.filter((m) => m !== compositeKey);
+    } else {
+      this.#favorites = [...this.#favorites, compositeKey];
+    }
+    this.persist();
+  }
+
   /** Whether a provider already has a cached model list (from a prior session),
    *  so verifyAll can skip re-discovering it on reload. */
   hasCache(provider: string): boolean {
@@ -90,6 +107,7 @@ class ModelsStore {
         STORAGE_KEY,
         JSON.stringify({
           selected: this.#selected,
+          favorites: this.#favorites,
           allByProvider: this.#allByProvider,
         }),
       );
@@ -106,6 +124,7 @@ class ModelsStore {
       if (!raw) return false;
       const data = JSON.parse(raw) as {
         selected?: string[];
+        favorites?: string[];
         allByProvider?: Record<string, string[]>;
       };
       if (data.allByProvider && Object.keys(data.allByProvider).length > 0) {
@@ -116,6 +135,9 @@ class ModelsStore {
       }
       if (data.selected && data.selected.length > 0) {
         this.#selected = data.selected;
+      }
+      if (data.favorites && Array.isArray(data.favorites)) {
+        this.#favorites = data.favorites;
       }
       return Object.keys(this.#allByProvider).length > 0;
     } catch {
@@ -165,6 +187,11 @@ class ModelsStore {
 
   clearSelection(): void {
     this.#selected = [];
+    this.persist();
+  }
+
+  clearFavorites(): void {
+    this.#favorites = [];
     this.persist();
   }
 

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { theme } from "../stores/theme.svelte";
   import { discussion } from "../stores/discussion.svelte";
+  import { userSettings } from "../stores/settings.svelte";
   import Icon from "./Icon.svelte";
   import ProgressStepper from "./ProgressStepper.svelte";
 
@@ -24,8 +25,17 @@
       class="btn btn-ghost btn-sm icon-btn"
       onclick={() => theme.toggle()}
       aria-label="Toggle theme"
+      title="Toggle theme"
     >
       <Icon name={theme.theme === "dark" ? "sun" : "moon"} />
+    </button>
+    <button
+      class="btn btn-ghost btn-sm icon-btn"
+      onclick={() => userSettings.openModal()}
+      aria-label="User settings"
+      title="Settings"
+    >
+      <Icon name="settings" />
     </button>
   </div>
 

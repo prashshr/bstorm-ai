@@ -8,8 +8,10 @@
   import { folders } from "./lib/stores/folders.svelte";
   import { discussion } from "./lib/stores/discussion.svelte";
   import { personas } from "./lib/stores/personas.svelte";
+  import { userSettings } from "./lib/stores/settings.svelte";
   import LoginPage from "./lib/components/LoginPage.svelte";
   import AppContainer from "./lib/components/AppContainer.svelte";
+  import UserSettingsModal from "./lib/components/UserSettingsModal.svelte";
 
   onMount(async () => {
     theme.init();
@@ -17,6 +19,7 @@
     discussion.restore();
     if (auth.isAuthenticated) {
       models.restore();
+      userSettings.fetchRemote();
       providers.load().then(() => providers.verifyAll());
       personas.load();
       history.load();
@@ -27,6 +30,7 @@
 
 {#if auth.isAuthenticated}
   <AppContainer />
+  <UserSettingsModal />
 {:else}
   <LoginPage />
 {/if}

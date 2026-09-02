@@ -39,17 +39,36 @@ instance/
 # Quarantine — obsolete files awaiting final deletion
 .quarantine/
 
-# Test reports (generated per run)
+# Test reports & outputs (generated per run)
 testing/reports/
+output/
+playwright-report/
+test-results/
+.coverage
+htmlcov/
+coverage/
+
+# Android / Mobile build outputs
+*.apk
+*.aab
+frontend/android/app/build/
+frontend/android/.gradle/
+frontend/android/build/
+.gradle/
+local.properties
+Captures/
 
 # OS files
 Thumbs.db
+.DS_Store
 
-# Agent files
+# Agent & local scratch files
 SKILLS.md
 AGENTS.md
 PROJECTS.md
 ENVIRONMENT.md
+verify_layout.py
+frontend/take_snapshot.js
 
 # Playwright MCP runtime artifacts
 .playwright-mcp/

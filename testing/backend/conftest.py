@@ -4,6 +4,9 @@ import tempfile
 import base64
 import time
 
+TEST_DB_FD, TEST_DB_PATH = tempfile.mkstemp(suffix=".db")
+os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB_PATH}"
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -16,8 +19,6 @@ from app.main import app
 from app.core.config import settings
 from app.core.limiter import limiter
 
-
-TEST_DB_FD, TEST_DB_PATH = tempfile.mkstemp(suffix=".db")
 FRONTEND_URL = os.getenv("E2E_FRONTEND_URL", "https://ai-ensemble.samkhya.cloud")
 API_URL = os.getenv("E2E_API_URL", "https://ai-ensemble.samkhya.cloud")
 

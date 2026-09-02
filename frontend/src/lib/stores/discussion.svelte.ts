@@ -50,10 +50,12 @@ function emptyState(): DiscussionState {
     deep_research: false,
     retrieved_context: null,
     summaryFormat: "compact",
-    summaryFormatText: "",
+    summaryFormatText:
+      "STRICT COMPACT SUMMARY MANDATE: Simply get information from all responses. Do not add any more information from your side or elsewhere. Analyze all the responses, get the common points and the not common points and share in very short precise format a best consensus. Maximum 250 words total. No additional explanations.",
     summaryInstructions: "",
-    responseFormat: "none",
-    responseFormatText: "",
+    responseFormat: "compact",
+    responseFormatText:
+      "STRICT COMPACT FORMAT MANDATE: Provide a direct, highly concise, and brief response. Maximum 2-3 short paragraphs or clean bullet points total. Eliminate all filler, lengthy background context, and unnecessary repetition. Get straight to the point.",
   };
 }
 
@@ -519,31 +521,30 @@ class DiscussionStore {
     let consensusFormat = "";
     const fmt = this.#data.summaryFormat || "compact";
     if (fmt === "none") {
-      // No format instruction — model decides the output shape.
-    } else if (this.#data.summaryInstructions?.trim()) {
-      consensusFormat = `\n\n## Custom Consensus Format Instructions:\n${this.#data.summaryInstructions.trim()}`;
-    } else if (this.#data.summaryFormatText?.trim()) {
-      // Use whatever the user has in the Summary Format text field
-      // (populated by preset or typed manually).
-      consensusFormat = `\n\n${this.#data.summaryFormatText.trim()}`;
+      // No format instruction
     } else {
-      // Fallback: hardcoded templates.
-      if (fmt === "compact") {
+      const customText = this.#data.summaryInstructions?.trim() || this.#data.summaryFormatText?.trim();
+      if (customText) {
+        consensusFormat = `\n\n[MANDATORY CONSENSUS SUMMARY FORMAT DIRECTIVE - CRITICAL OVERRIDE]\n${customText}\n[END MANDATORY CONSENSUS FORMAT DIRECTIVE]\n`;
+      } else if (fmt === "compact") {
         consensusFormat =
-          "\n\nProvide a COMPACT consensus:\n" +
+          "\n\n[MANDATORY COMPACT CONSENSUS FORMAT DIRECTIVE]\n" +
+          "Provide a STRICTLY COMPACT, HIGHLY CONCISE consensus synthesis:\n" +
           "- Start with a 1-sentence verdict\n" +
-          "- Use a weighted score table (4 core points, max 40 points)\n" +
-          "- Bullet-point key agreements and disagreements\n" +
-          "- Output 3 priority recommendations as numbered items\n" +
-          "- Be precise, no fluff";
+          "- Short weighted score table (max 4 core metrics)\n" +
+          "- Concise bullet points for key agreements and disagreements\n" +
+          "- Max 3 priority recommendations as short numbered items\n" +
+          "- Keep response under 250 words total. Eliminate fluff.\n" +
+          "[END MANDATORY CONSENSUS FORMAT DIRECTIVE]\n";
       } else {
         consensusFormat =
-          "\n\nProvide an ELABORATE consensus:\n" +
-          "- Start with a detailed executive verdict (2-3 sentences)\n" +
-          "- Include a full weighted scoring table with rationale\n" +
-          "- Show a council alignment & friction matrix\n" +
-          "- Explain excluded points and why they were deprioritized\n" +
-          "- End with actionable recommendations";
+          "\n\n[MANDATORY ELABORATE CONSENSUS FORMAT DIRECTIVE]\n" +
+          "Provide an ELABORATE, FULLY DETAILED consensus synthesis:\n" +
+          "- Start with an executive verdict (2-3 sentences)\n" +
+          "- Full weighted scoring matrix with rationale for each model\n" +
+          "- In-depth council alignment & friction matrix\n" +
+          "- Detailed trade-off analysis and actionable next steps\n" +
+          "[END MANDATORY CONSENSUS FORMAT DIRECTIVE]\n";
       }
     }
 
@@ -705,13 +706,22 @@ class DiscussionStore {
     const currentMsg = this.#data.userMessages[roundNum] ?? this.#data.question;
     prompt += `User (turn ${roundNum}): ${currentMsg}\n\n`;
 
+    const roundAttach = this.#attachmentsByRound[roundNum] || (roundNum === 1 ? this.#data.attachments : []);
+    if (roundAttach && roundAttach.length > 0) {
+      for (const att of roundAttach) {
+        if (att.content && !att.type?.startsWith("image/") && !currentMsg.includes(att.name)) {
+          prompt += `--- Attached File: ${att.name} ---\n${att.content}\n\n`;
+        }
+      }
+    }
+
     if (turnCount > 1) {
       prompt += `Review all previous responses above and provide your refined analysis building upon what has been discussed. Focus on areas where you can add value or offer a different perspective.\n`;
     }
 
     const respInstr = this.#data.responseFormatText?.trim();
     if (respInstr) {
-      prompt += `\nResponse format: ${respInstr}\n`;
+      prompt += `\n[MANDATORY RESPONSE FORMAT DIRECTIVE - CRITICAL OVERRIDE]\n${respInstr}\n[END MANDATORY RESPONSE FORMAT DIRECTIVE]\n\n`;
     }
     return prompt;
   }

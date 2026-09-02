@@ -5,6 +5,7 @@
   import { auth } from "../stores/auth.svelte";
   import { models } from "../stores/models.svelte";
   import { providers } from "../stores/providers.svelte";
+  import { userSettings } from "../stores/settings.svelte";
   import type { DiscussionResponse } from "../api/types";
   import Icon from "./Icon.svelte";
 
@@ -129,11 +130,11 @@
     </button>
   {:else}
     <div class="s-head">
-      <button class="btn btn-primary new-chat" onclick={newChat} data-testid="new-chat-btn">
-        <Icon name="plus" size="sm" /> New Chat
-      </button>
       <button class="btn btn-ghost icon-btn" onclick={() => (collapsed = true)} aria-label="Collapse chat list">
         <Icon name="chevron-left" />
+      </button>
+      <button class="btn btn-primary new-chat" onclick={newChat} data-testid="new-chat-btn">
+        <Icon name="plus" size="sm" /> New Chat
       </button>
     </div>
 
@@ -209,7 +210,10 @@
       <span class="user" title={auth.user ?? ""}>{auth.user ?? "user"}</span>
       <div class="foot-actions">
         <span class="stat" title="Providers / models">{providerCount}·{modelCount}</span>
-        <button class="btn btn-ghost btn-sm" onclick={() => auth.logout()} aria-label="Logout">
+        <button class="btn btn-ghost btn-sm" onclick={() => userSettings.openModal()} aria-label="User settings" title="Settings">
+          <Icon name="settings" size="sm" />
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick={() => auth.logout()} aria-label="Logout" title="Logout">
           <Icon name="logout" size="sm" />
         </button>
       </div>
@@ -251,17 +255,26 @@
   .resizer {
     position: absolute;
     top: 0;
-    right: -5px;
-    width: 10px;
+    right: -4px;
+    width: 8px;
     height: 100%;
     cursor: col-resize;
     z-index: 20;
     background: transparent;
+    display: flex;
+    justify-content: center;
   }
-  .resizer:hover,
-  .resizer.dragging {
+  .resizer::after {
+    content: "";
+    width: 2px;
+    height: 100%;
+    background: transparent;
+    transition: background 0.15s ease;
+  }
+  .resizer:hover::after,
+  .resizer.dragging::after {
     background: var(--accent);
-    opacity: 0.6;
+    opacity: 0.8;
   }
   .sessions {
     position: relative;

@@ -4,7 +4,7 @@
   import Icon from "./Icon.svelte";
   import ProviderForm from "./ProviderForm.svelte";
   import ModelSelector from "./ModelSelector.svelte";
-  import { providerDisplayName } from "../utils/helpers";
+  import { providerDisplayName, splitModelKey } from "../utils/helpers";
 
   interface Props {
     open: boolean;
@@ -14,6 +14,7 @@
 
   let adding = $state(false);
   let editing = $state<string | null>(null);
+  let favoritesOpen = $state(true);
 
   let sortedProviders = $derived(
     [...providers.list].sort((a, b) => {
@@ -23,6 +24,23 @@
       return a.provider.localeCompare(b.provider);
     }),
   );
+
+  let allFavoritesSelected = $derived(
+    models.favorites.length > 0 &&
+      models.favorites.every((k) => models.isSelected(k)),
+  );
+
+  function toggleAllFavorites() {
+    if (allFavoritesSelected) {
+      for (const k of models.favorites) {
+        if (models.isSelected(k)) models.toggle(k);
+      }
+    } else {
+      for (const k of models.favorites) {
+        if (!models.isSelected(k)) models.toggle(k);
+      }
+    }
+  }
 
   async function selectProvider(key: string) {
     providers.select(key);
@@ -133,6 +151,92 @@
           </li>
         {/each}
       </ul>
+    {/if}
+  </div>
+
+  <!-- Bottom Foldable Favorite Models Section -->
+  <div class="p-foot-favorites">
+    <div class="fav-head">
+      <button
+        type="button"
+        class="fav-toggle-main"
+        onclick={() => (favoritesOpen = !favoritesOpen)}
+        aria-expanded={favoritesOpen}
+        title="Toggle favorite models list"
+      >
+        <span class="fav-star-icon">
+          <Icon name="star" size="sm" />
+        </span>
+        <span class="fav-title">Favorite Models</span>
+        {#if models.favorites.length > 0}
+          <span class="count-pill">{models.favorites.length}</span>
+        {/if}
+      </button>
+      <div class="fav-toggle-right">
+        {#if models.favorites.length > 0}
+          <button
+            type="button"
+            class="fav-select-all-btn"
+            onclick={toggleAllFavorites}
+          >
+            {allFavoritesSelected ? "Unselect all" : "Select all"}
+          </button>
+        {/if}
+        <button
+          type="button"
+          class="btn btn-ghost btn-sm fav-chevron-btn"
+          onclick={() => (favoritesOpen = !favoritesOpen)}
+          aria-label={favoritesOpen ? "Collapse favorites" : "Unfold favorites"}
+        >
+          <Icon name={favoritesOpen ? "chevron-down" : "chevron-up"} size="sm" />
+        </button>
+      </div>
+    </div>
+
+    {#if favoritesOpen}
+      <div class="fav-content">
+        {#if models.favorites.length === 0}
+          <p class="fav-empty">
+            Click the <span class="star-hint">★</span> star icon next to any model above to add it to your favorites.
+          </p>
+        {:else}
+          <div class="fav-list">
+            {#each models.favorites as key (key)}
+              {@const { provider, model } = splitModelKey(key)}
+              {@const p = providers.find(provider)}
+              {@const provLabel = p ? providerDisplayName(provider, p.label) : provider}
+              {@const isSelected = models.isSelected(key)}
+              <div class="fav-row" class:selected={isSelected}>
+                <button
+                  type="button"
+                  class="fav-star-action active"
+                  title="Remove from favorites"
+                  aria-label="Remove {model} from favorites"
+                  onclick={() => models.toggleFavorite(key)}
+                >
+                  <Icon name="star" size="sm" />
+                </button>
+                <button
+                  type="button"
+                  class="fav-chip-btn"
+                  onclick={() => models.toggle(key)}
+                  title={key}
+                >
+                  <span class="fav-mname">{model}</span>
+                  <span class="fav-pname" title="Provider: {provLabel}">{provLabel}</span>
+                </button>
+                <input
+                  type="checkbox"
+                  class="fav-check"
+                  checked={isSelected}
+                  onchange={() => models.toggle(key)}
+                  aria-label="Select {model}"
+                />
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </div>
     {/if}
   </div>
 </aside>
@@ -282,4 +386,180 @@
     letter-spacing: 0.05em;
     padding: 4px 0;
   }
+
+  /* Bottom Foldable Favorite Models Drawer */
+  .p-foot-favorites {
+    flex-shrink: 0;
+    border-top: 1px solid var(--border);
+    background: var(--bg-primary);
+    display: flex;
+    flex-direction: column;
+    max-height: 48vh;
+  }
+  .fav-head {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    box-sizing: border-box;
+  }
+  .fav-toggle-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 2px 0;
+    text-align: left;
+  }
+  .fav-star-icon {
+    color: #f59e0b;
+    display: inline-flex;
+    align-items: center;
+  }
+  .fav-star-icon :global(svg) {
+    fill: #f59e0b;
+    stroke: #f59e0b;
+  }
+  .fav-title {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+  .count-pill {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 1px 7px;
+  }
+  .fav-toggle-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .fav-select-all-btn {
+    background: none;
+    border: none;
+    padding: 2px 6px;
+    font-size: 11px;
+    color: var(--accent);
+    cursor: pointer;
+    border-radius: var(--radius);
+  }
+  .fav-select-all-btn:hover {
+    text-decoration: underline;
+  }
+  .fav-chevron-btn {
+    padding: 4px;
+    color: var(--text-tertiary);
+  }
+  .fav-content {
+    overflow-y: auto;
+    max-height: 38vh;
+    padding: 4px 10px 12px;
+    border-top: 1px solid var(--border);
+  }
+  .fav-empty {
+    margin: 8px 0;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    line-height: 1.4;
+    text-align: center;
+    padding: 8px 12px;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius);
+  }
+  .star-hint {
+    color: #f59e0b;
+    font-size: 14px;
+  }
+  .fav-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 4px;
+  }
+  .fav-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    transition: border-color var(--transition), background var(--transition);
+  }
+  .fav-row:hover {
+    border-color: var(--border-hover);
+  }
+  .fav-row.selected {
+    border-color: var(--accent);
+    background: var(--bg-tertiary);
+  }
+  .fav-star-action {
+    background: transparent;
+    border: none;
+    padding: 2px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #f59e0b;
+    border-radius: var(--radius);
+    flex-shrink: 0;
+    transition: transform var(--transition);
+  }
+  .fav-star-action :global(svg) {
+    fill: #f59e0b;
+    stroke: #f59e0b;
+  }
+  .fav-star-action:hover {
+    transform: scale(1.2);
+  }
+  .fav-chip-btn {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--text-primary);
+    font-size: 12.5px;
+    text-align: left;
+    cursor: pointer;
+  }
+  .fav-mname {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+  }
+  .fav-pname {
+    font-size: 10.5px;
+    color: var(--text-tertiary);
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    padding: 1px 6px;
+    border-radius: 4px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    opacity: 0.9;
+  }
+  .fav-check {
+    accent-color: var(--accent);
+    cursor: pointer;
+    margin: 0;
+    flex-shrink: 0;
+  }
 </style>
+

@@ -31,9 +31,18 @@ def _parse_state_flags(state_json: str) -> tuple:
         state = json.loads(state_json) if state_json else {}
     except (json.JSONDecodeError, TypeError):
         state = {}
+    rag_mode = state.get("ragMode") or state.get("rag_mode")
+    use_rag = state.get("use_rag")
+    if use_rag is None:
+        if rag_mode == "model-self":
+            use_rag = True
+        elif rag_mode == "model-only":
+            use_rag = False
+        else:
+            use_rag = False
     return (
-        state.get("use_rag", False),
-        state.get("deep_research", False),
+        bool(use_rag),
+        bool(state.get("deep_research", False)),
     )
 
 
@@ -53,7 +62,8 @@ async def create_discussion(
         )
 
     retrieved_context = None
-    if payload.use_rag:
+    use_rag = payload.use_rag or payload.rag_mode == "model-self"
+    if use_rag:
         try:
             retrieved_context = await get_retrieved_context(payload.question)
         except Exception as e:

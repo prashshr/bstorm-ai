@@ -8,6 +8,7 @@ class DiscussionCreateRequest(BaseModel):
     question: str = Field(min_length=1)
     title: str = ""
     use_rag: bool = False
+    rag_mode: Optional[str] = "model-self"
     deep_research: bool = False
 
 
