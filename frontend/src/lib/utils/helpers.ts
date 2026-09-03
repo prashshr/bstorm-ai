@@ -131,12 +131,17 @@ const PRESET_NAME_BY_KEY: Record<string, string> = Object.fromEntries(
 );
 
 /** Best-effort check whether a model name suggests vision/multimodal support. */
-export const VISION_RE = /(gpt-4o|gpt-4-visual|gpt-4-turbo|vision|gemini|claude-3\.5|claude-4|llama-3\.2-vision|llama-4|llava|qwen-vl|qwen2\.5-vl|pixtral|moondream|ministral|gemma-3|internvl|smolvlm|aya-vision|phi-3-vision|phi-4-vision|o1|o4)/i;
-export const TEXT_ONLY_RE = /(deepseek|reasoner|o1-mini|o3-mini|text-|instruct)/i;
+export const VISION_RE = /(gpt-4o|gpt-5|gpt-4-visual|gpt-4-turbo|vision|gemini|claude|llama-3\.2-vision|llama-4|llava|qwen-vl|qwen2\.5-vl|qwen3|qwen-3|pixtral|moondream|ministral|gemma-3|internvl|smolvlm|aya-vision|phi-3-vision|phi-4-vision|o1(?!-mini)|o4|mimo|kimi)/i;
+export const TEXT_ONLY_RE = /(deepseek(?!.*(?:vl|vision))|reasoner|o1-mini|o3-mini|text-|instruct(?!.*(?:vl|vision)))/i;
 
 export function modelSupportsVision(modelName: string): boolean {
-  if (TEXT_ONLY_RE.test(modelName) && !VISION_RE.test(modelName)) return false;
-  return VISION_RE.test(modelName);
+  if (VISION_RE.test(modelName)) {
+    if (TEXT_ONLY_RE.test(modelName) && !/(vl|vision)/i.test(modelName)) {
+      return false;
+    }
+    return true;
+  }
+  return false;
 }
 
 /** Human-readable provider name for a credential key, falling back to a

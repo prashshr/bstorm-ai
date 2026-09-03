@@ -17,6 +17,13 @@ const STATE_KEY = "aiEnsembleDiscussionState";
 const MAX_CONCURRENT = 3;
 const STAGGER_MS = 500;
 
+function imageFingerprint(att: ChatAttachment): string {
+  const content = att.content || "";
+  const len = content.length;
+  const sample = content.slice(0, 40) + content.slice(-40);
+  return `${att.name}_${len}_${sample}`;
+}
+
 function emptyState(): DiscussionState {
   return {
     id: null,
@@ -104,26 +111,27 @@ class DiscussionStore {
     const vCred = providers.find(vProvider);
 
     for (const img of images) {
-      if (this.#imageTranscriptions[img.name]) continue;
+      const fp = imageFingerprint(img);
+      if (this.#imageTranscriptions[fp]) continue;
       try {
         debug.log(`[Vision Bridge] Transcribing visual data from "${img.name}" using ${vModel}...`);
         const bridgePrompt =
-          `You are an AI Vision Data Transcriber. Analyze this image thoroughly and extract all visible content with 100% fidelity. ` +
-          `Include all text, numbers, metrics, chart axes/data points, tables, labels, UI elements, code snippets, and structural descriptions in clean markdown. ` +
-          `Be concise, complete, and strictly factual so a text-only AI model can analyze this data accurately.`;
+          `You are an expert AI Vision Data Transcriber. Analyze this image thoroughly and extract all visible content with 100% fidelity. ` +
+          `Include all company names, stock tickers, strike prices, expiration dates, premiums, call/put warrant tables, column headers, numbers, metrics, charts, labels, and text in clean structured markdown tables. ` +
+          `Be concise, complete, and strictly factual so a text-only AI model can analyze this exact data accurately without seeing the original pixels.`;
 
         const res = await api.chat({
           provider: vProvider,
           model: vModel,
           prompt: bridgePrompt,
           endpoint: vCred?.endpoint ?? "",
-          max_tokens: 1500,
+          max_tokens: 2000,
           temperature: 0.1,
           attachments: [img],
         });
 
         if (res.output?.trim()) {
-          this.#imageTranscriptions[img.name] = res.output.trim();
+          this.#imageTranscriptions[fp] = res.output.trim();
           debug.log(`[Vision Bridge] Successfully transcribed "${img.name}" (${res.output.length} chars)`);
         }
       } catch (err) {
@@ -242,6 +250,8 @@ class DiscussionStore {
     this.#running = false;
     this.#currentRound = 0;
     this.#phase = "idle";
+    this.#attachmentsByRound = {};
+    this.#imageTranscriptions = {};
     localStorage.removeItem(STATE_KEY);
   }
 
@@ -318,6 +328,7 @@ class DiscussionStore {
     }
 
     this.persist();
+    this.#imageTranscriptions = {};
     this.#attachmentsByRound = opts.attachments?.length
       ? { 1: opts.attachments }
       : {};
@@ -710,6 +721,8 @@ class DiscussionStore {
     this.#running = false;
     this.#currentRound = 0;
     this.#phase = "done";
+    this.#imageTranscriptions = {};
+    this.#attachmentsByRound = {};
     // Persist so a page reload restores the currently-viewed discussion
     // instead of dropping to a blank "New Discussion" screen.
     this.persist();
@@ -783,7 +796,8 @@ class DiscussionStore {
         if (att.content) {
           if (att.type?.startsWith("image/")) {
             if (!isVision) {
-              const transcription = this.#imageTranscriptions[att.name];
+              const fp = imageFingerprint(att);
+              const transcription = this.#imageTranscriptions[fp];
               if (transcription) {
                 prompt += `--- [Visual Data Transcription of Attached Image: ${att.name}] ---\n${transcription}\n[End Visual Data Transcription]\n\n`;
               } else {
