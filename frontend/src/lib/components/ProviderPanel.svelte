@@ -29,12 +29,16 @@
     if (!open) return;
     dragging = true;
     document.body.classList.add("resizing");
+    window.addEventListener("pointermove", onResize);
+    window.addEventListener("pointerup", endResize);
+    window.addEventListener("pointercancel", endResize);
     try {
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     } catch {
       /* ignore */
     }
     e.preventDefault();
+    e.stopPropagation();
   }
 
   function onResize(e: PointerEvent) {
@@ -45,14 +49,19 @@
     localStorage.setItem("aiEnsembleProviderPanelWidth", String(next));
   }
 
-  function endResize(e: PointerEvent) {
+  function endResize(e?: PointerEvent) {
     if (!dragging) return;
     dragging = false;
     document.body.classList.remove("resizing");
-    try {
-      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-    } catch {
-      /* ignore */
+    window.removeEventListener("pointermove", onResize);
+    window.removeEventListener("pointerup", endResize);
+    window.removeEventListener("pointercancel", endResize);
+    if (e && e.pointerId != null) {
+      try {
+        (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch {
+        /* ignore */
+      }
     }
   }
 
@@ -110,7 +119,13 @@
 </script>
 
 {#if open}
-  <div class="backdrop" role="presentation" onclick={onclose}></div>
+  <div
+    class="backdrop"
+    role="presentation"
+    onclick={() => {
+      if (!dragging) onclose();
+    }}
+  ></div>
 {/if}
 
 <aside
@@ -129,6 +144,7 @@
     onpointerdown={startResize}
     onpointermove={onResize}
     onpointerup={endResize}
+    onpointercancel={endResize}
     title="Drag left/right to resize panel width"
   ></div>
 
@@ -330,11 +346,11 @@
   .resizer-left {
     position: absolute;
     top: 0;
-    left: -4px;
-    width: 8px;
+    left: -8px;
+    width: 16px;
     height: 100%;
     cursor: col-resize;
-    z-index: 60;
+    z-index: 70;
     background: transparent;
     display: flex;
     justify-content: center;
@@ -342,7 +358,7 @@
   }
   .resizer-left::after {
     content: "";
-    width: 2px;
+    width: 3px;
     height: 100%;
     background: transparent;
     transition: background 0.15s ease;
@@ -350,7 +366,7 @@
   .resizer-left:hover::after,
   .resizer-left.dragging::after {
     background: var(--accent);
-    opacity: 0.8;
+    opacity: 0.9;
   }
   @media (max-width: 768px) {
     .panel {
