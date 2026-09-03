@@ -237,17 +237,26 @@ async def test_provider_connection(
     client = get_provider_client(provider)
     _apply_provider_config(client, row, uek=getattr(current_user, "uek", None))
 
-    # Pick a model name that the provider actually understands.
+    # Pick a reliable model name that the provider actually understands.
     test_model = "gpt-4o-mini"
     if provider == "openrouter":
         test_model = "openai/gpt-4o-mini"
     elif provider == "vertex":
         test_model = "gemini-2.5-flash"
+    elif provider == "mammouth":
+        test_model = "gpt-4o-mini"
 
     try:
         discovered = await client.list_models(endpoint=row.endpoint or "", api_key=api_key)
         if discovered:
-            test_model = discovered[0]
+            preferred = [
+                m for m in discovered
+                if any(p in m for p in ("gpt-4o-mini", "gpt-4o", "claude-3-5", "claude-3-7", "gemini-2.5", "deepseek-chat"))
+            ]
+            if preferred:
+                test_model = preferred[0]
+            else:
+                test_model = discovered[0]
     except Exception:
         pass
 

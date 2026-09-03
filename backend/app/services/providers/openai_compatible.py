@@ -1,11 +1,38 @@
 import json
+import re
 from collections.abc import AsyncGenerator
+from typing import Any
 
 import httpx
 from fastapi import HTTPException, status
 
 from app.schemas.provider_proxy import Attachment
 from app.services.providers.base import ProviderClient
+
+
+def _is_reasoning_model(model: str) -> bool:
+    return bool(re.search(r"(o1|o3|o4|reasoner|qwq|deepseek-r1)", model, re.I))
+
+
+def _build_chat_payload(
+    model: str,
+    content: Any,
+    max_tokens: int,
+    temperature: float | None = None,
+    stream: bool = False,
+) -> dict:
+    model_clean = model.strip()
+    payload: dict[str, Any] = {
+        "model": model_clean,
+        "messages": [{"role": "user", "content": content}],
+    }
+    # For reasoning models, omit temperature if it causes issues, or set standard
+    if not _is_reasoning_model(model_clean) and temperature is not None:
+        payload["temperature"] = temperature
+    payload["max_tokens"] = max_tokens
+    if stream:
+        payload["stream"] = True
+    return payload
 
 
 def _build_openai_content(prompt: str, attachments: list[Attachment] | None):
@@ -70,6 +97,9 @@ class OpenAICompatibleClient(ProviderClient):
                 for row in rows:
                     model_id = row.get("id")
                     if isinstance(model_id, str) and model_id:
+                        # Exclude batch-only and internal contributor endpoints
+                        if model_id.endswith(":batch") or "-contributor" in model_id or model_id.startswith("~"):
+                            continue
                         models.append(model_id)
                 return sorted(models)
             except httpx.HTTPStatusError as e:
@@ -93,12 +123,8 @@ class OpenAICompatibleClient(ProviderClient):
         url = f"{base}/chat/completions"
         headers = self._get_headers(api_key)
         content = _build_openai_content(prompt, attachments)
-        payload = {
-            "model": model,
-            "messages": [{"role": "user", "content": content}],
-            "max_tokens": max_tokens,
-            "temperature": temperature,
-        }
+        payload = _build_chat_payload(model, content, max_tokens, temperature)
+
         async with httpx.AsyncClient(timeout=120) as client:
             try:
                 resp = await client.post(url, json=payload, headers=headers)
@@ -124,23 +150,76 @@ class OpenAICompatibleClient(ProviderClient):
                 return str(content) if content else ""
             except httpx.HTTPStatusError as e:
                 body = e.response.text.lower() if e.response is not None else ""
-                # Graceful fallback: if provider rejects image attachments for a text-only model, retry with text prompt
+                # Fallback 1: if provider rejects image attachments for a text-only model, retry with text prompt
                 if e.response.status_code == status.HTTP_400_BAD_REQUEST and attachments and any(
                     k in body for k in ("image", "vision", "multimodal", "unsupported", "content")
                 ):
                     try:
+                        fallback_payload = _build_chat_payload(model, prompt, max_tokens, temperature)
+                        resp = await client.post(url, json=fallback_payload, headers=headers)
+                        resp.raise_for_status()
+                        data = resp.json()
+                        choices = data.get("choices", [])
+                        if choices:
+                            message = choices[0].get("message", {})
+                            content = (
+                                message.get("content")
+                                or message.get("text")
+                                or message.get("reasoning")
+                                or message.get("reasoning_content")
+                                or ""
+                            )
+                            return str(content) if content else ""
+                    except Exception:
+                        pass
+
+                # Fallback 2: if provider rejects temperature (e.g. reasoning models)
+                if e.response.status_code == status.HTTP_400_BAD_REQUEST and "temperature" in body:
+                    try:
                         fallback_payload = {
-                            "model": model,
-                            "messages": [{"role": "user", "content": prompt}],
+                            "model": model.strip(),
+                            "messages": [{"role": "user", "content": content}],
                             "max_tokens": max_tokens,
-                            "temperature": temperature,
                         }
                         resp = await client.post(url, json=fallback_payload, headers=headers)
                         resp.raise_for_status()
                         data = resp.json()
                         choices = data.get("choices", [])
                         if choices:
-                            return choices[0].get("message", {}).get("content", "") or ""
+                            message = choices[0].get("message", {})
+                            content = (
+                                message.get("content")
+                                or message.get("text")
+                                or message.get("reasoning")
+                                or message.get("reasoning_content")
+                                or ""
+                            )
+                            return str(content) if content else ""
+                    except Exception:
+                        pass
+
+                # Fallback 3: if provider rejects max_tokens in favor of max_completion_tokens (e.g. newer models)
+                if e.response.status_code == status.HTTP_400_BAD_REQUEST and "max_completion_tokens" in body:
+                    try:
+                        fallback_payload = {
+                            "model": model.strip(),
+                            "messages": [{"role": "user", "content": content}],
+                            "max_completion_tokens": max_tokens,
+                        }
+                        resp = await client.post(url, json=fallback_payload, headers=headers)
+                        resp.raise_for_status()
+                        data = resp.json()
+                        choices = data.get("choices", [])
+                        if choices:
+                            message = choices[0].get("message", {})
+                            content = (
+                                message.get("content")
+                                or message.get("text")
+                                or message.get("reasoning")
+                                or message.get("reasoning_content")
+                                or ""
+                            )
+                            return str(content) if content else ""
                     except Exception:
                         pass
 
@@ -181,13 +260,7 @@ class OpenAICompatibleClient(ProviderClient):
         url = f"{base}/chat/completions"
         headers = self._get_headers(api_key)
         content = _build_openai_content(prompt, attachments)
-        payload = {
-            "model": model,
-            "messages": [{"role": "user", "content": content}],
-            "max_tokens": max_tokens,
-            "temperature": temperature,
-            "stream": True,
-        }
+        payload = _build_chat_payload(model, content, max_tokens, temperature, stream=True)
         async with httpx.AsyncClient(timeout=120) as client:
             try:
                 async with client.stream("POST", url, json=payload, headers=headers) as resp:
@@ -250,11 +323,42 @@ class OpenAICompatibleClient(ProviderClient):
                     k in body for k in ("image", "vision", "multimodal", "unsupported", "content")
                 ):
                     try:
+                        fallback_payload = _build_chat_payload(model, prompt, max_tokens, temperature, stream=True)
+                        async with client.stream("POST", url, json=fallback_payload, headers=headers) as resp_fallback:
+                            resp_fallback.raise_for_status()
+                            async for line in resp_fallback.aiter_lines():
+                                if not line or line.startswith(":"):
+                                    continue
+                                if line.startswith("data: "):
+                                    data_str = line[6:]
+                                    if data_str.strip() == "[DONE]":
+                                        return
+                                    try:
+                                        data = json.loads(data_str)
+                                        choices = data.get("choices", [])
+                                        if choices:
+                                            delta = choices[0].get("delta", {})
+                                            content = (
+                                                delta.get("content")
+                                                or delta.get("text")
+                                                or delta.get("reasoning")
+                                                or delta.get("reasoning_content")
+                                                or ""
+                                            )
+                                            if content:
+                                                yield str(content)
+                                    except json.JSONDecodeError:
+                                        continue
+                        return
+                    except Exception:
+                        pass
+
+                if e.response.status_code == status.HTTP_400_BAD_REQUEST and "temperature" in body:
+                    try:
                         fallback_payload = {
-                            "model": model,
-                            "messages": [{"role": "user", "content": prompt}],
+                            "model": model.strip(),
+                            "messages": [{"role": "user", "content": content}],
                             "max_tokens": max_tokens,
-                            "temperature": temperature,
                             "stream": True,
                         }
                         async with client.stream("POST", url, json=fallback_payload, headers=headers) as resp_fallback:
@@ -271,9 +375,15 @@ class OpenAICompatibleClient(ProviderClient):
                                         choices = data.get("choices", [])
                                         if choices:
                                             delta = choices[0].get("delta", {})
-                                            content = delta.get("content", "")
+                                            content = (
+                                                delta.get("content")
+                                                or delta.get("text")
+                                                or delta.get("reasoning")
+                                                or delta.get("reasoning_content")
+                                                or ""
+                                            )
                                             if content:
-                                                yield content
+                                                yield str(content)
                                     except json.JSONDecodeError:
                                         continue
                         return
@@ -289,6 +399,11 @@ class OpenAICompatibleClient(ProviderClient):
                     raise HTTPException(
                         status_code=status.HTTP_404_NOT_FOUND,
                         detail=f"Endpoint not found (404): {url}"
+                    ) from e
+                if e.response.status_code == status.HTTP_502_BAD_GATEWAY:
+                    raise HTTPException(
+                        status_code=status.HTTP_502_BAD_GATEWAY,
+                        detail=f"Bad Gateway (502): Could not reach the provider at {base}"
                     ) from e
                 if e.response.status_code == status.HTTP_429_TOO_MANY_REQUESTS:
                     raise HTTPException(

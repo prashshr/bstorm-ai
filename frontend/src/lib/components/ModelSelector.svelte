@@ -17,6 +17,44 @@
   );
 
   let manualModel = $state("");
+  let filterText = $state("");
+
+  const POPULAR_PREFIXES = [
+    "openai/",
+    "anthropic/",
+    "google/",
+    "deepseek/",
+    "qwen/",
+    "meta-llama/",
+    "mistralai/",
+    "cohere/",
+    "x-ai/",
+  ];
+
+  function modelScore(m: string, key: string): number {
+    if (models.isFavorite(key)) return 0;
+    if (models.isSelected(key)) return 1;
+    const lower = m.toLowerCase();
+    for (let i = 0; i < POPULAR_PREFIXES.length; i++) {
+      if (lower.startsWith(POPULAR_PREFIXES[i])) return 10 + i;
+    }
+    return 100;
+  }
+
+  let filteredModels = $derived(
+    models.available
+      .filter((m) =>
+        filterText.trim() ? m.toLowerCase().includes(filterText.toLowerCase().trim()) : true,
+      )
+      .sort((a, b) => {
+        const keyA = `${providers.active}::${a}`;
+        const keyB = `${providers.active}::${b}`;
+        const scoreA = modelScore(a, keyA);
+        const scoreB = modelScore(b, keyB);
+        if (scoreA !== scoreB) return scoreA - scoreB;
+        return a.localeCompare(b);
+      }),
+  );
 
   async function addManual() {
     const m = manualModel.trim();
@@ -26,7 +64,8 @@
   }
 
   async function retestAll() {
-    await models.checkAllHealth(compositeKeys);
+    const keysToTest = filteredModels.map((m) => `${providers.active}::${m}`);
+    await models.checkAllHealth(keysToTest.slice(0, 30));
   }
 
   function selectAll() {
@@ -84,6 +123,19 @@
       <button class="btn btn-sm" type="submit" disabled={!manualModel.trim()}>Add</button>
     </form>
   {:else}
+    <div class="filter-row">
+      <Icon name="search" size="sm" />
+      <input
+        type="text"
+        class="filter-input"
+        placeholder="Filter models (e.g. gpt-4o, claude, deepseek)…"
+        bind:value={filterText}
+      />
+      {#if filterText}
+        <button class="btn btn-ghost btn-sm clear-filter" onclick={() => (filterText = "")} aria-label="Clear filter">×</button>
+      {/if}
+    </div>
+
     <div class="bulk">
       <button
         class="btn btn-ghost btn-sm"
@@ -96,7 +148,7 @@
       {/if}
     </div>
     <div class="grid" role="group" aria-label="Model selection">
-      {#each models.available as model (model)}
+      {#each filteredModels as model (model)}
         {@const key = `${providers.active}::${model}`}
         {@const health = models.healthOf(key)}
         {@const isFav = models.isFavorite(key)}
@@ -127,7 +179,7 @@
           {#if health === "OK"}
             <span class="badge badge-ok">OK</span>
           {:else if health === "KO"}
-            <span class="badge badge-ko">KO</span>
+            <span class="badge badge-ko" title={models.errorOf(key) || "Check failed"}>KO</span>
           {:else if health === "testing"}
             <span class="badge badge-testing">…</span>
           {/if}
@@ -167,6 +219,35 @@
     background: var(--bg-tertiary);
     border-radius: 999px;
     padding: 1px 7px;
+  }
+  .filter-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+    padding: 0 8px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-tertiary);
+  }
+  .filter-row:focus-within {
+    border-color: var(--accent);
+  }
+  .filter-input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    padding: 6px 0;
+    font-size: 12px;
+    color: var(--text-primary);
+    outline: none;
+  }
+  .clear-filter {
+    padding: 0 4px;
+    font-size: 16px;
+    line-height: 1;
+    color: var(--text-tertiary);
   }
   .bulk {
     display: flex;

@@ -32,6 +32,7 @@ class ModelsStore {
   #selected = $state<string[]>([]);
   #favorites = $state<string[]>([]);
   #health = $state<Record<string, HealthStatus>>({});
+  #errors = $state<Record<string, string>>({});
   #vision = $state<Record<string, boolean>>({});
   #discovering = $state(false);
   /** All discovered models across every provider, keyed by provider. */
@@ -62,6 +63,10 @@ class ModelsStore {
 
   healthOf(model: string): HealthStatus {
     return this.#health[model] ?? "unknown";
+  }
+
+  errorOf(model: string): string {
+    return this.#errors[model] ?? "";
   }
 
   visionOf(model: string): boolean | undefined {
@@ -210,11 +215,15 @@ class ModelsStore {
         prompt: "ping",
         endpoint: cred?.endpoint ?? "",
         max_tokens: 16,
-        temperature: 0,
+        temperature: 0.7,
       });
       this.#health = { ...this.#health, [compositeKey]: "OK" };
-    } catch {
+      delete this.#errors[compositeKey];
+    } catch (err: any) {
+      const errMsg = err?.message || String(err);
       this.#health = { ...this.#health, [compositeKey]: "KO" };
+      this.#errors = { ...this.#errors, [compositeKey]: errMsg };
+      debug.log(`Health check failed for ${compositeKey}: ${errMsg}`, "warn");
       return;
     }
 
@@ -232,7 +241,7 @@ class ModelsStore {
         prompt: "reply with only the 5-character code visible in this image",
         endpoint: cred?.endpoint ?? "",
         max_tokens: 16,
-        temperature: 0,
+        temperature: 0.7,
         attachments: [{ name: "vision.png", type: "image/png", content: base64 }],
       });
       const cleaned = (res.output || "").trim().replace(/[^A-Za-z0-9]/g, "");
