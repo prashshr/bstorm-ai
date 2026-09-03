@@ -15,6 +15,46 @@
   let adding = $state(false);
   let editing = $state<string | null>(null);
   let favoritesOpen = $state(true);
+  let paneWidth = $state<number>(
+    typeof window !== "undefined"
+      ? Math.min(
+          Math.max(Number(localStorage.getItem("aiEnsembleProviderPanelWidth")) || 380, 280),
+          Math.floor(window.innerWidth * 0.92),
+        )
+      : 380,
+  );
+  let dragging = $state(false);
+
+  function startResize(e: PointerEvent) {
+    if (!open) return;
+    dragging = true;
+    document.body.classList.add("resizing");
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+    e.preventDefault();
+  }
+
+  function onResize(e: PointerEvent) {
+    if (!dragging) return;
+    const maxW = Math.min(850, Math.floor(window.innerWidth * 0.92));
+    const next = Math.min(Math.max(window.innerWidth - e.clientX, 280), maxW);
+    paneWidth = next;
+    localStorage.setItem("aiEnsembleProviderPanelWidth", String(next));
+  }
+
+  function endResize(e: PointerEvent) {
+    if (!dragging) return;
+    dragging = false;
+    document.body.classList.remove("resizing");
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+  }
 
   let sortedProviders = $derived(
     [...providers.list].sort((a, b) => {
@@ -73,7 +113,25 @@
   <div class="backdrop" role="presentation" onclick={onclose}></div>
 {/if}
 
-<aside class="panel" class:open aria-hidden={!open}>
+<aside
+  class="panel"
+  class:open
+  aria-hidden={!open}
+  style={open ? `width: ${paneWidth}px; max-width: 95vw;` : ""}
+>
+  <!-- Left-Edge Vertical Draggable Resizer Handle -->
+  <div
+    class="resizer-left"
+    role="separator"
+    aria-orientation="vertical"
+    aria-label="Resize providers panel width"
+    class:dragging
+    onpointerdown={startResize}
+    onpointermove={onResize}
+    onpointerup={endResize}
+    title="Drag left/right to resize panel width"
+  ></div>
+
   <div class="p-head">
     <h2>Providers & Models</h2>
     <button class="btn btn-ghost icon-btn" onclick={onclose} aria-label="Close panel">
@@ -254,8 +312,8 @@
     bottom: 0;
     right: 0;
     height: 100%;
-    width: 320px;
-    max-width: 90vw;
+    width: 380px;
+    max-width: 95vw;
     background: var(--bg-secondary);
     border-left: 1px solid var(--border);
     box-shadow: var(--shadow-md);
@@ -268,6 +326,31 @@
   }
   .panel.open {
     transform: translateX(0);
+  }
+  .resizer-left {
+    position: absolute;
+    top: 0;
+    left: -4px;
+    width: 8px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 60;
+    background: transparent;
+    display: flex;
+    justify-content: center;
+    touch-action: none;
+  }
+  .resizer-left::after {
+    content: "";
+    width: 2px;
+    height: 100%;
+    background: transparent;
+    transition: background 0.15s ease;
+  }
+  .resizer-left:hover::after,
+  .resizer-left.dragging::after {
+    background: var(--accent);
+    opacity: 0.8;
   }
   @media (max-width: 768px) {
     .panel {

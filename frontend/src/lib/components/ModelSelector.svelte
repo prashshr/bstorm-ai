@@ -32,13 +32,16 @@
   ];
 
   function modelScore(m: string, key: string): number {
-    if (models.isFavorite(key)) return 0;
-    if (models.isSelected(key)) return 1;
+    const isOk = models.healthOf(key) === "OK";
+    const okBase = isOk ? 0 : 1000;
+
+    if (models.isFavorite(key)) return okBase + 1;
+    if (models.isSelected(key)) return okBase + 2;
     const lower = m.toLowerCase();
     for (let i = 0; i < POPULAR_PREFIXES.length; i++) {
-      if (lower.startsWith(POPULAR_PREFIXES[i])) return 10 + i;
+      if (lower.startsWith(POPULAR_PREFIXES[i])) return okBase + 10 + i;
     }
-    return 100;
+    return okBase + 100;
   }
 
   let filteredModels = $derived(
