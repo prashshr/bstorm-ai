@@ -44,11 +44,22 @@
     return okBase + 100;
   }
 
+  let showOnlyOk = $derived(
+    providers.active ? models.showOnlyOk(providers.active) : false,
+  );
+  let okCount = $derived(
+    providers.active ? models.okCount(providers.active) : 0,
+  );
+
   let filteredModels = $derived(
     models.available
-      .filter((m) =>
-        filterText.trim() ? m.toLowerCase().includes(filterText.toLowerCase().trim()) : true,
-      )
+      .filter((m) => {
+        const key = `${providers.active}::${m}`;
+        if (showOnlyOk && models.healthOf(key) !== "OK") {
+          return false;
+        }
+        return filterText.trim() ? m.toLowerCase().includes(filterText.toLowerCase().trim()) : true;
+      })
       .sort((a, b) => {
         const keyA = `${providers.active}::${a}`;
         const keyB = `${providers.active}::${b}`;
@@ -68,7 +79,7 @@
 
   async function retestAll() {
     const keysToTest = filteredModels.map((m) => `${providers.active}::${m}`);
-    await models.checkAllHealth(keysToTest.slice(0, 30));
+    await models.checkAllHealth(keysToTest);
   }
 
   function selectAll() {
@@ -139,56 +150,84 @@
       {/if}
     </div>
 
-    <div class="bulk">
-      <button
-        class="btn btn-ghost btn-sm"
-        onclick={allSelected ? clearAll : selectAll}
-      >
-        {allSelected ? "Unselect all" : "Select all"}
-      </button>
-      {#if !allSelected && models.selected.length > 0}
-        <button class="btn btn-ghost btn-sm" onclick={clearAll}>Clear</button>
-      {/if}
+    <div class="controls-bar">
+      <div class="bulk">
+        <button
+          class="btn btn-ghost btn-sm"
+          onclick={allSelected ? clearAll : selectAll}
+        >
+          {allSelected ? "Unselect all" : "Select all"}
+        </button>
+        {#if !allSelected && models.selected.length > 0}
+          <button class="btn btn-ghost btn-sm" onclick={clearAll}>Clear</button>
+        {/if}
+      </div>
+
+      <label class="only-ok-toggle" title="Show only verified OK models and hide failing/untested ones">
+        <input
+          type="checkbox"
+          checked={showOnlyOk}
+          onchange={(e) => {
+            if (providers.active) {
+              models.setShowOnlyOk(providers.active, e.currentTarget.checked);
+            }
+          }}
+        />
+        <span class="only-ok-label">Only OK models</span>
+        {#if okCount > 0}
+          <span class="ok-pill">{okCount}</span>
+        {/if}
+      </label>
     </div>
-    <div class="grid" role="group" aria-label="Model selection">
-      {#each filteredModels as model (model)}
-        {@const key = `${providers.active}::${model}`}
-        {@const health = models.healthOf(key)}
-        {@const isFav = models.isFavorite(key)}
-        <label class="model-chip" class:selected={models.isSelected(key)}>
-          <button
-            type="button"
-            class="star-btn"
-            class:active={isFav}
-            title={isFav ? "Remove from favorites" : "Add to favorites"}
-            aria-label={isFav ? `Remove ${model} from favorites` : `Add ${model} to favorites`}
-            onclick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              models.toggleFavorite(key);
-            }}
-          >
-            <Icon name="star" size="sm" />
-          </button>
-          <input
-            type="checkbox"
-            checked={models.isSelected(key)}
-            onchange={() => models.toggle(key)}
-          />
-          <span class="mname" title={model}>{model}</span>
-          {#if models.visionOf(key) ?? modelSupportsVision(model)}
-            <span class="vision-icon" title="Supports image attachments"><Icon name="image" size="sm" /></span>
-          {/if}
-          {#if health === "OK"}
-            <span class="badge badge-ok">OK</span>
-          {:else if health === "KO"}
-            <span class="badge badge-ko" title={models.errorOf(key) || "Check failed"}>KO</span>
-          {:else if health === "testing"}
-            <span class="badge badge-testing">…</span>
-          {/if}
-        </label>
-      {/each}
-    </div>
+
+    {#if showOnlyOk && filteredModels.length === 0}
+      <div class="hint only-ok-empty">
+        <p>No models with <strong>OK</strong> status found yet.</p>
+        <button class="btn btn-ghost btn-sm" onclick={retestAll}>
+          <Icon name="refresh" size="sm" /> Test all now
+        </button>
+      </div>
+    {:else}
+      <div class="grid" role="group" aria-label="Model selection">
+        {#each filteredModels as model (model)}
+          {@const key = `${providers.active}::${model}`}
+          {@const health = models.healthOf(key)}
+          {@const isFav = models.isFavorite(key)}
+          <label class="model-chip" class:selected={models.isSelected(key)}>
+            <button
+              type="button"
+              class="star-btn"
+              class:active={isFav}
+              title={isFav ? "Remove from favorites" : "Add to favorites"}
+              aria-label={isFav ? `Remove ${model} from favorites` : `Add ${model} to favorites`}
+              onclick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                models.toggleFavorite(key);
+              }}
+            >
+              <Icon name="star" size="sm" />
+            </button>
+            <input
+              type="checkbox"
+              checked={models.isSelected(key)}
+              onchange={() => models.toggle(key)}
+            />
+            <span class="mname" title={model}>{model}</span>
+            {#if models.visionOf(key) ?? modelSupportsVision(model)}
+              <span class="vision-icon" title="Supports image attachments"><Icon name="image" size="sm" /></span>
+            {/if}
+            {#if health === "OK"}
+              <span class="badge badge-ok">OK</span>
+            {:else if health === "KO"}
+              <span class="badge badge-ko" title={models.errorOf(key) || "Check failed"}>KO</span>
+            {:else if health === "testing"}
+              <span class="badge badge-testing">…</span>
+            {/if}
+          </label>
+        {/each}
+      </div>
+    {/if}
   {/if}
 </div>
 
@@ -252,10 +291,62 @@
     line-height: 1;
     color: var(--text-tertiary);
   }
+  .controls-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+  }
   .bulk {
     display: flex;
     gap: 6px;
-    margin-bottom: 8px;
+  }
+  .only-ok-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    user-select: none;
+    padding: 3px 6px;
+    border-radius: var(--radius-sm, 4px);
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .only-ok-toggle:hover {
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+  }
+  .only-ok-toggle input[type="checkbox"] {
+    accent-color: var(--success, #22c55e);
+    cursor: pointer;
+    width: 14px;
+    height: 14px;
+    margin: 0;
+  }
+  .only-ok-label {
+    white-space: nowrap;
+  }
+  .ok-pill {
+    background: color-mix(in srgb, var(--success, #22c55e) 15%, transparent);
+    color: var(--success, #22c55e);
+    border: 1px solid color-mix(in srgb, var(--success, #22c55e) 30%, transparent);
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 5px;
+    border-radius: 999px;
+  }
+  .only-ok-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .only-ok-empty p {
+    margin: 0;
   }
   .hint {
     color: var(--text-tertiary);

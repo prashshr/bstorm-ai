@@ -37,6 +37,8 @@ class ModelsStore {
   #discovering = $state(false);
   /** All discovered models across every provider, keyed by provider. */
   #allByProvider = $state<Record<string, string[]>>({});
+  /** Filter preference to show only OK models per provider. */
+  #showOnlyOkByProvider = $state<Record<string, boolean>>({});
 
   get available() {
     return this.#available;
@@ -52,6 +54,24 @@ class ModelsStore {
   }
   get discovering() {
     return this.#discovering;
+  }
+
+  showOnlyOk(provider: string): boolean {
+    return this.#showOnlyOkByProvider[provider] ?? false;
+  }
+
+  setShowOnlyOk(provider: string, val: boolean): void {
+    this.#showOnlyOkByProvider = { ...this.#showOnlyOkByProvider, [provider]: val };
+    this.persist();
+  }
+
+  toggleShowOnlyOk(provider: string): void {
+    this.setShowOnlyOk(provider, !this.showOnlyOk(provider));
+  }
+
+  okCount(provider: string): number {
+    const ms = this.#allByProvider[provider] ?? [];
+    return ms.filter((m) => this.#health[`${provider}::${m}`] === "OK").length;
   }
 
   /** Flat list of all composite model keys discovered across providers. */
@@ -114,6 +134,7 @@ class ModelsStore {
           selected: this.#selected,
           favorites: this.#favorites,
           allByProvider: this.#allByProvider,
+          showOnlyOkByProvider: this.#showOnlyOkByProvider,
         }),
       );
     } catch {
@@ -131,7 +152,11 @@ class ModelsStore {
         selected?: string[];
         favorites?: string[];
         allByProvider?: Record<string, string[]>;
+        showOnlyOkByProvider?: Record<string, boolean>;
       };
+      if (data.showOnlyOkByProvider) {
+        this.#showOnlyOkByProvider = data.showOnlyOkByProvider;
+      }
       if (data.allByProvider && Object.keys(data.allByProvider).length > 0) {
         this.#allByProvider = data.allByProvider;
         for (const prov of Object.keys(data.allByProvider)) {
@@ -268,7 +293,7 @@ class ModelsStore {
 
   async checkAllHealth(compositeKeys: string[]): Promise<void> {
     const queue = [...compositeKeys];
-    const concurrency = 4;
+    const concurrency = 8;
     let index = 0;
 
     const worker = async (): Promise<void> => {
@@ -276,7 +301,7 @@ class ModelsStore {
         const key = queue[index++];
         if (!key) break;
         await this.checkHealth(key);
-        await new Promise((r) => setTimeout(r, 120));
+        await new Promise((r) => setTimeout(r, 60));
       }
     };
 

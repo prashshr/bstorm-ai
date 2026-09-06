@@ -223,6 +223,20 @@
     </button>
   </div>
 
+  {#if initialProvider}
+    <div class="provider-option-row">
+      <label class="provider-checkbox-label" for="pf-only-ok-{initialProvider}">
+        <input
+          id="pf-only-ok-{initialProvider}"
+          type="checkbox"
+          checked={models.showOnlyOk(initialProvider)}
+          onchange={(e) => models.setShowOnlyOk(initialProvider, e.currentTarget.checked)}
+        />
+        <span>Show only OK models (hide failing/untested noise)</span>
+      </label>
+    </div>
+  {/if}
+
   {#if message}
     <div class="msg {message.type}" role="status">{message.text}</div>
   {/if}
@@ -240,6 +254,31 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
+  }
+  .provider-option-row {
+    margin-top: 12px;
+    margin-bottom: 4px;
+    padding: 8px 10px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+  .provider-checkbox-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+    cursor: pointer;
+    user-select: none;
+    margin-top: 0 !important;
+  }
+  .provider-checkbox-label input[type="checkbox"] {
+    accent-color: var(--success, #22c55e);
+    width: 15px;
+    height: 15px;
+    cursor: pointer;
   }
   .provider-form label {
     margin-top: 10px;
