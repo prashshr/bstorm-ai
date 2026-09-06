@@ -35,7 +35,7 @@
   const RESPONSE_PRESETS: Record<string, string> = {
     none: "",
     compact:
-      "STRICT COMPACT FORMAT MANDATE: Provide a direct, highly concise, and brief response. Maximum 2-3 short paragraphs or clean bullet points total. Eliminate all filler, lengthy background context, and unnecessary repetition. Get straight to the point.",
+      "STRICT COMPACT LENGTH & FORMAT MANDATE: Provide a direct, highly concise, and brief response. Maximum 150-250 words total (maximum 2-3 short paragraphs or bullet points). Eliminate all introductory filler, background summaries, conversational remarks, and repetitive restatements. Get straight to the point.",
     elaborate:
       "ELABORATE FORMAT DIRECTIVE: Respond in deep detail with thorough reasoning, clear structural headings, concrete examples, and an exhaustive evaluation of nuances and trade-offs.",
   };

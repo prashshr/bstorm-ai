@@ -63,7 +63,7 @@ function emptyState(): DiscussionState {
     summaryInstructions: "",
     responseFormat: "compact",
     responseFormatText:
-      "STRICT COMPACT FORMAT MANDATE: Provide a direct, highly concise, and brief response. Maximum 2-3 short paragraphs or clean bullet points total. Eliminate all filler, lengthy background context, and unnecessary repetition. Get straight to the point.",
+      "STRICT COMPACT LENGTH & FORMAT MANDATE: Provide a direct, highly concise, and brief response. Maximum 150-250 words total (maximum 2-3 short paragraphs or bullet points). Eliminate all introductory filler, background summaries, conversational remarks, and repetitive restatements. Get straight to the point.",
   };
 }
 
@@ -746,6 +746,11 @@ class DiscussionStore {
 
     let prompt = `${dateContext}\n\n`;
 
+    const respInstr = this.#data.responseFormatText?.trim();
+    if (respInstr) {
+      prompt += `[PRIMARY RESPONSE FORMAT DIRECTIVE - ENFORCE STRICTLY]\n${respInstr}\n[END PRIMARY RESPONSE FORMAT DIRECTIVE]\n\n`;
+    }
+
     if (this.#data.use_rag) {
       prompt += `# Data Source Status\n`;
       if (!this.#data.retrieved_context) {
@@ -812,12 +817,15 @@ class DiscussionStore {
     }
 
     if (turnCount > 1) {
-      prompt += `Review all previous responses above and provide your refined analysis building upon what has been discussed. Focus on areas where you can add value or offer a different perspective.\n`;
+      if (this.#data.responseFormat === "compact") {
+        prompt += `Review the previous turn(s) above and provide a concise, direct contribution focusing strictly on key points, agreements/disagreements, or new insights without repeating what other models already stated. Keep it strictly brief and compact.\n\n`;
+      } else {
+        prompt += `Review all previous responses above and provide your refined analysis building upon what has been discussed. Focus on areas where you can add value or offer a different perspective.\n\n`;
+      }
     }
 
-    const respInstr = this.#data.responseFormatText?.trim();
     if (respInstr) {
-      prompt += `\n[MANDATORY RESPONSE FORMAT DIRECTIVE - CRITICAL OVERRIDE]\n${respInstr}\n[END MANDATORY RESPONSE FORMAT DIRECTIVE]\n\n`;
+      prompt += `[FINAL RESPONSE FORMAT & LENGTH OVERRIDE - COMPLIANCE MANDATORY]\n${respInstr}\n[END FINAL RESPONSE FORMAT & LENGTH OVERRIDE]\n\n`;
     }
     return prompt;
   }
