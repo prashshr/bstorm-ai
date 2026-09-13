@@ -21,6 +21,7 @@ uvicorn app.main:app --reload --port 8080  # Start API
 | [Architecture](docs/architecture.md) | Developers | Full technical reference: code, data flow, security, deployment |
 | [Production Plan](docs/production-plan.md) | Ops/DevOps | Production readiness, scaling, deployment checklist |
 | [Android Build](docs/android-build.md) | Mobile users | Build, install, and debug the Capacitor Android APK |
+| [Release Notes](docs/release-notes.md) | Everyone | Version history: features, fixes, known limitations |
 
 ## Directory Structure
 
