@@ -159,22 +159,39 @@ class CodexClient(ProviderClient):
         base = self._base(endpoint)
         url = f"{base}/responses"
         headers = self._headers(api_key, account_id)
+        headers["Accept"] = "text/event-stream"
         payload = {
             "model": model.strip(),
             "input": [{"role": "user", "content": _build_codex_content(prompt, attachments)}],
-            "stream": False,
+            "stream": True,
             "store": False,
         }
-        # max_tokens/temperature are accepted best-effort; the Responses API
-        # may ignore them for some models, so include only when useful.
         if max_tokens:
             payload["max_output_tokens"] = max_tokens
         client = get_shared_client(timeout)
         async with _SEMAPHORE:
             try:
-                resp = await client.post(url, json=payload, headers=headers)
-                resp.raise_for_status()
-                return _extract_output_text(resp.json())
+                texts: list[str] = []
+                async with client.stream("POST", url, json=payload, headers=headers) as resp:
+                    resp.raise_for_status()
+                    async for line in resp.aiter_lines():
+                        if not line or line.startswith(":"):
+                            continue
+                        if not line.startswith("data: "):
+                            continue
+                        data_str = line[6:].strip()
+                        if not data_str or data_str == "[DONE]":
+                            continue
+                        try:
+                            data = json.loads(data_str)
+                        except json.JSONDecodeError:
+                            continue
+                        if not isinstance(data, dict):
+                            continue
+                        delta = _extract_stream_delta(data)
+                        if delta:
+                            texts.append(delta)
+                return "".join(texts)
             except httpx.HTTPStatusError as e:
                 mapped = _map_codex_error(e, base)
                 if mapped is not None:
