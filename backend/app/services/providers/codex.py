@@ -173,7 +173,13 @@ class CodexClient(ProviderClient):
             try:
                 texts: list[str] = []
                 async with client.stream("POST", url, json=payload, headers=headers) as resp:
-                    resp.raise_for_status()
+                    if resp.status_code >= 400:
+                        body = await resp.aread()
+                        err_detail = body.decode("utf-8", errors="replace")[:500]
+                        raise HTTPException(
+                            status_code=resp.status_code,
+                            detail=f"Codex API error ({resp.status_code}): {err_detail}",
+                        )
                     async for line in resp.aiter_lines():
                         if not line or line.startswith(":"):
                             continue
@@ -226,7 +232,13 @@ class CodexClient(ProviderClient):
         async with _SEMAPHORE:
             try:
                 async with client.stream("POST", url, json=payload, headers=headers) as resp:
-                    resp.raise_for_status()
+                    if resp.status_code >= 400:
+                        body = await resp.aread()
+                        err_detail = body.decode("utf-8", errors="replace")[:500]
+                        raise HTTPException(
+                            status_code=resp.status_code,
+                            detail=f"Codex API error ({resp.status_code}): {err_detail}",
+                        )
                     async for line in resp.aiter_lines():
                         if not line or line.startswith(":"):
                             continue

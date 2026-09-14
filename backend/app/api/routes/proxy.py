@@ -429,6 +429,8 @@ async def proxy_chat(
             status_code=exc.response.status_code,
             detail=detail,
         )
+    except HTTPException:
+        raise
     except httpx.RequestError as exc:
         detail = str(exc)
         if "502" in detail or "Bad Gateway" in detail:
