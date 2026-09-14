@@ -21,6 +21,12 @@ class Settings(BaseSettings):
     tavily_api_key: str = ""
     searxng_url: str = "http://searxng-svc:8080"
     environment: str = "development"
+    # OAuth device-code / browser-OAuth logins (Codex, Google).
+    codex_client_id: str = "app_EMoamEEZ73f0CkXaXp7hrann"
+    codex_issuer: str = "https://auth.openai.com"
+    google_oauth_client_id: str = ""
+    google_oauth_client_secret: str = ""
+    backend_public_url: str = "https://ai-ensemble.samkhya.cloud"
 
     @model_validator(mode="after")
     def _check_production_secrets(self) -> "Settings":

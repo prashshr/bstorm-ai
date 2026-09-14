@@ -1,5 +1,8 @@
 import { api } from "../api/client";
-import type { ProviderCredentialResponse } from "../api/types";
+import type {
+  OAuthConnectedAccount,
+  ProviderCredentialResponse,
+} from "../api/types";
 import { debug } from "./debug.svelte";
 import { models } from "./models.svelte";
 import { PROVIDER_PRESETS } from "../utils/helpers";
@@ -9,6 +12,7 @@ class ProvidersStore {
   #active = $state<string | null>(null);
   #loading = $state(false);
   #verified = $state<Set<string>>(new Set());
+  #oauthConnected = $state<OAuthConnectedAccount[]>([]);
 
   get list() {
     return this.#list;
@@ -22,9 +26,39 @@ class ProvidersStore {
   get presets() {
     return PROVIDER_PRESETS;
   }
+  get oauthConnected() {
+    return this.#oauthConnected;
+  }
 
   isVerified(provider: string): boolean {
     return this.#verified.has(provider);
+  }
+
+  /** Account label for an OAuth-connected provider, or null. Accepts both
+   *  "google" and "google-oauth" spellings since the backend contract uses
+   *  "google" in OAuth URLs while the UI model key is "google-oauth". */
+  oauthAccountFor(provider: string): string | null {
+    const list = this.#oauthConnected ?? [];
+    const exact = list.find((c) => c.provider === provider);
+    if (exact) return exact.account;
+    const aliases =
+      provider === "google-oauth" || provider === "google"
+        ? ["google-oauth", "google"]
+        : [];
+    for (const a of aliases) {
+      const found = list.find((c) => c.provider === a);
+      if (found) return found.account;
+    }
+    return null;
+  }
+
+  async loadOAuth(): Promise<void> {
+    try {
+      const res = await api.oauthStatus();
+      this.#oauthConnected = res?.connected ?? [];
+    } catch (e) {
+      debug.log(`Failed to load OAuth status: ${e}`, "warn");
+    }
   }
 
   async load(): Promise<void> {
@@ -41,6 +75,7 @@ class ProvidersStore {
     } finally {
       this.#loading = false;
     }
+    await this.loadOAuth();
   }
 
   select(provider: string | null): void {

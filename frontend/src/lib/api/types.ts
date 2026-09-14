@@ -75,6 +75,7 @@ export interface ChatRequest {
   endpoint?: string;
   max_tokens?: number;
   temperature?: number;
+  timeout?: number;
   discussion_id?: number | null;
   include_rag_context?: boolean;
   attachments?: ChatAttachment[];
@@ -91,6 +92,47 @@ export interface StreamEvent {
   type: "delta" | "done" | "error";
   content?: string;
   detail?: string;
+}
+
+// ---- OAuth (Connect with ChatGPT / Gemini) ----
+// Backend contract:
+//   POST /api/providers/oauth/codex/start  -> OAuthCodexStartResponse
+//   GET  /api/providers/oauth/google/start -> OAuthGoogleStartResponse
+//   GET  /api/providers/oauth/{provider}/poll?token= -> OAuthPollResponse
+//   GET  /api/providers/oauth -> OAuthStatusResponse
+//   DELETE /api/providers/oauth/{provider}
+// NOTE: the UI uses "google-oauth" as the provider key while only the OAuth
+// start endpoint uses the short "google" segment (see oauthStartSegment in
+// client.ts); poll/disconnect use the full "google-oauth" key.
+
+export type OAuthModalProvider = "codex" | "google-oauth";
+
+export interface OAuthCodexStartResponse {
+  verification_url: string;
+  user_code: string;
+  poll_token: string;
+  expires_in: number;
+}
+
+export interface OAuthGoogleStartResponse {
+  auth_url: string;
+  poll_token: string;
+}
+
+export interface OAuthPollResponse {
+  status: "pending" | "ok" | "error";
+  error?: string;
+  provider?: string;
+  account?: string;
+}
+
+export interface OAuthConnectedAccount {
+  provider: string;
+  account: string;
+}
+
+export interface OAuthStatusResponse {
+  connected: OAuthConnectedAccount[];
 }
 
 // ---- Client-side domain types ----

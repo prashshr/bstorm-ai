@@ -20,6 +20,7 @@ class ProviderClient(ABC):
         max_tokens: int,
         temperature: float,
         attachments: Optional[List[Attachment]] = None,
+        timeout: int = 120,
     ) -> str:
         raise NotImplementedError
 
@@ -32,8 +33,9 @@ class ProviderClient(ABC):
         max_tokens: int,
         temperature: float,
         attachments: Optional[List[Attachment]] = None,
+        timeout: int = 120,
     ) -> AsyncGenerator[str, None]:
         full = await self.chat(
-            endpoint, api_key, model, prompt, max_tokens, temperature, attachments
+            endpoint, api_key, model, prompt, max_tokens, temperature, attachments, timeout
         )
         yield full

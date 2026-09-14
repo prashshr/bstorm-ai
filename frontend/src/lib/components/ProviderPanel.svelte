@@ -4,6 +4,7 @@
   import Icon from "./Icon.svelte";
   import ProviderForm from "./ProviderForm.svelte";
   import ModelSelector from "./ModelSelector.svelte";
+  import OAuthModal from "./OAuthModal.svelte";
   import { providerDisplayName, splitModelKey } from "../utils/helpers";
 
   interface Props {
@@ -15,6 +16,10 @@
   let adding = $state(false);
   let editing = $state<string | null>(null);
   let favoritesOpen = $state(true);
+  let oauthModal = $state<"codex" | "google-oauth" | null>(null);
+
+  let codexAccount = $derived(providers.oauthAccountFor("codex"));
+  let geminiAccount = $derived(providers.oauthAccountFor("google-oauth"));
   let paneWidth = $state<number>(
     typeof window !== "undefined"
       ? Math.min(
@@ -174,6 +179,23 @@
       </div>
     {/if}
 
+    <div class="oauth-row">
+      <button
+        class="btn btn-ghost btn-sm"
+        title={codexAccount ? `ChatGPT connected: ${codexAccount}` : "Connect with ChatGPT"}
+        onclick={() => (oauthModal = "codex")}
+      >
+        {#if codexAccount}ChatGPT ✓ {codexAccount}{:else}Connect ChatGPT{/if}
+      </button>
+      <button
+        class="btn btn-ghost btn-sm"
+        title={geminiAccount ? `Gemini connected: ${geminiAccount}` : "Connect with Gemini"}
+        onclick={() => (oauthModal = "google-oauth")}
+      >
+        {#if geminiAccount}Gemini ✓ {geminiAccount}{:else}Connect Gemini{/if}
+      </button>
+    </div>
+
     {#if providers.loading}
       <p class="muted">Loading…</p>
     {:else if providers.list.length === 0}
@@ -194,9 +216,16 @@
                   name={editing === p.provider ? "chevron-down" : "chevron-right"}
                   size="sm"
                 />
-                <span class="pname">{providerDisplayName(p.provider, p.label)}</span>
-                {#if providers.isVerified(p.provider)}
-                  <span class="verified" title="Models discovered"></span>
+                <span class="pname" title={providers.oauthAccountFor(p.provider) ?? undefined}
+                  >{providerDisplayName(p.provider, p.label)}{#if providers.oauthAccountFor(p.provider)} (OAuth){/if}</span
+                >
+                {#if providers.isVerified(p.provider) || providers.oauthAccountFor(p.provider)}
+                  <span
+                    class="verified"
+                    title={providers.oauthAccountFor(p.provider)
+                      ? `OAuth connected: ${providers.oauthAccountFor(p.provider)}`
+                      : "Models discovered"}
+                  ></span>
                 {/if}
               </button>
               <div class="row-actions">
@@ -315,6 +344,10 @@
   </div>
 </aside>
 
+{#if oauthModal}
+  <OAuthModal provider={oauthModal} onclose={() => (oauthModal = null)} />
+{/if}
+
 <style>
   .backdrop {
     position: absolute;
@@ -403,6 +436,20 @@
     align-items: center;
     justify-content: center;
     gap: 6px;
+  }
+  .oauth-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .oauth-row .btn {
+    flex: 1;
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .edit-pane {
     padding: 8px 8px 14px;

@@ -35,6 +35,29 @@ class ProviderCredential(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class ProviderOAuthToken(Base):
+    """Vault row for OAuth device-code / browser-OAuth provider tokens.
+
+    Access/refresh tokens are encrypted with the user's UEK (same pattern as
+    ProviderCredential.api_key_encrypted). A companion ProviderCredential row
+    (empty api_key) keeps the existing credential lookup working for these
+    providers.
+    """
+
+    __tablename__ = "provider_oauth_tokens"
+    __table_args__ = (UniqueConstraint("user_id", "provider", name="uq_user_oauth_provider"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    provider: Mapped[str] = mapped_column(String(100), index=True)
+    access_encrypted: Mapped[str] = mapped_column(Text, default="")
+    refresh_encrypted: Mapped[str] = mapped_column(Text, default="")
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    account: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    scopes: Mapped[str] = mapped_column(String(500), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class RefreshToken(Base):
     """Server-side record of an issued refresh token (mobile clients).
     Only the SHA-256 hash is stored; the raw token is shown to the client once.

@@ -27,6 +27,7 @@ class ChatRequest(BaseModel):
     discussion_id: Optional[int] = None
     include_rag_context: bool = False
     attachments: List[Attachment] = Field(default_factory=list)
+    timeout: int = Field(default=120, ge=10, le=300)
 
 
 class ChatResponse(BaseModel):

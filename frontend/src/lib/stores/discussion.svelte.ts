@@ -1,6 +1,7 @@
 import { api } from "../api/client";
 import type {
   ChatAttachment,
+  ChatRequest,
   Contribution,
   DiscussionState,
   ModelResult,
@@ -84,6 +85,73 @@ class DiscussionStore {
     return models.visionOf(key) ?? modelSupportsVision(model);
   }
 
+  #timeoutSecs(): number {
+    const t = Number(this.#data.timeout);
+    return Number.isFinite(t) && t > 0 ? t : 120;
+  }
+
+  /**
+   * Build a linked AbortSignal combining the user-stop signal with a
+   * per-request timeout. Callers must pass `signal` to the api call and
+   * `cleanup()` in a finally block. `isTimeout()` is true when the timeout
+   * signal fired (used to report status "timeout" vs user-stop).
+   */
+  #linkedTimeoutScope(): {
+    signal: AbortSignal;
+    isTimeout: () => boolean;
+    cleanup: () => void;
+    timeoutSecs: number;
+  } {
+    const timeoutSecs = this.#timeoutSecs();
+    const timeoutSignal = AbortSignal.timeout(timeoutSecs * 1000);
+    const linked = new AbortController();
+    let timedOut = false;
+    const userSignal = this.#abort?.signal;
+    const onUserAbort = () => {
+      if (!linked.signal.aborted) {
+        try {
+          linked.abort(userSignal?.reason);
+        } catch {
+          linked.abort();
+        }
+      }
+    };
+    const onTimeout = () => {
+      timedOut = true;
+      if (!linked.signal.aborted) {
+        try {
+          linked.abort(timeoutSignal.reason);
+        } catch {
+          linked.abort();
+        }
+      }
+    };
+    if (userSignal) {
+      if (userSignal.aborted) onUserAbort();
+      else userSignal.addEventListener("abort", onUserAbort, { once: true });
+    }
+    if (timeoutSignal.aborted) onTimeout();
+    else timeoutSignal.addEventListener("abort", onTimeout, { once: true });
+    const cleanup = () => {
+      try {
+        userSignal?.removeEventListener("abort", onUserAbort);
+      } catch {
+        /* ignore */
+      }
+      try {
+        timeoutSignal.removeEventListener("abort", onTimeout);
+      } catch {
+        /* ignore */
+      }
+    };
+    return {
+      signal: linked.signal,
+      isTimeout: () => timedOut || timeoutSignal.aborted,
+      cleanup,
+      timeoutSecs,
+    };
+  }
+
   async #ensureImageTranscriptions(roundNum: number): Promise<void> {
     const roundAttach = this.#attachmentsByRound[roundNum] || (roundNum === 1 ? this.#data.attachments : []);
     const images = roundAttach.filter((a) => a.type?.startsWith("image/"));
@@ -110,34 +178,37 @@ class DiscussionStore {
     const { provider: vProvider, model: vModel } = splitModelKey(bridgeKey);
     const vCred = providers.find(vProvider);
 
-    for (const img of images) {
-      const fp = imageFingerprint(img);
-      if (this.#imageTranscriptions[fp]) continue;
-      try {
-        debug.log(`[Vision Bridge] Transcribing visual data from "${img.name}" using ${vModel}...`);
-        const bridgePrompt =
-          `You are an expert AI Vision Data Transcriber. Analyze this image thoroughly and extract all visible content with 100% fidelity. ` +
-          `Include all company names, stock tickers, strike prices, expiration dates, premiums, call/put warrant tables, column headers, numbers, metrics, charts, labels, and text in clean structured markdown tables. ` +
-          `Be concise, complete, and strictly factual so a text-only AI model can analyze this exact data accurately without seeing the original pixels.`;
+    await Promise.all(
+      images.map(async (img) => {
+        const fp = imageFingerprint(img);
+        if (this.#imageTranscriptions[fp]) return;
+        try {
+          debug.log(`[Vision Bridge] Transcribing visual data from "${img.name}" using ${vModel}...`);
+          const bridgePrompt =
+            `You are an expert AI Vision Data Transcriber. Analyze this image thoroughly and extract all visible content with 100% fidelity. ` +
+            `Include all company names, stock tickers, strike prices, expiration dates, premiums, call/put warrant tables, column headers, numbers, metrics, charts, labels, and text in clean structured markdown tables. ` +
+            `Be concise, complete, and strictly factual so a text-only AI model can analyze this exact data accurately without seeing the original pixels.`;
 
-        const res = await api.chat({
-          provider: vProvider,
-          model: vModel,
-          prompt: bridgePrompt,
-          endpoint: vCred?.endpoint ?? "",
-          max_tokens: 2000,
-          temperature: 0.1,
-          attachments: [img],
-        });
+          const res = await api.chat({
+            provider: vProvider,
+            model: vModel,
+            prompt: bridgePrompt,
+            endpoint: vCred?.endpoint ?? "",
+            max_tokens: 2000,
+            temperature: 0.1,
+            attachments: [img],
+            timeout: this.#data.timeout,
+          } as ChatRequest);
 
-        if (res.output?.trim()) {
-          this.#imageTranscriptions[fp] = res.output.trim();
-          debug.log(`[Vision Bridge] Successfully transcribed "${img.name}" (${res.output.length} chars)`);
+          if (res.output?.trim()) {
+            this.#imageTranscriptions[fp] = res.output.trim();
+            debug.log(`[Vision Bridge] Successfully transcribed "${img.name}" (${res.output.length} chars)`);
+          }
+        } catch (err) {
+          debug.log(`[Vision Bridge] Transcription failed for "${img.name}": ${err}`, "warn");
         }
-      } catch (err) {
-        debug.log(`[Vision Bridge] Transcription failed for "${img.name}": ${err}`, "warn");
-      }
-    }
+      }),
+    );
   }
 
   /** Attachments uploaded on a given turn, for rendering in the chat UI. */
@@ -471,14 +542,48 @@ class DiscussionStore {
       ? roundAttachments
       : roundAttachments.filter((a) => !a.type?.startsWith("image/"));
 
+    const scope = this.#linkedTimeoutScope();
+
+    // Streaming render batching: accumulate rapid deltas and flush to
+    // #updateModel at most every ~100ms (trailing flush on done).
+    let pendingText = "";
+    let lastFlush = 0;
+    let flushTimer: ReturnType<typeof setTimeout> | null = null;
+    const flushPending = () => {
+      flushTimer = null;
+      if (!pendingText) return;
+      const prev = this.#data.rounds[roundNum]?.[compositeKey];
+      if (!prev) {
+        pendingText = "";
+        lastFlush = Date.now();
+        return;
+      }
+      const chunk = pendingText;
+      pendingText = "";
+      lastFlush = Date.now();
+      this.#updateModel(roundNum, compositeKey, {
+        status: "streaming",
+        text: prev.text + chunk,
+      });
+    };
+    const scheduleFlush = () => {
+      const now = Date.now();
+      if (now - lastFlush >= 100) {
+        if (flushTimer) {
+          clearTimeout(flushTimer);
+          flushTimer = null;
+        }
+        flushPending();
+      } else if (!flushTimer) {
+        flushTimer = setTimeout(flushPending, 100 - (now - lastFlush));
+      }
+    };
+
     try {
       const onEvent = (ev: StreamEvent) => {
         if (ev.type === "delta" && ev.content) {
-          const prev = this.#data.rounds[roundNum][compositeKey];
-          this.#updateModel(roundNum, compositeKey, {
-            status: "streaming",
-            text: prev.text + ev.content,
-          });
+          pendingText += ev.content;
+          scheduleFlush();
         } else if (ev.type === "error") {
           throw new Error(ev.detail ?? "stream error");
         }
@@ -495,10 +600,19 @@ class DiscussionStore {
           discussion_id: typeof this.#data.id === "number" ? this.#data.id : null,
           include_rag_context: false,
           attachments: modelAttachments.length ? modelAttachments : undefined,
-        },
+          timeout: this.#data.timeout,
+        } as ChatRequest,
         onEvent,
-        this.#abort?.signal,
+        scope.signal,
       );
+
+      // Trailing flush on done: the authoritative full text already contains
+      // every delta, so drop any unflushed remainder and set final text.
+      if (flushTimer) {
+        clearTimeout(flushTimer);
+        flushTimer = null;
+      }
+      pendingText = "";
 
       const durationMs = Date.now() - started;
       const outputTokens = Math.round(full.length / 4);
@@ -509,6 +623,24 @@ class DiscussionStore {
       });
       this.#recomputeStats();
     } catch (e) {
+      if (flushTimer) {
+        clearTimeout(flushTimer);
+        flushTimer = null;
+      }
+      // Timeout (timeout signal fired while still running) takes precedence
+      // over the generic abort path; user-stop is running=false / #abort aborted.
+      if (scope.isTimeout() && this.#running) {
+        const prev = this.#data.rounds[roundNum]?.[compositeKey];
+        const partial = (prev?.text ?? "") + pendingText;
+        pendingText = "";
+        this.#updateModel(roundNum, compositeKey, {
+          status: "timeout",
+          text: partial,
+          error: `Request timed out after ${scope.timeoutSecs}s`,
+        });
+        return;
+      }
+      pendingText = "";
       const msg = e instanceof Error ? e.message : String(e);
       // Don't fall back if user initiated abort or discussion stopped
       if (this.#abort?.signal.aborted || !this.#running) {
@@ -531,7 +663,16 @@ class DiscussionStore {
           discussion_id: typeof this.#data.id === "number" ? this.#data.id : null,
           include_rag_context: false,
           attachments: roundAttachments.length ? roundAttachments : undefined,
-        }, this.#abort?.signal);
+          timeout: this.#data.timeout,
+        } as ChatRequest, scope.signal);
+        if (scope.isTimeout() && this.#running) {
+          this.#updateModel(roundNum, compositeKey, {
+            status: "timeout",
+            text: res.output ?? "",
+            error: `Request timed out after ${scope.timeoutSecs}s`,
+          });
+          return;
+        }
         // Guard: don't resurrect a stopped discussion
         if (!this.#running) {
           this.#updateModel(roundNum, compositeKey, {
@@ -548,6 +689,16 @@ class DiscussionStore {
         });
         this.#recomputeStats();
       } catch (e2) {
+        if (scope.isTimeout() && this.#running) {
+          const prev2 = this.#data.rounds[roundNum]?.[compositeKey];
+          this.#updateModel(roundNum, compositeKey, {
+            status: "timeout",
+            text: prev2?.text ?? "",
+            error: `Request timed out after ${scope.timeoutSecs}s`,
+          });
+          debug.log(`Model ${compositeKey} timed out after ${scope.timeoutSecs}s`, "error");
+          return;
+        }
         const m2 = e2 instanceof Error ? e2.message : String(e2);
         this.#updateModel(roundNum, compositeKey, {
           status: "error",
@@ -556,6 +707,8 @@ class DiscussionStore {
         });
         debug.log(`Model ${compositeKey} failed: ${m2}`, "error");
       }
+    } finally {
+      scope.cleanup();
     }
   }
 
@@ -631,6 +784,7 @@ class DiscussionStore {
 
     const prompt = `${dateContext}\n\nSynthesize a balanced consensus from all perspectives.\n\n"${this.#data.question}"\n\nAll model responses:\n\n${allResponses}${consensusFormat}`;
 
+    const scope = this.#linkedTimeoutScope();
     try {
       const res = await api.chat(
         {
@@ -640,8 +794,9 @@ class DiscussionStore {
           endpoint: cred?.endpoint ?? this.#data.endpoint,
           max_tokens: this.#data.maxTokens,
           temperature: 0.5,
-        },
-        this.#abort?.signal,
+          timeout: this.#data.timeout,
+        } as ChatRequest,
+        scope.signal,
       );
       // Persist the consensus for this specific round so each turn keeps its
       // own synthesis and the conversation reads top-to-bottom in order.
@@ -653,10 +808,18 @@ class DiscussionStore {
       this.#data.consensusError = "";
       this.#data = { ...this.#data };
     } catch (e: any) {
+      if (scope.isTimeout() && this.#running) {
+        this.#data.consensusError = `Consensus generation timed out after ${scope.timeoutSecs}s`;
+        this.#data = { ...this.#data };
+        debug.log(`Consensus generation timed out after ${scope.timeoutSecs}s`, "error");
+        return;
+      }
       if (e?.name === "AbortError") return;
       this.#data.consensusError = `Consensus generation failed: ${e}`;
       this.#data = { ...this.#data };
       debug.log(`Consensus generation failed: ${e}`, "error");
+    } finally {
+      scope.cleanup();
     }
   }
 
@@ -761,7 +924,9 @@ class DiscussionStore {
       prompt += `Then proceed to answer.\n\n`;
     }
     if (this.#data.retrieved_context) {
-      prompt += `# Retrieved Web Search Context\n${this.#data.retrieved_context}\n\n`;
+      const ctx = this.#data.retrieved_context;
+      const budgeted = ctx.length > 12000 ? `${ctx.slice(0, 12000)}\n[truncated]` : ctx;
+      prompt += `# Retrieved Web Search Context\n${budgeted}\n\n`;
     }
 
     if (this.#data.instructions) {
@@ -779,14 +944,15 @@ class DiscussionStore {
       const prevRound = this.#data.rounds[i] ?? {};
       const parts = Object.entries(prevRound)
         .filter(([m, r]) => m !== compositeKey && r.status === "complete" && r.text)
-        .map(([m, r]) => `### ${splitModelKey(m).model}\n${r.text}`)
+        .map(([m, r]) => `### ${splitModelKey(m).model}\n${r.text.length > 2000 ? r.text.slice(0, 2000) : r.text}`)
         .join("\n\n");
       if (parts) {
         prompt += `Model responses (turn ${i}):\n${parts}\n\n`;
       }
       const prevConsensus = this.#data.consensuses[i];
       if (prevConsensus) {
-        prompt += `Consensus synthesis (turn ${i}):\n${prevConsensus}\n\n`;
+        const capped = prevConsensus.length > 1500 ? prevConsensus.slice(0, 1500) : prevConsensus;
+        prompt += `Consensus synthesis (turn ${i}):\n${capped}\n\n`;
       }
     }
 

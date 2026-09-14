@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import json
+import time
 from typing import List, Dict, Optional
 from urllib.parse import urlparse, parse_qs, unquote
 
@@ -30,6 +31,47 @@ BLOCKED_HOSTS = {
 
 
 logger = logging.getLogger("ai_ensemble.rag")
+
+# Small in-memory TTL cache for retrieved contexts:
+# {normalized_query: (timestamp, context)} with 30min TTL.
+_RAG_CACHE: Dict[str, tuple[float, str]] = {}
+_RAG_CACHE_TTL_SECONDS = 30 * 60
+_RAG_CACHE_MAX_ENTRIES = 128
+
+
+def _normalize_query(query: str) -> str:
+    return query.strip().lower()
+
+
+def _rag_cache_get(normalized_query: str) -> Optional[str]:
+    entry = _RAG_CACHE.get(normalized_query)
+    if not entry:
+        return None
+    ts, context = entry
+    if time.time() - ts > _RAG_CACHE_TTL_SECONDS:
+        _RAG_CACHE.pop(normalized_query, None)
+        return None
+    return context
+
+
+def _rag_cache_set(normalized_query: str, context: str) -> None:
+    if len(_RAG_CACHE) >= _RAG_CACHE_MAX_ENTRIES:
+        # Evict expired entries first, else the oldest inserted key.
+        now = time.time()
+        expired = [k for k, (ts, _) in _RAG_CACHE.items() if now - ts > _RAG_CACHE_TTL_SECONDS]
+        for k in expired:
+            _RAG_CACHE.pop(k, None)
+        if len(_RAG_CACHE) >= _RAG_CACHE_MAX_ENTRIES:
+            oldest = next(iter(_RAG_CACHE), None)
+            if oldest is not None:
+                _RAG_CACHE.pop(oldest, None)
+    _RAG_CACHE[normalized_query] = (time.time(), context)
+
+
+def clear_rag_cache() -> None:
+    """Clear the in-memory retrieved-context cache (useful for tests)."""
+    _RAG_CACHE.clear()
+
 
 SEARXNG_HEADERS = {
     "User-Agent": "Mozilla/5.0 (compatible; AI-Ensemble/1.0; +https://ai-ensemble.samkhya.cloud)",
@@ -222,52 +264,67 @@ async def search_web(queries: List[str]) -> List[Dict]:
     return all_results[:15]
 
 
-async def extract_content_from_urls(urls: List[str], per_url_timeout: float = 8.0) -> str:
-    all_text = []
+async def extract_content_from_urls(urls: List[str], per_url_timeout: float = 5.0) -> str:
     headers = {
         "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
         "(KHTML, like Gecko) Chrome/120.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     }
+    semaphore = asyncio.Semaphore(4)
 
-    async with httpx.AsyncClient(
-        timeout=httpx.Timeout(per_url_timeout), follow_redirects=True, headers=headers
-    ) as client:
-        for url in urls:
+    async def _fetch_one(client: httpx.AsyncClient, url: str) -> str:
+        async with semaphore:
             host = url.split("/")[2] if "//" in url else url
             if host in BLOCKED_HOSTS:
                 logger.info(f"[RAG] Skipping blocked host: {host}")
-                continue
+                return ""
             logger.info(f"[RAG] Fetching content from: {url}")
             try:
                 try:
                     resp = await client.get(url)
                 except Exception as e:
                     logger.warning(f"[RAG] Fetch failed for {url}: {e}")
-                    continue
+                    return ""
                 if resp.status_code != 200 or not resp.text:
                     logger.warning(f"[RAG] No usable response from {url} ({resp.status_code})")
-                    continue
+                    return ""
                 doc = await asyncio.to_thread(
                     extract, resp.text, include_comments=False, include_tables=False
                 )
                 if doc:
                     logger.info(f"[RAG] Extracted {len(doc)} chars from {url}")
-                    all_text.append(doc)
-                else:
-                    logger.warning(f"[RAG] No text extracted from {url}")
+                    return doc
+                logger.warning(f"[RAG] No text extracted from {url}")
+                return ""
             except Exception as e:
                 logger.error(f"[RAG] Error processing {url}: {e}")
+                return ""
 
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(per_url_timeout), follow_redirects=True, headers=headers
+    ) as client:
+        # asyncio.gather preserves input order, so results stay aligned with urls.
+        results = await asyncio.gather(*[_fetch_one(client, u) for u in urls])
+
+    all_text = [r for r in results if r]
     if not all_text:
         logger.warning("[RAG] No content extracted from any URL")
         return ""
 
-    return "\n\n---\n\n".join(all_text)
+    joined = "\n\n---\n\n".join(all_text)
+    # Truncate total extracted content to bound prompt/context size.
+    if len(joined) > 8000:
+        joined = joined[:8000]
+    return joined
 
 
 async def get_retrieved_context(user_prompt: str) -> Optional[str]:
     logger.info(f"[RAG] === Starting RAG pipeline ===")
+    normalized = _normalize_query(user_prompt)
+    cached = _rag_cache_get(normalized)
+    if cached is not None:
+        logger.info(f"[RAG] Cache hit for query ({len(cached)} chars)")
+        return cached
     try:
         search_results = await asyncio.wait_for(search_web([user_prompt]), timeout=30.0)
         logger.info(f"[RAG] Total search results: {len(search_results)}")
@@ -281,12 +338,12 @@ async def get_retrieved_context(user_prompt: str) -> Optional[str]:
         # not fetchable from this environment; mixing in SearXNG/DDG results
         # (Wikipedia, news, vendor blogs) avoids an all-fail extraction pass.
         # De-prioritise known-unfetchable hosts and keep the rest in ranking
-        # order, capped at 10 candidates.
+        # order, capped at 6 candidates.
         candidates = [r for r in search_results if r.get("url")]
         candidates.sort(
             key=lambda r: (r.get("_source") == "Tavily", r.get("url", "").split("/")[2] in BLOCKED_HOSTS)
         )
-        urls = [r["url"] for r in candidates[:10]]
+        urls = [r["url"] for r in candidates[:6]]
         logger.info(f"[RAG] Extracting content from {len(urls)} URLs")
 
         extracted_content = await asyncio.wait_for(extract_content_from_urls(urls), timeout=30.0)
@@ -313,6 +370,7 @@ async def get_retrieved_context(user_prompt: str) -> Optional[str]:
             f"Content:\n{extracted_content}"
         )
         logger.info(f"[RAG] === RAG SUCCESS === Context size: {len(context)} chars")
+        _rag_cache_set(normalized, context)
         return context
 
     except asyncio.TimeoutError:

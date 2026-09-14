@@ -139,12 +139,35 @@ async def list_provider_models(
 
     client = get_provider_client(provider)
     from app.core.crypto import decrypt_secret
+    from app.api.routes.proxy import (
+        OAUTH_PROVIDERS,
+        get_oauth_row,
+        is_access_expired,
+        refresh_oauth_row,
+    )
 
-    api_key = decrypt_secret(row.api_key_encrypted, key=getattr(current_user, "uek", None))
+    uek = getattr(current_user, "uek", None)
+    api_key = decrypt_secret(row.api_key_encrypted, key=uek) if row.api_key_encrypted else ""
+    # OAuth-vault providers (Connect with ChatGPT / Gemini) store no API key.
+    oauth_token = ""
+    if provider in OAUTH_PROVIDERS or not api_key:
+        vault = get_oauth_row(db, current_user.id, provider)
+        if vault is not None:
+            if is_access_expired(vault.expires_at):
+                await refresh_oauth_row(db, vault, uek)
+            oauth_token = decrypt_secret(vault.access_encrypted, key=uek)
+            if not api_key:
+                api_key = oauth_token
     # Pass provider-specific config (e.g. Vertex project/region, ADC JSON) to the client.
-    _apply_provider_config(client, row, uek=getattr(current_user, "uek", None))
+    _apply_provider_config(client, row, uek=uek)
     try:
-        return await client.list_models(endpoint=row.endpoint or "", api_key=api_key)
+        try:
+            return await client.list_models(
+                endpoint=row.endpoint or "", api_key=api_key, oauth_token=oauth_token
+            )
+        except TypeError:
+            # Client without OAuth list support (e.g. Codex curated list).
+            return await client.list_models(endpoint=row.endpoint or "", api_key=api_key)
     except HTTPException:
         raise
     except httpx.RequestError as exc:
@@ -233,9 +256,28 @@ async def test_provider_connection(
         )
 
     from app.core.crypto import decrypt_secret
-    api_key = decrypt_secret(row.api_key_encrypted, key=getattr(current_user, "uek", None))
+    from app.api.routes.proxy import (
+        OAUTH_PROVIDERS,
+        get_oauth_row,
+        is_access_expired,
+        refresh_oauth_row,
+    )
+
+    uek = getattr(current_user, "uek", None)
+    api_key = decrypt_secret(row.api_key_encrypted, key=uek) if row.api_key_encrypted else ""
+    oauth_token = ""
+    account_id = ""
+    if provider in OAUTH_PROVIDERS or not api_key:
+        vault = get_oauth_row(db, current_user.id, provider)
+        if vault is not None:
+            if is_access_expired(vault.expires_at):
+                await refresh_oauth_row(db, vault, uek)
+            oauth_token = decrypt_secret(vault.access_encrypted, key=uek)
+            account_id = vault.account or ""
+            if not api_key:
+                api_key = oauth_token
     client = get_provider_client(provider)
-    _apply_provider_config(client, row, uek=getattr(current_user, "uek", None))
+    _apply_provider_config(client, row, uek=uek)
 
     # Pick a reliable model name that the provider actually understands.
     test_model = "gpt-4o-mini"
@@ -245,9 +287,18 @@ async def test_provider_connection(
         test_model = "gemini-2.5-flash"
     elif provider == "mammouth":
         test_model = "gpt-4o-mini"
+    elif provider == "codex":
+        test_model = "gpt-5.6-sol"
+    elif provider == "google-oauth":
+        test_model = "gemini-2.5-flash"
 
     try:
-        discovered = await client.list_models(endpoint=row.endpoint or "", api_key=api_key)
+        try:
+            discovered = await client.list_models(
+                endpoint=row.endpoint or "", api_key=api_key, oauth_token=oauth_token
+            )
+        except TypeError:
+            discovered = await client.list_models(endpoint=row.endpoint or "", api_key=api_key)
         if discovered:
             preferred = [
                 m for m in discovered
@@ -261,14 +312,24 @@ async def test_provider_connection(
         pass
 
     try:
-        result = await client.chat(
-            endpoint=row.endpoint or "",
-            api_key=api_key,
-            model=test_model,
-            prompt="Respond with just the word: connected",
-            max_tokens=16,
-            temperature=0,
-        )
+        chat_kwargs: dict = {
+            "endpoint": row.endpoint or "",
+            "api_key": api_key,
+            "model": test_model,
+            "prompt": "Respond with just the word: connected",
+            "max_tokens": 16,
+            "temperature": 0,
+        }
+        if provider == "codex" and account_id:
+            chat_kwargs["account_id"] = account_id
+        if provider == "google-oauth" and oauth_token:
+            chat_kwargs["oauth_token"] = oauth_token
+        try:
+            result = await client.chat(**chat_kwargs)
+        except TypeError:
+            chat_kwargs.pop("account_id", None)
+            chat_kwargs.pop("oauth_token", None)
+            result = await client.chat(**chat_kwargs)
         if result.strip():
             return {"status": "connected", "message": "Connection successful! Provider is reachable."}
         return {"status": "connected", "message": "Connection successful (empty response)."}

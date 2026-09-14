@@ -3,7 +3,7 @@
   import { discussion } from "../stores/discussion.svelte";
   import { personas } from "../stores/personas.svelte";
   import { agentRuntime } from "../stores/agentRuntime.svelte";
-  import { safeRenderMarkdown } from "../utils/markdown";
+  import { safeRenderMarkdown, escapeHtml } from "../utils/markdown";
   import { splitModelKey, copyToClipboard } from "../utils/helpers";
   import Icon from "./Icon.svelte";
 
@@ -17,7 +17,14 @@
   let { model } = $derived(splitModelKey(modelKey));
   let persona = $derived(personas.findForModel(modelKey));
   let confidence = $derived(agentRuntime.getConfidence(persona?.name ?? model));
-  let rendered = $derived(safeRenderMarkdown(result.text));
+  // Perf: while streaming, skip the markdown lib entirely and render escaped
+  // plain text. Full markdown render runs only once complete/error/timeout.
+  let rendered = $derived(
+    result.status === "streaming" ? "" : safeRenderMarkdown(result.text),
+  );
+  let streamed = $derived(
+    result.status === "streaming" ? escapeHtml(result.text ?? "") : "",
+  );
 
   const statusLabel: Record<string, string> = {
     waiting: "Queued",
@@ -97,6 +104,8 @@
     </div>
   {:else if result.status === "skipped"}
     <div class="skipped-body">Skipped by user</div>
+  {:else if result.status === "streaming"}
+    <div class="markdown card-body stream-plain">{@html streamed}</div>
   {:else}
     <div class="markdown card-body">{@html rendered}</div>
     {#if result.stats && result.status === "complete"}
@@ -230,6 +239,10 @@
     font-size: 13px;
     line-height: 1.6;
     word-wrap: break-word;
+  }
+  .stream-plain {
+    white-space: pre-wrap;
+    word-break: break-word;
   }
   .err-body {
     display: flex;

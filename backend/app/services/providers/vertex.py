@@ -1,12 +1,17 @@
 import asyncio
 import contextlib
+import json
 import os
 import tempfile
+from collections.abc import AsyncGenerator
 
 import httpx
 from fastapi import HTTPException, status
 
+from app.services.http_client import get_shared_client
 from app.services.providers.base import ProviderClient
+
+_SEMAPHORE = asyncio.Semaphore(8)
 
 # Curated Vertex catalog. These are candidate models available on GCP Vertex AI.
 # The discovery probe checks which models are reachable for the given GCP project.
@@ -50,6 +55,38 @@ _ANTHROPIC_MODELS = {
     "claude-3-opus@20240229",
     "claude-3-haiku@20240307",
 }
+
+
+def _extract_vertex_text(data: dict) -> str:
+    """Extract text from a Vertex streaming chunk.
+
+    Handles Gemini shape (candidates[0].content.parts[*].text) and
+    Anthropic-on-Vertex shape (content[].text / delta.text).
+    """
+    texts: list[str] = []
+    for cand in data.get("candidates", []) or []:
+        content = cand.get("content", {}) or {}
+        for part in content.get("parts", []) or []:
+            t = part.get("text")
+            if isinstance(t, str) and t:
+                texts.append(t)
+    if texts:
+        return "".join(texts)
+    content = data.get("content")
+    if isinstance(content, list):
+        for part in content:
+            if isinstance(part, dict):
+                t = part.get("text", "")
+                if isinstance(t, str) and t:
+                    texts.append(t)
+        if texts:
+            return "".join(texts)
+    delta = data.get("delta")
+    if isinstance(delta, dict):
+        t = delta.get("text", "")
+        if isinstance(t, str) and t:
+            return t
+    return ""
 
 
 class VertexClient(ProviderClient):
@@ -152,6 +189,48 @@ class VertexClient(ProviderClient):
             f"/publishers/{publisher}"
         )
 
+    def _chat_payload(self, model: str, prompt: str, max_tokens: int, temperature: float, attachments=None) -> dict:
+        if model in _ANTHROPIC_MODELS:
+            blocks = [{"type": "text", "text": prompt}]
+            if attachments:
+                for att in attachments:
+                    if att.type.startswith("image/"):
+                        blocks.append(
+                            {
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": att.type,
+                                    "data": att.content,
+                                },
+                            }
+                        )
+            return {
+                "anthropic_version": "vertex-2023-10-16",
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "messages": [{"role": "user", "content": blocks}],
+            }
+        parts = [{"text": prompt}]
+        if attachments:
+            for att in attachments:
+                if att.type.startswith("image/"):
+                    parts.append(
+                        {
+                            "inline_data": {
+                                "mime_type": att.type,
+                                "data": att.content,
+                            }
+                        }
+                    )
+        return {
+            "generationConfig": {
+                "temperature": temperature,
+                "maxOutputTokens": max_tokens,
+            },
+            "contents": [{"role": "user", "parts": parts}],
+        }
+
     # ------------------------------------------------------------------
     async def list_models(self, endpoint: str, api_key: str) -> list[str]:
         return await self.discover_models()
@@ -227,7 +306,8 @@ class VertexClient(ProviderClient):
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
         }
-        async with httpx.AsyncClient(timeout=5) as client:
+        client = get_shared_client(5)
+        async with _SEMAPHORE:
             resp = await client.post(url, json=payload, headers=headers)
             resp.raise_for_status()
 
@@ -240,6 +320,7 @@ class VertexClient(ProviderClient):
         max_tokens: int,
         temperature: float,
         attachments=None,
+        timeout: int = 120,
     ) -> str:
         token = api_key or self._access_token()
         base = self._base_url(model)
@@ -250,49 +331,10 @@ class VertexClient(ProviderClient):
             "Content-Type": "application/json",
         }
 
-        if model in _ANTHROPIC_MODELS:
-            blocks = [{"type": "text", "text": prompt}]
-            if attachments:
-                for att in attachments:
-                    if att.type.startswith("image/"):
-                        blocks.append(
-                            {
-                                "type": "image",
-                                "source": {
-                                    "type": "base64",
-                                    "media_type": att.type,
-                                    "data": att.content,
-                                },
-                            }
-                        )
-            payload = {
-                "anthropic_version": "vertex-2023-10-16",
-                "max_tokens": max_tokens,
-                "temperature": temperature,
-                "messages": [{"role": "user", "content": blocks}],
-            }
-        else:
-            parts = [{"text": prompt}]
-            if attachments:
-                for att in attachments:
-                    if att.type.startswith("image/"):
-                        parts.append(
-                            {
-                                "inline_data": {
-                                    "mime_type": att.type,
-                                    "data": att.content,
-                                }
-                            }
-                        )
-            payload = {
-                "generationConfig": {
-                    "temperature": temperature,
-                    "maxOutputTokens": max_tokens,
-                },
-                "contents": [{"role": "user", "parts": parts}],
-            }
+        payload = self._chat_payload(model, prompt, max_tokens, temperature, attachments)
 
-        async with httpx.AsyncClient(timeout=120) as client:
+        client = get_shared_client(timeout)
+        async with _SEMAPHORE:
             resp = await client.post(url, json=payload, headers=headers)
             resp.raise_for_status()
             data = resp.json()
@@ -313,3 +355,44 @@ class VertexClient(ProviderClient):
             )
 
         return ""
+
+    async def chat_stream(
+        self,
+        endpoint: str,
+        api_key: str,
+        model: str,
+        prompt: str,
+        max_tokens: int,
+        temperature: float,
+        attachments=None,
+        timeout: int = 120,
+    ) -> AsyncGenerator[str, None]:
+        token = api_key or self._access_token()
+        base = self._base_url(model)
+        url = f"{base}/models/{model}:streamGenerateContent?alt=sse"
+
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "Accept": "text/event-stream",
+        }
+        payload = self._chat_payload(model, prompt, max_tokens, temperature, attachments)
+        client = get_shared_client(timeout)
+        async with _SEMAPHORE:
+            async with client.stream("POST", url, json=payload, headers=headers) as resp:
+                resp.raise_for_status()
+                async for line in resp.aiter_lines():
+                    if not line or line.startswith(":"):
+                        continue
+                    if not line.startswith("data: "):
+                        continue
+                    data_str = line[6:].strip()
+                    if not data_str or data_str == "[DONE]":
+                        continue
+                    try:
+                        data = json.loads(data_str)
+                    except json.JSONDecodeError:
+                        continue
+                    text = _extract_vertex_text(data)
+                    if text:
+                        yield text

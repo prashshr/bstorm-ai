@@ -11,6 +11,10 @@ import type {
   FolderCreateRequest,
   FolderUpdateRequest,
   MessageResponse,
+  OAuthCodexStartResponse,
+  OAuthGoogleStartResponse,
+  OAuthPollResponse,
+  OAuthStatusResponse,
   ProviderCredentialResponse,
   StreamEvent,
   TokenResponse,
@@ -111,6 +115,62 @@ async function request<T>(
   return (await resp.json()) as T;
 }
 
+/**
+ * Combine a caller-provided AbortSignal with an optional client-side timeout.
+ * The caller's signal is always honoured (e.g. the discussion agent passes a
+ * combined stop/timeout signal); timeoutMs only adds an extra abort source.
+ * Uses AbortSignal.any when available, with a manual fallback otherwise.
+ */
+function combineSignals(
+  signal?: AbortSignal,
+  timeoutMs?: number,
+): AbortSignal | undefined {
+  if (timeoutMs == null || !(timeoutMs > 0)) return signal;
+  let timeoutSignal: AbortSignal;
+  try {
+    timeoutSignal = AbortSignal.timeout(timeoutMs);
+  } catch {
+    return signal;
+  }
+  if (!signal) return timeoutSignal;
+  if (signal.aborted) return signal;
+  if (timeoutSignal.aborted) return timeoutSignal;
+  const anyCombine = (
+    AbortSignal as unknown as {
+      any?: (signals: AbortSignal[]) => AbortSignal;
+    }
+  ).any;
+  if (typeof anyCombine === "function") {
+    try {
+      return anyCombine.call(AbortSignal, [signal, timeoutSignal]);
+    } catch {
+      /* fall through to manual combination */
+    }
+  }
+  const controller = new AbortController();
+  const onAbort = () => {
+    try {
+      const reason = signal.aborted
+        ? (signal as AbortSignal & { reason?: unknown }).reason
+        : (timeoutSignal as AbortSignal & { reason?: unknown }).reason;
+      controller.abort(reason);
+    } catch {
+      controller.abort();
+    }
+  };
+  signal.addEventListener("abort", onAbort, { once: true });
+  timeoutSignal.addEventListener("abort", onAbort, { once: true });
+  return controller.signal;
+}
+
+/** Map a UI OAuth provider key to its backend *start* URL segment.
+ *  Only the start endpoints use the short "google" segment
+ *  (POST /oauth/codex/start, GET /oauth/google/start); poll, status and
+ *  disconnect use the full provider key ("codex" / "google-oauth"). */
+function oauthStartSegment(provider: string): string {
+  return provider === "google-oauth" ? "google" : provider;
+}
+
 export const api = {
   // ---- Auth ----
   register(email: string, password: string): Promise<TokenResponse> {
@@ -171,6 +231,49 @@ export const api = {
     return request(`/api/providers/${encodeURIComponent(provider)}/test`, {
       method: "POST",
     }, true, false);
+  },
+
+  // ---- OAuth (Connect with ChatGPT / Gemini) ----
+  // Contract: POST codex/start, GET google/start, GET {provider}/poll?token=,
+  // GET /oauth (status), DELETE /oauth/{provider}. Upstream 401s must not
+  // end the user's session (logoutOn401:false like other provider calls).
+  oauthStart(
+    provider: string,
+  ): Promise<OAuthCodexStartResponse | OAuthGoogleStartResponse> {
+    const segment = oauthStartSegment(provider);
+    if (segment === "codex") {
+      return request<OAuthCodexStartResponse | OAuthGoogleStartResponse>(
+        `/api/providers/oauth/${encodeURIComponent(segment)}/start`,
+        { method: "POST" },
+        true,
+        false,
+      );
+    }
+    return request<OAuthCodexStartResponse | OAuthGoogleStartResponse>(
+      `/api/providers/oauth/${encodeURIComponent(segment)}/start`,
+      {},
+      true,
+      false,
+    );
+  },
+  oauthPoll(provider: string, token: string): Promise<OAuthPollResponse> {
+    return request<OAuthPollResponse>(
+      `/api/providers/oauth/${encodeURIComponent(provider)}/poll?token=${encodeURIComponent(token)}`,
+      {},
+      true,
+      false,
+    );
+  },
+  oauthStatus(): Promise<OAuthStatusResponse> {
+    return request<OAuthStatusResponse>("/api/providers/oauth", {}, true, false);
+  },
+  oauthDisconnect(provider: string): Promise<unknown> {
+    return request<unknown>(
+      `/api/providers/oauth/${encodeURIComponent(provider)}`,
+      { method: "DELETE" },
+      true,
+      false,
+    );
   },
 
   // ---- Discussions ----
@@ -266,10 +369,19 @@ export const api = {
 
   // ---- Proxy chat ----
   // Provider/upstream 401s here must not end the user's session.
-  chat(body: ChatRequest, signal?: AbortSignal): Promise<ChatResponse> {
+  chat(
+    body: ChatRequest,
+    signal?: AbortSignal,
+    timeoutMs?: number,
+  ): Promise<ChatResponse> {
+    const combined = combineSignals(signal, timeoutMs);
     return request<ChatResponse>(
       "/api/proxy/chat",
-      { method: "POST", body: JSON.stringify(body), signal },
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+        signal: combined ?? undefined,
+      },
       true,
       false,
     );
@@ -283,17 +395,19 @@ export const api = {
     body: ChatRequest,
     onEvent: (ev: StreamEvent) => void,
     signal?: AbortSignal,
+    timeoutMs?: number,
   ): Promise<string> {
     const headers = new Headers({ "Content-Type": "application/json" });
     const token = getToken();
     if (token) headers.set("Authorization", `Bearer ${token}`);
 
     const baseUrl = getBaseUrl();
+    const combined = combineSignals(signal, timeoutMs);
     const resp = await fetch(`${baseUrl}/api/proxy/chat/stream`, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
-      signal,
+      signal: combined ?? undefined,
     });
 
     if (resp.status === 401) {

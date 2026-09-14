@@ -25,13 +25,22 @@
 
   $effect(() => {
     discussion.data;
+    // Perf: autoscroll only when already near the bottom, and jump instantly
+    // (behavior:"auto") while a run is in flight — smooth scrolling per delta
+    // janks and fights the user. Jump button logic below is unchanged.
     if (atBottom && scrollEl) {
-      scrollEl.scrollTo({ top: scrollEl.scrollHeight, behavior: "smooth" });
+      scrollEl.scrollTo({
+        top: scrollEl.scrollHeight,
+        behavior: discussion.running ? "auto" : "smooth",
+      });
     }
   });
 
   function jumpToLatest() {
-    scrollEl?.scrollTo({ top: scrollEl.scrollHeight, behavior: "smooth" });
+    scrollEl?.scrollTo({
+      top: scrollEl.scrollHeight,
+      behavior: discussion.running ? "auto" : "smooth",
+    });
   }
 
   const roundNums = $derived(
