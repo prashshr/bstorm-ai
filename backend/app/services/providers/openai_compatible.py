@@ -131,12 +131,13 @@ class OpenAICompatibleClient(ProviderClient):
 
     def _get_headers(self, api_key: str) -> dict[str, str]:
         headers = {
-            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
             "User-Agent": self.USER_AGENT,
             "HTTP-Referer": "https://ai-ensemble.samkhya.cloud",
             "X-Title": "AI-Ensemble",
         }
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
         return headers
 
     async def list_models(self, endpoint: str, api_key: str) -> list[str]:

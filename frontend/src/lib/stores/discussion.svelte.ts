@@ -55,7 +55,7 @@ function emptyState(): DiscussionState {
     status: "new",
     totalRounds: 0,
     use_rag: false,
-    ragMode: "model-self",
+    ragMode: "model-only",
     deep_research: false,
     retrieved_context: null,
     summaryFormat: "compact",

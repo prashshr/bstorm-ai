@@ -163,6 +163,7 @@ class CodexClient(ProviderClient):
             "model": model.strip(),
             "input": [{"role": "user", "content": _build_codex_content(prompt, attachments)}],
             "stream": False,
+            "store": False,
         }
         # max_tokens/temperature are accepted best-effort; the Responses API
         # may ignore them for some models, so include only when useful.
@@ -200,6 +201,7 @@ class CodexClient(ProviderClient):
             "model": model.strip(),
             "input": [{"role": "user", "content": _build_codex_content(prompt, attachments)}],
             "stream": True,
+            "store": False,
         }
         if max_tokens:
             payload["max_output_tokens"] = max_tokens

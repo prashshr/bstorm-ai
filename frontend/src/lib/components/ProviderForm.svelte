@@ -74,10 +74,32 @@
     }
   }
 
+  function isPrivateEndpoint(url: string): boolean {
+    try {
+      const u = new URL(url);
+      const h = u.hostname;
+      return (
+        h === "localhost" ||
+        h === "127.0.0.1" ||
+        h === "::1" ||
+        /^10\./.test(h) ||
+        /^172\.(1[6-9]|2\d|3[01])\./.test(h) ||
+        /^192\.168\./.test(h) ||
+        /\.tailnet$/.test(h) ||
+        /\.ts\.net$/.test(h) ||
+        h.endsWith(".local")
+      );
+    } catch {
+      return false;
+    }
+  }
+
   async function save() {
     // Vertex uses Application Default Credentials (no static API key needed).
-    if (!isVertex && !apiKey.trim()) {
-      message = { type: "err", text: "API key is required" };
+    // Private/local endpoints (Tailscale, LAN) don't require an API key.
+    const needsKey = !isVertex && !(endpoint.trim() && isPrivateEndpoint(endpoint.trim()));
+    if (needsKey && !apiKey.trim()) {
+      message = { type: "err", text: "API key is required (not needed for local/private endpoints)" };
       return;
     }
     if (isVertex && !projectId.trim()) {
@@ -200,16 +222,16 @@
     </p>
   {/if}
 
-  <label for="pf-key">API Key</label>
+  <label for="pf-key">API Key {#if endpoint.trim() && isPrivateEndpoint(endpoint.trim())}(optional for local){/if}</label>
   <div class="key-row">
     {#if showKey}
-      <input id="pf-key" type="text" bind:value={apiKey} placeholder={isVertex ? "(optional)" : "sk-…"} disabled={isVertex} />
+      <input id="pf-key" type="text" bind:value={apiKey} placeholder={isVertex ? "(optional)" : (endpoint.trim() && isPrivateEndpoint(endpoint.trim())) ? "(optional for local)" : "sk-…"} disabled={isVertex} />
     {:else}
       <input
         id="pf-key"
         type="password"
         bind:value={apiKey}
-        placeholder={isVertex ? "(optional)" : "sk-…"}
+        placeholder={isVertex ? "(optional)" : (endpoint.trim() && isPrivateEndpoint(endpoint.trim())) ? "(optional for local)" : "sk-…"}
         disabled={isVertex}
       />
     {/if}

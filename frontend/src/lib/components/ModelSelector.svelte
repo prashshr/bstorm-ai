@@ -99,7 +99,7 @@
         aria-expanded={!collapsed}
       >
         <Icon name={collapsed ? "chevron-right" : "chevron-down"} size="sm" />
-        <h3>Models {providers.active ? `· ${providers.active}` : ""}</h3>
+        <h3>Models {providers.active ? `· ${providerDisplayName(providers.active)}` : ""}</h3>
         {#if models.available.length > 0}
           <span class="count-pill"
             >{models.selected.length}/{models.available.length}</span
