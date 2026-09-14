@@ -166,8 +166,7 @@ class CodexClient(ProviderClient):
             "stream": True,
             "store": False,
         }
-        if max_tokens:
-            payload["max_output_tokens"] = max_tokens
+        # Codex ChatGPT backend does not support max_output_tokens.
         client = get_shared_client(timeout)
         async with _SEMAPHORE:
             try:
@@ -226,8 +225,7 @@ class CodexClient(ProviderClient):
             "stream": True,
             "store": False,
         }
-        if max_tokens:
-            payload["max_output_tokens"] = max_tokens
+        # Codex ChatGPT backend does not support max_output_tokens.
         client = get_shared_client(timeout)
         async with _SEMAPHORE:
             try:
