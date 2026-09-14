@@ -15,6 +15,6 @@ RUN useradd -m -u 1000 appuser && \
 
 USER appuser
 
-EXPOSE 8080
+EXPOSE 8081
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080", "--proxy-headers", "--forwarded-allow-ips", "*"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8081", "--proxy-headers", "--forwarded-allow-ips", "*"]
