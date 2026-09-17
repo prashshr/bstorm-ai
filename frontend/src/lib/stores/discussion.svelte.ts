@@ -387,6 +387,7 @@ class DiscussionStore {
         question: opts.question,
         title,
         use_rag: useRag,
+        rag_mode: opts.ragMode,
         deep_research: opts.deepResearch,
       });
       this.#data.id = created.id;

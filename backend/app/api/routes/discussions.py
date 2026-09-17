@@ -66,7 +66,7 @@ async def create_discussion(
     if use_rag:
         try:
             should_fetch = True
-            if payload.rag_mode == "model-self" and not payload.use_rag:
+            if payload.rag_mode == "model-self":
                 from app.services.typesafe_service import should_search_web
                 should_fetch = await should_search_web(payload.question)
             if should_fetch:

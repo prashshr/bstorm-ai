@@ -43,6 +43,7 @@ export interface DiscussionCreateRequest {
   question: string;
   title?: string;
   use_rag?: boolean;
+  rag_mode?: "model-self" | "model-only";
   deep_research?: boolean;
 }
 
