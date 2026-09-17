@@ -179,12 +179,9 @@ class PerplexityClient(ProviderClient):
                     if not choices:
                         continue
                     delta = choices[0].get("delta", {}) or {}
-                    text = (
-                        delta.get("content")
-                        or delta.get("text")
-                        or delta.get("reasoning")
-                        or delta.get("reasoning_content")
-                        or ""
-                    )
-                    if text:
-                        yield str(text)
+                    content = delta.get("content") or delta.get("text") or ""
+                    thinking = delta.get("reasoning") or delta.get("reasoning_content") or ""
+                    if thinking:
+                        yield ("thinking_delta", str(thinking))
+                    if content:
+                        yield ("delta", str(content))

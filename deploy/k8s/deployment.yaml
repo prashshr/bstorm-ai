@@ -19,11 +19,11 @@ spec:
       - name: ghcr-pull-secret
       containers:
       - name: ai-ensemble
-        image: ghcr.io/prashshr/ai-ensemble:v5.2.0
+        image: ghcr.io/prashshr/ai-ensemble:v5.3.0
         imagePullPolicy: IfNotPresent
         ports:
         - name: http
-          containerPort: 8080
+          containerPort: 8081
 
         envFrom:
         - configMapRef:
@@ -38,7 +38,7 @@ spec:
         livenessProbe:
           httpGet:
             path: /health
-            port: 8080
+            port: 8081
           initialDelaySeconds: 20
           periodSeconds: 20
           timeoutSeconds: 5
@@ -47,7 +47,7 @@ spec:
         readinessProbe:
           httpGet:
             path: /health
-            port: 8080
+            port: 8081
           initialDelaySeconds: 10
           periodSeconds: 10
           timeoutSeconds: 5

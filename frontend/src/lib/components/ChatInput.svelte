@@ -27,6 +27,7 @@
   let sending = $state(false);
   let editorEl = $state<HTMLDivElement | null>(null);
   let showAdvanced = $state(false);
+  let advancedWrapEl = $state<HTMLElement | null>(null);
   let isCollapsed = $state(true);
   let isModelsExpanded = $state(false);
   let consensusEnabled = $state(discussion.data?.consensusEnabled ?? userSettings.data.defaultConsensusEnabled);
@@ -78,6 +79,32 @@
     if (discussion.running) {
       isCollapsed = true;
     }
+  });
+
+  // Intuitive collapse for Advanced Settings when clicking outside or pressing Escape
+  $effect(() => {
+    if (!showAdvanced) return;
+
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as Node | null;
+      if (advancedWrapEl && target && !advancedWrapEl.contains(target)) {
+        showAdvanced = false;
+      }
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        showAdvanced = false;
+      }
+    };
+
+    window.addEventListener("pointerdown", onPointerDown, true);
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      window.removeEventListener("pointerdown", onPointerDown, true);
+      window.removeEventListener("keydown", onKeyDown);
+    };
   });
 
   function startDragHeight(e: PointerEvent) {
@@ -487,7 +514,7 @@
         </label>
 
         <!-- Advanced Settings Toggle -->
-        <div class="advanced-wrap">
+        <div class="advanced-wrap" bind:this={advancedWrapEl}>
           <button
             type="button"
             class="adv-toggle"
@@ -608,6 +635,19 @@
                     <span class="track" aria-hidden="true"><span class="thumb"></span></span>
                     <Icon name="search" size="sm" />
                     <span class="dr-label">Deep Research</span>
+                  </label>
+                </div>
+
+                <div class="adv-field adv-inline span-2">
+                  <label class="switch inline" class:on={userSettings.data.showThinking} title="Print model thinking / reasoning process">
+                    <input
+                      type="checkbox"
+                      checked={userSettings.data.showThinking}
+                      onchange={(e) => userSettings.update({ showThinking: (e.currentTarget as HTMLInputElement).checked })}
+                    />
+                    <span class="track" aria-hidden="true"><span class="thumb"></span></span>
+                    <Icon name="lightbulb" size="sm" />
+                    <span class="dr-label">Show Model Thinking</span>
                   </label>
                 </div>
               </div>

@@ -89,8 +89,9 @@ export interface ChatResponse {
 
 // SSE stream event shape from /api/proxy/chat/stream
 export interface StreamEvent {
-  type: "delta" | "done" | "error";
+  type: "delta" | "thinking_delta" | "done" | "error";
   content?: string;
+  thinking?: string;
   detail?: string;
 }
 
@@ -150,6 +151,7 @@ export type HealthStatus = "OK" | "KO" | "testing" | "unknown";
 
 export interface ModelResult {
   text: string;
+  thinking?: string;
   status: ModelStatus;
   stats?: ModelStats;
   error?: string;

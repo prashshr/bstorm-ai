@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: web
-        image: ghcr.io/prashshr/ai-ensemble-web:v5.2.0
+        image: ghcr.io/prashshr/ai-ensemble-web:v5.3.0
         imagePullPolicy: IfNotPresent
         ports:
         - name: http

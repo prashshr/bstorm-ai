@@ -2,6 +2,8 @@
   import { auth } from "../stores/auth.svelte";
   import { providers } from "../stores/providers.svelte";
   import { history } from "../stores/history.svelte";
+  import { models } from "../stores/models.svelte";
+  import { userSettings } from "../stores/settings.svelte";
   import { normalizeAuthIdentifier } from "../utils/helpers";
   import Icon from "./Icon.svelte";
 
@@ -18,7 +20,12 @@
         ? await auth.login(email, password)
         : await auth.register(email, password);
     if (ok) {
-      await Promise.all([providers.load(), history.load()]);
+      models.restore();
+      await Promise.all([
+        providers.load(),
+        history.load(),
+        userSettings.fetchRemote(),
+      ]);
       providers.verifyAll();
     }
   }

@@ -9,9 +9,10 @@ HTTP/2 is enabled when the `h2` package is available, otherwise plain HTTP/1.1.
 
 from __future__ import annotations
 
+import asyncio
 import httpx
 
-_CLIENTS: dict[float, httpx.AsyncClient] = {}
+_CLIENTS: dict[tuple[int, float], httpx.AsyncClient] = {}
 
 _DEFAULT_LIMITS = httpx.Limits(max_connections=100, max_keepalive_connections=20)
 
@@ -33,16 +34,21 @@ def _http2_available() -> bool:
 def get_shared_client(timeout: float | int = 120) -> httpx.AsyncClient:
     """Return a module-level shared AsyncClient for the given read timeout.
 
-    Clients are cached by timeout value. Do NOT close the returned client
-    (no `async with` on the client itself); only use `async with` on
-    `client.stream(...)` contexts which do not close the shared client.
+    Clients are cached by (event_loop, timeout) so provider clients
+    reuse connections safely without cross-loop RuntimeError leaks.
     """
-    key = float(timeout)
+    try:
+        loop = asyncio.get_running_loop()
+        loop_id = id(loop)
+    except RuntimeError:
+        loop_id = 0
+
+    key = (loop_id, float(timeout))
     existing = _CLIENTS.get(key)
-    if existing is not None:
+    if existing is not None and not existing.is_closed:
         return existing
     limits = httpx.Limits(max_connections=100, max_keepalive_connections=20)
-    t = build_timeout(key)
+    t = build_timeout(timeout)
     try:
         if _http2_available():
             client = httpx.AsyncClient(timeout=t, limits=limits, http2=True)

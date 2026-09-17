@@ -9,6 +9,8 @@ export interface UserSettingsData {
   defaultMaxTokens: number;
   themeAccent: string;
   autoMinimizeComposer: boolean;
+  showThinking: boolean;
+  favoriteModels?: string[];
 }
 
 const DEFAULT_SETTINGS: UserSettingsData = {
@@ -20,15 +22,26 @@ const DEFAULT_SETTINGS: UserSettingsData = {
   defaultMaxTokens: 6000,
   themeAccent: "#b35d25",
   autoMinimizeComposer: true,
+  showThinking: false,
+  favoriteModels: [],
 };
 
 class SettingsStore {
   data = $state<UserSettingsData>({ ...DEFAULT_SETTINGS });
   loaded = $state(false);
   modalOpen = $state(false);
+  #listeners: ((data: UserSettingsData) => void)[] = [];
 
   constructor() {
     this.loadFromLocal();
+  }
+
+  onLoad(cb: (data: UserSettingsData) => void): () => void {
+    this.#listeners.push(cb);
+    if (this.loaded) cb(this.data);
+    return () => {
+      this.#listeners = this.#listeners.filter((fn) => fn !== cb);
+    };
   }
 
   loadFromLocal() {
@@ -62,6 +75,9 @@ class SettingsStore {
         if (json.settings && Object.keys(json.settings).length > 0) {
           this.data = { ...DEFAULT_SETTINGS, ...json.settings };
           this.saveToLocal();
+          for (const cb of this.#listeners) {
+            try { cb(this.data); } catch { /* ignore */ }
+          }
         }
       }
     } catch {

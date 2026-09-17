@@ -465,6 +465,7 @@ async def proxy_chat_stream(
 
     async def event_stream():
         full_text = ""
+        full_thinking = ""
         try:
             async for chunk in _stream_with_client(
                 client,
@@ -484,11 +485,20 @@ async def proxy_chat_stream(
             ):
                 if await request.is_disconnected():
                     break
-                full_text += chunk
-                event = json.dumps({"type": "delta", "content": chunk})
+                # Chunk is either a plain string or (event_type, content) tuple
+                if isinstance(chunk, tuple):
+                    event_type, content = chunk
+                else:
+                    event_type, content = "delta", chunk
+                if event_type == "thinking_delta":
+                    full_thinking += content
+                    event = json.dumps({"type": "thinking_delta", "content": content})
+                else:
+                    full_text += content
+                    event = json.dumps({"type": "delta", "content": content})
                 yield f"data: {event}\n\n"
             else:
-                event = json.dumps({"type": "done", "content": full_text})
+                event = json.dumps({"type": "done", "content": full_text, "thinking": full_thinking})
                 yield f"data: {event}\n\n"
         except httpx.HTTPStatusError as exc:
             body = exc.response.text if exc.response is not None else ""

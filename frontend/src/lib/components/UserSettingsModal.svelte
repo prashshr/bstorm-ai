@@ -207,6 +207,19 @@
                   onchange={(e) => userSettings.update({ defaultMaxTokens: parseInt((e.currentTarget as HTMLInputElement).value, 10) || 6000 })}
                 />
               </div>
+
+              <div class="field">
+                <label for="set-show-thinking">Model Thinking & Reasoning</label>
+                <select
+                  id="set-show-thinking"
+                  value={userSettings.data.showThinking ? "enabled" : "disabled"}
+                  onchange={(e) => userSettings.update({ showThinking: (e.currentTarget as HTMLSelectElement).value === "enabled" })}
+                >
+                  <option value="disabled">Hide Thinking (Default - Final response only)</option>
+                  <option value="enabled">Show Thinking (Display reasoning process)</option>
+                </select>
+                <span class="field-hint">When disabled, model windows display only the clean final response. Enable to view the thought process.</span>
+              </div>
             </div>
           </div>
         {:else if activeTab === "appearance"}
@@ -477,6 +490,12 @@
     background: var(--bg-primary);
     color: var(--text-primary);
     font-size: 13px;
+  }
+
+  .field-hint {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    margin-top: -2px;
   }
 
   .theme-buttons {

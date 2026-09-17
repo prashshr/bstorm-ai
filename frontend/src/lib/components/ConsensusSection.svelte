@@ -1,7 +1,9 @@
 <script lang="ts">
   import { discussion } from "../stores/discussion.svelte";
+  import { userSettings } from "../stores/settings.svelte";
   import { safeRenderMarkdown } from "../utils/markdown";
   import { copyToClipboard } from "../utils/helpers";
+  import { parseModelThinking } from "../utils/thinking";
   import ContributionBars from "./ContributionBars.svelte";
   import Icon from "./Icon.svelte";
 
@@ -15,9 +17,11 @@
   // consensus, otherwise a round without its own synthesis would display the
   // previous turn's consensus (e.g. an old consensus appearing below a new
   // follow-up question).
-  let consensus = $derived(
+  let rawConsensus = $derived(
     text || (roundNum ? discussion.data.consensuses[roundNum] ?? "" : discussion.data.consensus),
   );
+  let parsed = $derived(parseModelThinking(rawConsensus));
+  let consensus = $derived(parsed.finalText || rawConsensus);
   let rendered = $derived(safeRenderMarkdown(consensus));
   let generating = $derived(
     discussion.phase === "synthesizing" &&
@@ -60,9 +64,17 @@
      </div>
    {:else if discussion.data.consensusError}
      <div class="consensus-error">{discussion.data.consensusError}</div>
-   {:else if consensus}
-     <div class="markdown c-body">{@html rendered}</div>
-     <ContributionBars />
+    {:else if consensus}
+      {#if userSettings.data.showThinking && parsed.thinking}
+        <details class="thinking-block">
+          <summary class="thinking-summary">
+            <Icon name="lightbulb" size="sm" /> Thinking
+          </summary>
+          <div class="thinking-body">{@html safeRenderMarkdown(parsed.thinking)}</div>
+        </details>
+      {/if}
+      <div class="markdown c-body">{@html rendered}</div>
+      <ContributionBars />
    {:else if discussion.data.status === "completed"}
      <div class="empty">No consensus was generated.</div>
    {/if}
@@ -131,6 +143,34 @@
     border-radius: var(--radius);
     padding: 8px 12px;
     font-size: 13px;
+  }
+  .thinking-block {
+    margin-bottom: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-tertiary);
+  }
+  .thinking-summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    user-select: none;
+  }
+  .thinking-summary:hover {
+    color: var(--text-secondary);
+  }
+  .thinking-body {
+    padding: 0 10px 10px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text-tertiary);
+    max-height: 250px;
+    overflow-y: auto;
   }
   @keyframes spin {
     to {

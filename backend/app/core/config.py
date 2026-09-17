@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = 30
     credential_encryption_key: str = "change-me-32-byte-key-change-me-32"
     tavily_api_key: str = ""
+    typesafe_api_key: str = ""
     searxng_url: str = "http://searxng-svc:8080"
     environment: str = "development"
     # OAuth device-code / browser-OAuth logins (Codex, Google).

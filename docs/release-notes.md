@@ -1,5 +1,35 @@
 # Release Notes
 
+## v5.3.0 — TypeSafe System One Integration, Model Thinking Suppression & Stability
+
+Backend and web images: `ghcr.io/prashshr/ai-ensemble:v5.3.0`,
+`ghcr.io/prashshr/ai-ensemble-web:v5.3.0`. API version `5.3.0`.
+Frontend verified: `svelte-check` 0 errors, Vitest 47/47 passing.
+Backend verified: Pytest 98/98 passing.
+
+### Added
+
+- **TypeSafe System One (Jev) Integration**:
+  - `app/services/typesafe_service.py` provides typed System One evaluation (`evaluate_system_one`, `should_search_web`).
+  - Speculative triage: fast ~50ms evaluation before query execution to determine if real-time web search or RAG augmentation is genuinely necessary, drastically cutting latency and token consumption.
+  - Unit test suite (`testing/backend/unit/test_typesafe.py`) validating noul scoring, decision paths, and fallback mechanisms.
+- **Model Thinking Separation & Configurable Display**:
+  - `parseModelThinking` in `frontend/src/lib/utils/thinking.ts` parses and separates in-band thinking tags (`<think>`, `<thought>`, `<reasoning>`, `<thinking>`) and upstream reasoning deltas from final answers.
+  - Models only display clean final responses by default, preventing noisy thought dumping during generation.
+  - Added live pulsing `Thinking…` status badge during active reasoning phase.
+  - Added "Show Model Thinking" toggle in both the chatbox Advanced Configuration drawer and User Settings modal.
+  - Collapsible `<details class="thinking-block">` when thinking display is enabled.
+  - Consensus models similarly sanitized so internal thoughts never pollute synthesis.
+
+### Fixed & Improved
+
+- **Chatbox Advanced Settings Collapse**:
+  - Added click-outside and Escape key dismiss handlers via reactive `$effect` in `ChatInput.svelte`, allowing intuitive collapse when clicking outside the panel.
+- **Favorite Models Persistence**:
+  - Model favorites selection stabilized against login/session resets, maintaining local state with server reconciliation.
+- **Provider Panel Layering & Access**:
+  - Resolved panel toggling and z-index layering issues on the main chat screen so clicking "Providers" reliably opens the drawer without page refresh.
+
 ## v5.2.0 — Speed/smoothness + subscription login (ChatGPT, Gemini)
 
 Backend and web images: `ghcr.io/prashshr/ai-ensemble:v5.2.0`,

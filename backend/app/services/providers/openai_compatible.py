@@ -86,19 +86,20 @@ def _extract_openai_content(data: dict) -> str:
     return str(content) if content else ""
 
 
-def _extract_openai_delta(data: dict) -> str:
+def _extract_openai_delta(data: dict) -> tuple[str, str]:
+    """Extract content and thinking from an OpenAI-compatible SSE delta.
+
+    Returns (content, thinking) where either may be empty string.
+    Thinking comes from reasoning/reasoning_content fields that some models
+    (e.g. DeepSeek R1, QwQ, mimo) stream separately from the final answer.
+    """
     choices = data.get("choices", [])
     if not choices:
-        return ""
+        return ("", "")
     delta = choices[0].get("delta", {})
-    content = (
-        delta.get("content")
-        or delta.get("text")
-        or delta.get("reasoning")
-        or delta.get("reasoning_content")
-        or ""
-    )
-    return str(content) if content else ""
+    content = delta.get("content") or delta.get("text") or ""
+    thinking = delta.get("reasoning") or delta.get("reasoning_content") or ""
+    return (str(content) if content else "", str(thinking) if thinking else "")
 
 
 def _map_http_status_error(e: httpx.HTTPStatusError, base: str, url: str) -> HTTPException | None:
@@ -346,9 +347,11 @@ class OpenAICompatibleClient(ProviderClient):
                         return
                     try:
                         data = json.loads(data_str)
-                        text = _extract_openai_delta(data)
-                        if text:
-                            yield str(text)
+                        content, thinking = _extract_openai_delta(data)
+                        if thinking:
+                            yield ("thinking_delta", thinking)
+                        if content:
+                            yield ("delta", content)
                     except json.JSONDecodeError:
                         continue
 

@@ -3,8 +3,10 @@
   import { discussion } from "../stores/discussion.svelte";
   import { personas } from "../stores/personas.svelte";
   import { agentRuntime } from "../stores/agentRuntime.svelte";
+  import { userSettings } from "../stores/settings.svelte";
   import { safeRenderMarkdown, escapeHtml } from "../utils/markdown";
   import { splitModelKey, copyToClipboard } from "../utils/helpers";
+  import { parseModelThinking } from "../utils/thinking";
   import Icon from "./Icon.svelte";
 
   interface Props {
@@ -17,13 +19,14 @@
   let { model } = $derived(splitModelKey(modelKey));
   let persona = $derived(personas.findForModel(modelKey));
   let confidence = $derived(agentRuntime.getConfidence(persona?.name ?? model));
+  let parsed = $derived(parseModelThinking(result.text, result.thinking));
   // Perf: while streaming, skip the markdown lib entirely and render escaped
   // plain text. Full markdown render runs only once complete/error/timeout.
   let rendered = $derived(
-    result.status === "streaming" ? "" : safeRenderMarkdown(result.text),
+    result.status === "streaming" ? "" : safeRenderMarkdown(parsed.finalText),
   );
   let streamed = $derived(
-    result.status === "streaming" ? escapeHtml(result.text ?? "") : "",
+    result.status === "streaming" ? escapeHtml(parsed.finalText) : "",
   );
 
   const statusLabel: Record<string, string> = {
@@ -38,7 +41,8 @@
 
   let copied = $state(false);
   async function copy() {
-    if (await copyToClipboard(result.text)) {
+    const toCopy = parsed.finalText || result.text;
+    if (await copyToClipboard(toCopy)) {
       copied = true;
       setTimeout(() => (copied = false), 1500);
     }
@@ -67,7 +71,7 @@
       <span class="status status-{result.status}">
         {statusLabel[result.status] ?? result.status}
       </span>
-      {#if (result.status === "complete" || result.status === "streaming") && result.text}
+      {#if (result.status === "complete" || result.status === "streaming") && (parsed.finalText || result.text)}
         <button
           class="btn btn-ghost btn-sm copy-btn"
           title="Copy response"
@@ -105,8 +109,31 @@
   {:else if result.status === "skipped"}
     <div class="skipped-body">Skipped by user</div>
   {:else if result.status === "streaming"}
-    <div class="markdown card-body stream-plain">{@html streamed}</div>
+    {#if userSettings.data.showThinking && parsed.thinking}
+      <details class="thinking-block" open>
+        <summary class="thinking-summary">
+          <Icon name="lightbulb" size="sm" /> Thinking
+        </summary>
+        <div class="thinking-body">{@html escapeHtml(parsed.thinking)}</div>
+      </details>
+    {/if}
+    {#if streamed}
+      <div class="markdown card-body stream-plain">{@html streamed}</div>
+    {:else if parsed.isThinkingOnly}
+      <div class="thinking-indicator" role="status" aria-label="Model is thinking">
+        <span class="thinking-dot-pulse"></span>
+        <span class="thinking-label">Thinking…</span>
+      </div>
+    {/if}
   {:else}
+    {#if userSettings.data.showThinking && parsed.thinking}
+      <details class="thinking-block">
+        <summary class="thinking-summary">
+          <Icon name="lightbulb" size="sm" /> Thinking
+        </summary>
+        <div class="thinking-body">{@html safeRenderMarkdown(parsed.thinking)}</div>
+      </details>
+    {/if}
     <div class="markdown card-body">{@html rendered}</div>
     {#if result.stats && result.status === "complete"}
       <footer class="card-stats">
@@ -255,6 +282,62 @@
     color: var(--text-tertiary);
     font-size: 13px;
     font-style: italic;
+  }
+  .thinking-block {
+    margin-bottom: 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-tertiary);
+  }
+  .thinking-summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    user-select: none;
+  }
+  .thinking-summary:hover {
+    color: var(--text-secondary);
+  }
+  .thinking-body {
+    padding: 0 10px 10px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text-tertiary);
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+  .thinking-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: var(--radius);
+    background: var(--bg-tertiary);
+    color: var(--text-tertiary);
+    font-size: 12px;
+    font-weight: 500;
+    margin-top: 4px;
+  }
+  .thinking-dot-pulse {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: thinking-pulse 1.4s ease-in-out infinite;
+  }
+  .thinking-label {
+    font-style: italic;
+  }
+  @keyframes thinking-pulse {
+    0%, 100% { opacity: 0.35; transform: scale(0.85); }
+    50% { opacity: 1; transform: scale(1.15); }
   }
   .card-actions {
     display: flex;

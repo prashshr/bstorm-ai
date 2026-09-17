@@ -3,6 +3,8 @@ import type { HealthStatus } from "../api/types";
 import { debug } from "./debug.svelte";
 import { providers } from "./providers.svelte";
 import { splitModelKey, modelSupportsVision } from "../utils/helpers";
+import { userSettings } from "./settings.svelte";
+import { auth } from "./auth.svelte";
 
 /** Generate a tiny PNG with a random 5-char alphanumeric code rendered on a
  *  white background. Returns the PNG as base64 and the code so the caller can
@@ -26,6 +28,7 @@ function generateVisionTestImage(): { base64: string; code: string } {
 }
 
   const STORAGE_KEY = "aiEnsembleModels";
+  const FAVORITES_BACKUP_KEY = "aiEnsembleFavorites";
 
 class ModelsStore {
   #available = $state<string[]>([]);
@@ -39,6 +42,19 @@ class ModelsStore {
   #allByProvider = $state<Record<string, string[]>>({});
   /** Filter preference to show only OK models per provider. */
   #showOnlyOkByProvider = $state<Record<string, boolean>>({});
+
+  constructor() {
+    this.restore();
+    try {
+      userSettings.onLoad((settings) => {
+        if (Array.isArray(settings.favoriteModels) && settings.favoriteModels.length > 0) {
+          this.syncRemoteFavorites(settings.favoriteModels);
+        }
+      });
+    } catch {
+      /* ignore if settings store is still initializing */
+    }
+  }
 
   get available() {
     return this.#available;
@@ -101,6 +117,15 @@ class ModelsStore {
     return this.#favorites.includes(compositeKey);
   }
 
+  syncRemoteFavorites(remoteFavs: string[]): void {
+    if (!Array.isArray(remoteFavs)) return;
+    const merged = Array.from(new Set([...this.#favorites, ...remoteFavs]));
+    if (merged.length !== this.#favorites.length) {
+      this.#favorites = merged;
+      this.persist();
+    }
+  }
+
   toggleFavorite(compositeKey: string): void {
     if (this.#favorites.includes(compositeKey)) {
       this.#favorites = this.#favorites.filter((m) => m !== compositeKey);
@@ -108,6 +133,22 @@ class ModelsStore {
       this.#favorites = [...this.#favorites, compositeKey];
     }
     this.persist();
+    if (auth.isAuthenticated) {
+      userSettings.update({ favoriteModels: this.#favorites });
+    }
+  }
+
+  clearFavorites(): void {
+    this.#favorites = [];
+    try {
+      localStorage.removeItem(FAVORITES_BACKUP_KEY);
+    } catch {
+      /* ignore */
+    }
+    this.persist();
+    if (auth.isAuthenticated) {
+      userSettings.update({ favoriteModels: [] });
+    }
   }
 
   /** Whether a provider already has a cached model list (from a prior session),
@@ -128,6 +169,7 @@ class ModelsStore {
    *  from scratch. */
   persist(): void {
     try {
+      localStorage.setItem(FAVORITES_BACKUP_KEY, JSON.stringify(this.#favorites));
       localStorage.setItem(
         STORAGE_KEY,
         JSON.stringify({
@@ -147,29 +189,42 @@ class ModelsStore {
   restore(): boolean {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return false;
-      const data = JSON.parse(raw) as {
-        selected?: string[];
-        favorites?: string[];
-        allByProvider?: Record<string, string[]>;
-        showOnlyOkByProvider?: Record<string, boolean>;
-      };
-      if (data.showOnlyOkByProvider) {
-        this.#showOnlyOkByProvider = data.showOnlyOkByProvider;
-      }
-      if (data.allByProvider && Object.keys(data.allByProvider).length > 0) {
-        this.#allByProvider = data.allByProvider;
-        for (const prov of Object.keys(data.allByProvider)) {
-          providers.markVerified(prov);
+      if (raw) {
+        const data = JSON.parse(raw) as {
+          selected?: string[];
+          favorites?: string[];
+          allByProvider?: Record<string, string[]>;
+          showOnlyOkByProvider?: Record<string, boolean>;
+        };
+        if (data.showOnlyOkByProvider) {
+          this.#showOnlyOkByProvider = data.showOnlyOkByProvider;
+        }
+        if (data.allByProvider && Object.keys(data.allByProvider).length > 0) {
+          this.#allByProvider = data.allByProvider;
+          for (const prov of Object.keys(data.allByProvider)) {
+            providers.markVerified(prov);
+          }
+        }
+        if (data.selected && data.selected.length > 0) {
+          this.#selected = data.selected;
+        }
+        if (data.favorites && Array.isArray(data.favorites)) {
+          this.#favorites = data.favorites;
         }
       }
-      if (data.selected && data.selected.length > 0) {
-        this.#selected = data.selected;
+
+      // Check secondary backup key if favorites were empty
+      if (this.#favorites.length === 0) {
+        const backupRaw = localStorage.getItem(FAVORITES_BACKUP_KEY);
+        if (backupRaw) {
+          const parsed = JSON.parse(backupRaw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            this.#favorites = parsed;
+          }
+        }
       }
-      if (data.favorites && Array.isArray(data.favorites)) {
-        this.#favorites = data.favorites;
-      }
-      return Object.keys(this.#allByProvider).length > 0;
+
+      return Object.keys(this.#allByProvider).length > 0 || this.#favorites.length > 0;
     } catch {
       return false;
     }
@@ -217,11 +272,6 @@ class ModelsStore {
 
   clearSelection(): void {
     this.#selected = [];
-    this.persist();
-  }
-
-  clearFavorites(): void {
-    this.#favorites = [];
     this.persist();
   }
 

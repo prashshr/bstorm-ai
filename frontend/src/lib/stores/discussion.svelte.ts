@@ -15,8 +15,8 @@ import { models } from "./models.svelte";
 import { colorForModel, splitModelKey, modelSupportsVision } from "../utils/helpers";
 
 const STATE_KEY = "aiEnsembleDiscussionState";
-const MAX_CONCURRENT = 3;
-const STAGGER_MS = 500;
+const MAX_CONCURRENT = 6;
+const STAGGER_MS = 30;
 
 function imageFingerprint(att: ChatAttachment): string {
   const content = att.content || "";
@@ -547,41 +547,49 @@ class DiscussionStore {
     // Streaming render batching: accumulate rapid deltas and flush to
     // #updateModel at most every ~100ms (trailing flush on done).
     let pendingText = "";
+    let pendingThinking = "";
     let lastFlush = 0;
     let flushTimer: ReturnType<typeof setTimeout> | null = null;
     const flushPending = () => {
       flushTimer = null;
-      if (!pendingText) return;
+      if (!pendingText && !pendingThinking) return;
       const prev = this.#data.rounds[roundNum]?.[compositeKey];
       if (!prev) {
         pendingText = "";
+        pendingThinking = "";
         lastFlush = Date.now();
         return;
       }
       const chunk = pendingText;
+      const thinkChunk = pendingThinking;
       pendingText = "";
+      pendingThinking = "";
       lastFlush = Date.now();
       this.#updateModel(roundNum, compositeKey, {
         status: "streaming",
         text: prev.text + chunk,
+        thinking: (prev.thinking ?? "") + thinkChunk,
       });
     };
     const scheduleFlush = () => {
       const now = Date.now();
-      if (now - lastFlush >= 100) {
+      if (now - lastFlush >= 40) {
         if (flushTimer) {
           clearTimeout(flushTimer);
           flushTimer = null;
         }
         flushPending();
       } else if (!flushTimer) {
-        flushTimer = setTimeout(flushPending, 100 - (now - lastFlush));
+        flushTimer = setTimeout(flushPending, Math.max(10, 40 - (now - lastFlush)));
       }
     };
 
     try {
       const onEvent = (ev: StreamEvent) => {
-        if (ev.type === "delta" && ev.content) {
+        if (ev.type === "thinking_delta" && ev.content) {
+          pendingThinking += ev.content;
+          scheduleFlush();
+        } else if (ev.type === "delta" && ev.content) {
           pendingText += ev.content;
           scheduleFlush();
         } else if (ev.type === "error") {
@@ -613,6 +621,7 @@ class DiscussionStore {
         flushTimer = null;
       }
       pendingText = "";
+      pendingThinking = "";
 
       const durationMs = Date.now() - started;
       const outputTokens = Math.round(full.length / 4);
@@ -632,15 +641,19 @@ class DiscussionStore {
       if (scope.isTimeout() && this.#running) {
         const prev = this.#data.rounds[roundNum]?.[compositeKey];
         const partial = (prev?.text ?? "") + pendingText;
+        const partialThink = (prev?.thinking ?? "") + pendingThinking;
         pendingText = "";
+        pendingThinking = "";
         this.#updateModel(roundNum, compositeKey, {
           status: "timeout",
           text: partial,
+          thinking: partialThink,
           error: `Request timed out after ${scope.timeoutSecs}s`,
         });
         return;
       }
       pendingText = "";
+      pendingThinking = "";
       const msg = e instanceof Error ? e.message : String(e);
       // Don't fall back if user initiated abort or discussion stopped
       if (this.#abort?.signal.aborted || !this.#running) {

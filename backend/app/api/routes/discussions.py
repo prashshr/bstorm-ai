@@ -65,7 +65,12 @@ async def create_discussion(
     use_rag = payload.use_rag or payload.rag_mode == "model-self"
     if use_rag:
         try:
-            retrieved_context = await get_retrieved_context(payload.question)
+            should_fetch = True
+            if payload.rag_mode == "model-self" and not payload.use_rag:
+                from app.services.typesafe_service import should_search_web
+                should_fetch = await should_search_web(payload.question)
+            if should_fetch:
+                retrieved_context = await get_retrieved_context(payload.question)
         except Exception as e:
             logger.warning("Failed to get retrieved context: %s", e)
 

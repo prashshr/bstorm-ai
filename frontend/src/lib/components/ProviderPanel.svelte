@@ -367,14 +367,21 @@
     border-left: 1px solid var(--border);
     box-shadow: var(--shadow-md);
     transform: translateX(100%);
-    transition: transform var(--transition);
+    transition: transform var(--transition), visibility var(--transition);
     z-index: 50;
     display: flex;
     flex-direction: column;
     box-sizing: border-box;
+    pointer-events: none;
+    visibility: hidden;
   }
   .panel.open {
     transform: translateX(0);
+    pointer-events: auto;
+    visibility: visible;
+  }
+  .panel:not(.open) .resizer-left {
+    display: none;
   }
   .resizer-left {
     position: absolute;

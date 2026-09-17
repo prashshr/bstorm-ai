@@ -71,6 +71,7 @@
     background: var(--bg-secondary);
     gap: 12px;
     flex-shrink: 0;
+    z-index: 60;
   }
   .left,
   .right {
@@ -79,6 +80,8 @@
     gap: 8px;
     flex: 0 0 140px;
     min-width: 140px;
+    position: relative;
+    z-index: 10;
   }
   .right {
     justify-content: flex-end;
@@ -92,8 +95,10 @@
     /* Offset by half the sidebar width so the top header title/logo aligns 100% in a straight vertical line with the center of main area (hero text & chatbox) */
     transform: translateX(calc(var(--sidebar-w, 0px) / 2));
     transition: transform var(--transition);
+    pointer-events: none;
   }
   .title {
+    pointer-events: auto;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -102,6 +107,7 @@
     color: var(--text-primary);
     font-size: 20px;
     font-weight: 700;
+    cursor: pointer;
   }
   .logo {
     width: 28px;
