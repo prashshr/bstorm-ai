@@ -34,22 +34,11 @@ class ProvidersStore {
     return this.#verified.has(provider);
   }
 
-  /** Account label for an OAuth-connected provider, or null. Accepts both
-   *  "google" and "google-oauth" spellings since the backend contract uses
-   *  "google" in OAuth URLs while the UI model key is "google-oauth". */
+  /** Account label for an OAuth-connected provider, or null. */
   oauthAccountFor(provider: string): string | null {
     const list = this.#oauthConnected ?? [];
     const exact = list.find((c) => c.provider === provider);
-    if (exact) return exact.account;
-    const aliases =
-      provider === "google-oauth" || provider === "google"
-        ? ["google-oauth", "google"]
-        : [];
-    for (const a of aliases) {
-      const found = list.find((c) => c.provider === a);
-      if (found) return found.account;
-    }
-    return null;
+    return exact ? exact.account : null;
   }
 
   async loadOAuth(): Promise<void> {

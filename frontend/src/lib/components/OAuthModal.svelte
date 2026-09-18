@@ -7,12 +7,12 @@
   import Icon from "./Icon.svelte";
 
   interface Props {
-    provider: "codex" | "google-oauth" | "copilot";
+    provider: "codex" | "copilot" | "openrouter";
     onclose: () => void;
   }
   let { provider, onclose }: Props = $props();
 
-  const POLL_INTERVAL_MS = 2500;
+  const POLL_INTERVAL_MS = 3000;
   const POLL_TIMEOUT_MS = 15 * 60 * 1000;
 
   let title = $derived(
@@ -20,11 +20,11 @@
       ? "Connect ChatGPT"
       : provider === "copilot"
         ? "Connect GitHub Copilot"
-        : "Connect Gemini"
+        : "Connect OpenRouter"
   );
   // Model-discovery key after a successful connect.
   let discoverKey = $derived(
-    provider === "codex" ? "codex" : provider === "copilot" ? "copilot" : "google-oauth"
+    provider === "codex" ? "codex" : provider === "copilot" ? "copilot" : "openrouter"
   );
 
   let loading = $state(true);
@@ -137,8 +137,7 @@
       account?: string;
     } | null;
     if (!data || typeof data !== "object") return;
-    const googleAlias = provider === "google-oauth" ? "google" : provider;
-    if (data.provider !== provider && data.provider !== googleAlias) return;
+    if (data.provider !== provider) return;
     if (data.ok) {
       void handleOk(data.account);
     }
@@ -156,7 +155,7 @@
         userCode = res.user_code;
         expiresIn = res.expires_in;
         pollToken = res.poll_token;
-      } else if (provider === "google-oauth" && "auth_url" in res) {
+      } else if (provider === "openrouter" && "auth_url" in res) {
         authUrl = res.auth_url;
         pollToken = res.poll_token;
         openPopup(authUrl);

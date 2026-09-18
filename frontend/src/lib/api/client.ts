@@ -12,7 +12,7 @@ import type {
   FolderUpdateRequest,
   MessageResponse,
   OAuthCodexStartResponse,
-  OAuthGoogleStartResponse,
+  OAuthBrowserStartResponse,
   OAuthPollResponse,
   OAuthStatusResponse,
   ProviderCredentialResponse,
@@ -163,12 +163,9 @@ function combineSignals(
   return controller.signal;
 }
 
-/** Map a UI OAuth provider key to its backend *start* URL segment.
- *  Only the start endpoints use the short "google" segment
- *  (POST /oauth/codex/start, GET /oauth/google/start); poll, status and
- *  disconnect use the full provider key ("codex" / "google-oauth"). */
+/** Map a UI OAuth provider key to its backend *start* URL segment. */
 function oauthStartSegment(provider: string): string {
-  return provider === "google-oauth" ? "google" : provider;
+  return provider;
 }
 
 export const api = {
@@ -233,23 +230,23 @@ export const api = {
     }, true, false);
   },
 
-  // ---- OAuth (Connect with ChatGPT / Gemini) ----
-  // Contract: POST codex/start, GET google/start, GET {provider}/poll?token=,
+  // ---- OAuth (Connect with ChatGPT / Copilot / OpenRouter) ----
+  // Contract: POST codex/start, POST copilot/start, GET openrouter/start, GET {provider}/poll?token=,
   // GET /oauth (status), DELETE /oauth/{provider}. Upstream 401s must not
   // end the user's session (logoutOn401:false like other provider calls).
   oauthStart(
     provider: string,
-  ): Promise<OAuthCodexStartResponse | OAuthGoogleStartResponse> {
+  ): Promise<OAuthCodexStartResponse | OAuthBrowserStartResponse> {
     const segment = oauthStartSegment(provider);
     if (segment === "codex" || segment === "copilot") {
-      return request<OAuthCodexStartResponse | OAuthGoogleStartResponse>(
+      return request<OAuthCodexStartResponse | OAuthBrowserStartResponse>(
         `/api/providers/oauth/${encodeURIComponent(segment)}/start`,
         { method: "POST" },
         true,
         false,
       );
     }
-    return request<OAuthCodexStartResponse | OAuthGoogleStartResponse>(
+    return request<OAuthCodexStartResponse | OAuthBrowserStartResponse>(
       `/api/providers/oauth/${encodeURIComponent(segment)}/start`,
       {},
       true,

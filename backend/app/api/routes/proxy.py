@@ -23,12 +23,10 @@ logger = logging.getLogger("ai_ensemble.proxy")
 
 # Providers authenticated via the OAuth vault (see api/routes/providers_oauth)
 # instead of a stored API key.
-OAUTH_PROVIDERS = frozenset({"codex", "google-oauth", "copilot"})
+OAUTH_PROVIDERS = frozenset({"codex", "copilot", "openrouter"})
 
 # Refresh the access token early so it cannot expire mid-request.
 OAUTH_EXPIRY_SKEW_SECONDS = 60
-
-GOOGLE_OAUTH_TOKEN_URL = "https://oauth2.googleapis.com/token"
 
 
 def _utcnow() -> datetime:
@@ -104,19 +102,6 @@ async def refresh_oauth_row(db: Session, row: ProviderOAuthToken, uek: str | Non
             "grant_type": "refresh_token",
             "refresh_token": refresh_token,
             "client_id": settings.codex_client_id,
-        }
-    elif row.provider == "google-oauth":
-        if not settings.google_oauth_client_id or not settings.google_oauth_client_secret:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Google OAuth is not configured on this server.",
-            )
-        url = GOOGLE_OAUTH_TOKEN_URL
-        payload = {
-            "grant_type": "refresh_token",
-            "refresh_token": refresh_token,
-            "client_id": settings.google_oauth_client_id,
-            "client_secret": settings.google_oauth_client_secret,
         }
     else:
         raise HTTPException(
@@ -226,12 +211,12 @@ async def _chat_with_client(
     """Call client.chat(), passing OAuth/timeout kwargs only where supported.
 
     ``account_id`` is sent ONLY for codex, ``oauth_token`` ONLY for
-    google-oauth, so other clients are unaffected.
+    copilot, so other clients are unaffected.
     """
     extra: dict = {}
     if provider == "codex" and account_id is not None:
         extra["account_id"] = account_id
-    if provider == "google-oauth" and oauth_token is not None:
+    if provider == "copilot" and oauth_token is not None:
         extra["oauth_token"] = oauth_token
     try:
         return await client.chat(**filter_client_kwargs(client.chat, {**kwargs, **extra}))
@@ -253,7 +238,7 @@ async def _stream_with_client(
     extra: dict = {}
     if provider == "codex" and account_id is not None:
         extra["account_id"] = account_id
-    if provider == "google-oauth" and oauth_token is not None:
+    if provider == "copilot" and oauth_token is not None:
         extra["oauth_token"] = oauth_token
     try:
         async for chunk in client.chat_stream(

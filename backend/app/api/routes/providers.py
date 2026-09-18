@@ -289,8 +289,8 @@ async def test_provider_connection(
         test_model = "gpt-4o-mini"
     elif provider == "codex":
         test_model = "gpt-5.6-sol"
-    elif provider == "google-oauth":
-        test_model = "gemini-2.5-flash"
+    elif provider == "copilot":
+        test_model = "gpt-4o"
 
     try:
         try:
@@ -322,7 +322,7 @@ async def test_provider_connection(
         }
         if provider == "codex" and account_id:
             chat_kwargs["account_id"] = account_id
-        if provider == "google-oauth" and oauth_token:
+        if provider == "copilot" and oauth_token:
             chat_kwargs["oauth_token"] = oauth_token
         try:
             result = await client.chat(**chat_kwargs)

@@ -80,3 +80,37 @@ async def should_search_web(prompt: str) -> bool:
         logger.info(f"[TypeSafe] Web search necessity probability: {noul:.2f}")
         return noul >= 0.65
     return True
+
+
+async def classify_oauth_error(provider: str, raw_error: str) -> dict:
+    """Use TypeSafe Jev to classify an OAuth/upstream error into user-actionable diagnostics."""
+    key = get_typesafe_api_key()
+    if not key or not raw_error:
+        return {"category": "unknown", "actionable_hint": raw_error}
+
+    res = await evaluate_system_one(
+        state={"provider": provider, "error": raw_error},
+        questions={
+            "category": {
+                "type": "choice",
+                "instructions": "Classify the root cause of this OAuth or API authorization error.",
+                "choices": ["rate_limit", "expired", "access_denied", "subscription_required", "network_failure", "other"],
+            },
+            "user_action": {
+                "type": "choice",
+                "instructions": "What should the user do to resolve this error?",
+                "choices": ["wait_and_retry", "restart_login", "check_subscription", "contact_admin"],
+            },
+        },
+    )
+    if not res:
+        return {"category": "unknown", "actionable_hint": raw_error}
+
+    answers = res.get("answers", {})
+    cat = answers.get("category", {}).get("choice", "other")
+    action = answers.get("user_action", {}).get("choice", "restart_login")
+    return {
+        "category": cat,
+        "action": action,
+        "actionable_hint": f"{cat}: {action}",
+    }

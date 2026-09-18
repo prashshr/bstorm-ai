@@ -27,7 +27,6 @@ PROVIDER_ALIASES: dict[str, str] = {
     "nvidia": "openai-compatible",
     "codex": "codex",
     "copilot": "copilot",
-    "google-oauth": "gemini",
 }
 
 

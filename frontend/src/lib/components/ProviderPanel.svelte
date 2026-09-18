@@ -16,10 +16,10 @@
   let adding = $state(false);
   let editing = $state<string | null>(null);
   let favoritesOpen = $state(true);
-  let oauthModal = $state<"codex" | "google-oauth" | "copilot" | null>(null);
+  let oauthModal = $state<"codex" | "copilot" | "openrouter" | null>(null);
 
   let codexAccount = $derived(providers.oauthAccountFor("codex"));
-  let geminiAccount = $derived(providers.oauthAccountFor("google-oauth"));
+  let openrouterAccount = $derived(providers.oauthAccountFor("openrouter"));
   let copilotAccount = $derived(providers.oauthAccountFor("copilot"));
   let paneWidth = $state<number>(
     typeof window !== "undefined"
@@ -190,10 +190,10 @@
       </button>
       <button
         class="btn btn-ghost btn-sm"
-        title={geminiAccount ? `Gemini connected: ${geminiAccount}` : "Connect with Gemini"}
-        onclick={() => (oauthModal = "google-oauth")}
+        title={openrouterAccount ? `OpenRouter connected: ${openrouterAccount}` : "Connect with OpenRouter"}
+        onclick={() => (oauthModal = "openrouter")}
       >
-        {#if geminiAccount}Gemini ✓ {geminiAccount}{:else}Connect Gemini{/if}
+        {#if openrouterAccount}OpenRouter ✓ {openrouterAccount}{:else}Connect OpenRouter{/if}
       </button>
       <button
         class="btn btn-ghost btn-sm"

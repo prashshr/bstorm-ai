@@ -98,16 +98,14 @@ export interface StreamEvent {
 
 // ---- OAuth (Connect with ChatGPT / Gemini) ----
 // Backend contract:
-//   POST /api/providers/oauth/codex/start  -> OAuthCodexStartResponse
-//   GET  /api/providers/oauth/google/start -> OAuthGoogleStartResponse
+//   POST /api/providers/oauth/codex/start      -> OAuthCodexStartResponse
+//   POST /api/providers/oauth/copilot/start    -> OAuthCodexStartResponse
+//   GET  /api/providers/oauth/openrouter/start -> OAuthBrowserStartResponse
 //   GET  /api/providers/oauth/{provider}/poll?token= -> OAuthPollResponse
 //   GET  /api/providers/oauth -> OAuthStatusResponse
 //   DELETE /api/providers/oauth/{provider}
-// NOTE: the UI uses "google-oauth" as the provider key while only the OAuth
-// start endpoint uses the short "google" segment (see oauthStartSegment in
-// client.ts); poll/disconnect use the full "google-oauth" key.
 
-export type OAuthModalProvider = "codex" | "google-oauth" | "copilot";
+export type OAuthModalProvider = "codex" | "copilot" | "openrouter";
 
 export interface OAuthCodexStartResponse {
   verification_url: string;
@@ -116,7 +114,7 @@ export interface OAuthCodexStartResponse {
   expires_in: number;
 }
 
-export interface OAuthGoogleStartResponse {
+export interface OAuthBrowserStartResponse {
   auth_url: string;
   poll_token: string;
 }
