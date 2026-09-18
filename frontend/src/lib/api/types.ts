@@ -107,7 +107,7 @@ export interface StreamEvent {
 // start endpoint uses the short "google" segment (see oauthStartSegment in
 // client.ts); poll/disconnect use the full "google-oauth" key.
 
-export type OAuthModalProvider = "codex" | "google-oauth";
+export type OAuthModalProvider = "codex" | "google-oauth" | "copilot";
 
 export interface OAuthCodexStartResponse {
   verification_url: string;

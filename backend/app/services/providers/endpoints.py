@@ -111,6 +111,11 @@ PROVIDER_DEFAULT_ENDPOINTS: dict[str, dict[str, str]] = {
         "models_endpoint": "/models",
         "chat_endpoint": "/chat/completions",
     },
+    "copilot": {
+        "base_url": "https://api.githubcopilot.com",
+        "models_endpoint": "/models",
+        "chat_endpoint": "/chat/completions",
+    },
 }
 
 

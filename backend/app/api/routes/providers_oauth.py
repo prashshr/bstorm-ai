@@ -48,9 +48,11 @@ router = APIRouter()
 PENDING_TTL_SECONDS = 15 * 60
 
 CODEX_PROVIDER = "codex"
+COPILOT_PROVIDER = "copilot"
 GOOGLE_OAUTH_PROVIDER = "google-oauth"
 
 CODEX_CREDENTIAL_ENDPOINT = "https://chatgpt.com/backend-api/codex"
+COPILOT_CREDENTIAL_ENDPOINT = "https://api.githubcopilot.com"
 GOOGLE_OAUTH_CREDENTIAL_ENDPOINT = "https://generativelanguage.googleapis.com"
 
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -63,6 +65,7 @@ GOOGLE_SCOPES = (
 
 # Process-local pending-login stores (see module docstring for the caveat).
 _CODEX_PENDING: dict[str, dict] = {}
+_COPILOT_PENDING: dict[str, dict] = {}
 _GOOGLE_STATES: dict[str, dict] = {}
 _GOOGLE_RESULTS: dict[str, dict] = {}
 
@@ -135,7 +138,7 @@ def google_redirect_uri() -> str:
 
 def _purge_expired_pending() -> None:
     now = time.time()
-    for store in (_CODEX_PENDING, _GOOGLE_RESULTS):
+    for store in (_CODEX_PENDING, _COPILOT_PENDING, _GOOGLE_RESULTS):
         for key in [k for k, v in store.items() if is_pending_expired(v.get("created_at", 0), now)]:
             store.pop(key, None)
     for key in [k for k, v in _GOOGLE_STATES.items() if is_pending_expired(v.get("created_at", 0), now)]:
@@ -380,6 +383,154 @@ async def _poll_codex_once(
 
 
 # ---------------------------------------------------------------------------
+# GitHub Copilot device-code flow.
+# ---------------------------------------------------------------------------
+
+
+@router.post("/copilot/start")
+@limiter.limit("30/minute")
+async def copilot_start(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Start a GitHub Copilot device-code login; frontend shows user_code + link."""
+    client_id = settings.copilot_client_id or "Iv1.b507a08c87ecfe98"
+    async with httpx.AsyncClient(timeout=30) as http:
+        try:
+            resp = await http.post(
+                "https://github.com/login/device/code",
+                json={"client_id": client_id, "scope": "read:user"},
+                headers={"Accept": "application/json", "User-Agent": "AI-Ensemble"},
+            )
+        except httpx.RequestError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Could not reach GitHub device auth: {exc}",
+            )
+    if resp.status_code >= 400:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"GitHub device auth failed ({resp.status_code}): {resp.text[:250]}",
+        )
+    try:
+        data = resp.json()
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="GitHub device auth returned an unexpected response",
+        )
+    device_code = data.get("device_code")
+    user_code = data.get("user_code")
+    if not device_code or not user_code:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="GitHub device auth returned an incomplete response",
+        )
+    verification_url = data.get("verification_uri") or "https://github.com/login/device"
+    expires_in = int(data.get("expires_in") or 900)
+
+    _purge_expired_pending()
+    poll_token = secrets.token_urlsafe(32)
+    _COPILOT_PENDING[poll_token] = {
+        "device_code": device_code,
+        "user_code": user_code,
+        "user_id": current_user.id,
+        "created_at": time.time(),
+    }
+    return {
+        "verification_url": verification_url,
+        "user_code": user_code,
+        "poll_token": poll_token,
+        "expires_in": expires_in,
+    }
+
+
+async def _poll_copilot_once(
+    db: Session,
+    *,
+    poll_token: str,
+    user_id: int,
+    uek: str | None,
+) -> dict:
+    entry = _COPILOT_PENDING.get(poll_token)
+    if entry is None:
+        return {"status": "error", "error": "Login session expired or not found. Please start again."}
+    if entry.get("user_id") != user_id:
+        return {"status": "error", "error": "Login session does not belong to this user."}
+    if is_pending_expired(entry.get("created_at", 0)):
+        _COPILOT_PENDING.pop(poll_token, None)
+        return {"status": "error", "error": "Login session expired. Please start again."}
+
+    client_id = settings.copilot_client_id or "Iv1.b507a08c87ecfe98"
+    async with httpx.AsyncClient(timeout=30) as http:
+        try:
+            resp = await http.post(
+                "https://github.com/login/oauth/access_token",
+                json={
+                    "client_id": client_id,
+                    "device_code": entry["device_code"],
+                    "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+                },
+                headers={"Accept": "application/json", "User-Agent": "AI-Ensemble"},
+            )
+        except httpx.RequestError:
+            return {"status": "pending"}
+
+    if resp.status_code >= 400:
+        return {"status": "pending"}
+
+    try:
+        data = resp.json()
+    except Exception:
+        return {"status": "pending"}
+
+    err = data.get("error")
+    if err in ("authorization_pending", "slow_down"):
+        return {"status": "pending"}
+    if err:
+        _COPILOT_PENDING.pop(poll_token, None)
+        return {"status": "error", "error": data.get("error_description") or err}
+
+    access_token = data.get("access_token")
+    if not access_token:
+        return {"status": "pending"}
+
+    account = "github-user"
+    async with httpx.AsyncClient(timeout=15) as http:
+        try:
+            user_resp = await http.get(
+                "https://api.github.com/user",
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Accept": "application/json",
+                    "User-Agent": "AI-Ensemble",
+                },
+            )
+            if user_resp.status_code == 200:
+                user_data = user_resp.json()
+                account = user_data.get("login") or user_data.get("name") or account
+        except Exception:
+            pass
+
+    _store_oauth_tokens(
+        db,
+        user_id=user_id,
+        provider=COPILOT_PROVIDER,
+        access_token=access_token,
+        refresh_token="",
+        expires_in=None,
+        account=account,
+        scopes=data.get("scope", "read:user"),
+        uek=uek,
+        credential_endpoint=COPILOT_CREDENTIAL_ENDPOINT,
+    )
+    _COPILOT_PENDING.pop(poll_token, None)
+    logger.info("GitHub Copilot connected for user_id=%s account=%s", user_id, account)
+    return {"status": "ok", "provider": COPILOT_PROVIDER, "account": account}
+
+
+# ---------------------------------------------------------------------------
 # Google browser-OAuth flow.
 # ---------------------------------------------------------------------------
 
@@ -571,6 +722,8 @@ async def oauth_poll(
     uek = getattr(current_user, "uek", None)
     if provider == CODEX_PROVIDER:
         return await _poll_codex_once(db, poll_token=token, user_id=current_user.id, uek=uek)
+    if provider == COPILOT_PROVIDER:
+        return await _poll_copilot_once(db, poll_token=token, user_id=current_user.id, uek=uek)
     if provider == GOOGLE_OAUTH_PROVIDER:
         return _poll_google(poll_token=token, user_id=current_user.id)
     raise HTTPException(

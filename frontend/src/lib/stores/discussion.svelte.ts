@@ -549,23 +549,30 @@ class DiscussionStore {
     // #updateModel at most every ~100ms (trailing flush on done).
     let pendingText = "";
     let pendingThinking = "";
-    let lastFlush = 0;
-    let flushTimer: ReturnType<typeof setTimeout> | null = null;
+    let rafHandle: number | null = null;
+    const cancelScheduledFlush = () => {
+      if (rafHandle !== null) {
+        if (typeof cancelAnimationFrame === "function") {
+          cancelAnimationFrame(rafHandle);
+        } else {
+          clearTimeout(rafHandle);
+        }
+        rafHandle = null;
+      }
+    };
     const flushPending = () => {
-      flushTimer = null;
+      rafHandle = null;
       if (!pendingText && !pendingThinking) return;
       const prev = this.#data.rounds[roundNum]?.[compositeKey];
       if (!prev) {
         pendingText = "";
         pendingThinking = "";
-        lastFlush = Date.now();
         return;
       }
       const chunk = pendingText;
       const thinkChunk = pendingThinking;
       pendingText = "";
       pendingThinking = "";
-      lastFlush = Date.now();
       this.#updateModel(roundNum, compositeKey, {
         status: "streaming",
         text: prev.text + chunk,
@@ -573,15 +580,11 @@ class DiscussionStore {
       });
     };
     const scheduleFlush = () => {
-      const now = Date.now();
-      if (now - lastFlush >= 40) {
-        if (flushTimer) {
-          clearTimeout(flushTimer);
-          flushTimer = null;
-        }
-        flushPending();
-      } else if (!flushTimer) {
-        flushTimer = setTimeout(flushPending, Math.max(10, 40 - (now - lastFlush)));
+      if (rafHandle !== null) return;
+      if (typeof requestAnimationFrame === "function") {
+        rafHandle = requestAnimationFrame(flushPending);
+      } else {
+        rafHandle = setTimeout(flushPending, 16) as unknown as number;
       }
     };
 
@@ -617,10 +620,7 @@ class DiscussionStore {
 
       // Trailing flush on done: the authoritative full text already contains
       // every delta, so drop any unflushed remainder and set final text.
-      if (flushTimer) {
-        clearTimeout(flushTimer);
-        flushTimer = null;
-      }
+      cancelScheduledFlush();
       pendingText = "";
       pendingThinking = "";
 
@@ -633,10 +633,7 @@ class DiscussionStore {
       });
       this.#recomputeStats();
     } catch (e) {
-      if (flushTimer) {
-        clearTimeout(flushTimer);
-        flushTimer = null;
-      }
+      cancelScheduledFlush();
       // Timeout (timeout signal fired while still running) takes precedence
       // over the generic abort path; user-stop is running=false / #abort aborted.
       if (scope.isTimeout() && this.#running) {
@@ -958,14 +955,14 @@ class DiscussionStore {
       const prevRound = this.#data.rounds[i] ?? {};
       const parts = Object.entries(prevRound)
         .filter(([m, r]) => m !== compositeKey && r.status === "complete" && r.text)
-        .map(([m, r]) => `### ${splitModelKey(m).model}\n${r.text.length > 2000 ? r.text.slice(0, 2000) : r.text}`)
+        .map(([m, r]) => `### Peer Model: ${splitModelKey(m).model}\n${r.text.length > 6000 ? r.text.slice(0, 6000) + "\n[truncated]" : r.text}`)
         .join("\n\n");
       if (parts) {
-        prompt += `Model responses (turn ${i}):\n${parts}\n\n`;
+        prompt += `[PEER PERSPECTIVES - TURN ${i}]\nThe following are the complete analyses, reasoning steps, and conclusions from the other participating models in turn ${i}:\n\n${parts}\n[END PEER PERSPECTIVES]\n\n`;
       }
       const prevConsensus = this.#data.consensuses[i];
       if (prevConsensus) {
-        const capped = prevConsensus.length > 1500 ? prevConsensus.slice(0, 1500) : prevConsensus;
+        const capped = prevConsensus.length > 2500 ? prevConsensus.slice(0, 2500) : prevConsensus;
         prompt += `Consensus synthesis (turn ${i}):\n${capped}\n\n`;
       }
     }
@@ -973,6 +970,15 @@ class DiscussionStore {
     // Current user turn
     const currentMsg = this.#data.userMessages[roundNum] ?? this.#data.question;
     prompt += `User (turn ${roundNum}): ${currentMsg}\n\n`;
+
+    if (roundNum > 1) {
+      prompt += `[ENSEMBLE DELIBERATION DIRECTIVE - TURN ${roundNum}]\n` +
+        `You are now in deliberation turn ${roundNum}. Review the peer model responses above with an analytical eye:\n` +
+        `1. Integrate the valid points, edge cases, and distinct angles raised by other models (e.g. if another model noticed a constraint, bug, or nuance you did not emphasize).\n` +
+        `2. Respectfully point out and correct any flaws, misconceptions, or false assumptions in their arguments.\n` +
+        `3. Provide your synthesis and enhanced final judgment for this turn.\n` +
+        `[END ENSEMBLE DELIBERATION DIRECTIVE]\n\n`;
+    }
 
     const isVision = this.#isVisionModel(compositeKey);
     const roundAttach = this.#attachmentsByRound[roundNum] || (roundNum === 1 ? this.#data.attachments : []);

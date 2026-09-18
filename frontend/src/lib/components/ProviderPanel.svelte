@@ -16,10 +16,11 @@
   let adding = $state(false);
   let editing = $state<string | null>(null);
   let favoritesOpen = $state(true);
-  let oauthModal = $state<"codex" | "google-oauth" | null>(null);
+  let oauthModal = $state<"codex" | "google-oauth" | "copilot" | null>(null);
 
   let codexAccount = $derived(providers.oauthAccountFor("codex"));
   let geminiAccount = $derived(providers.oauthAccountFor("google-oauth"));
+  let copilotAccount = $derived(providers.oauthAccountFor("copilot"));
   let paneWidth = $state<number>(
     typeof window !== "undefined"
       ? Math.min(
@@ -193,6 +194,13 @@
         onclick={() => (oauthModal = "google-oauth")}
       >
         {#if geminiAccount}Gemini ✓ {geminiAccount}{:else}Connect Gemini{/if}
+      </button>
+      <button
+        class="btn btn-ghost btn-sm"
+        title={copilotAccount ? `Copilot connected: ${copilotAccount}` : "Connect with GitHub Copilot"}
+        onclick={() => (oauthModal = "copilot")}
+      >
+        {#if copilotAccount}Copilot ✓ {copilotAccount}{:else}Connect Copilot{/if}
       </button>
     </div>
 

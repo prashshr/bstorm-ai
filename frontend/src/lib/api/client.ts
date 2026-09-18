@@ -241,7 +241,7 @@ export const api = {
     provider: string,
   ): Promise<OAuthCodexStartResponse | OAuthGoogleStartResponse> {
     const segment = oauthStartSegment(provider);
-    if (segment === "codex") {
+    if (segment === "codex" || segment === "copilot") {
       return request<OAuthCodexStartResponse | OAuthGoogleStartResponse>(
         `/api/providers/oauth/${encodeURIComponent(segment)}/start`,
         { method: "POST" },

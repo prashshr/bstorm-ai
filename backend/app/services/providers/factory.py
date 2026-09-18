@@ -26,6 +26,7 @@ PROVIDER_ALIASES: dict[str, str] = {
     "google-vertex": "vertex",
     "nvidia": "openai-compatible",
     "codex": "codex",
+    "copilot": "copilot",
     "google-oauth": "gemini",
 }
 
@@ -45,4 +46,7 @@ def get_provider_client(provider: str) -> ProviderClient:
     if normalized == "codex":
         from app.services.providers.codex import CodexClient
         return CodexClient()
+    if normalized == "copilot":
+        from app.services.providers.copilot import CopilotClient
+        return CopilotClient()
     return OpenAICompatibleClient()

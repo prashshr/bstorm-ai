@@ -23,7 +23,7 @@ logger = logging.getLogger("ai_ensemble.proxy")
 
 # Providers authenticated via the OAuth vault (see api/routes/providers_oauth)
 # instead of a stored API key.
-OAUTH_PROVIDERS = frozenset({"codex", "google-oauth"})
+OAUTH_PROVIDERS = frozenset({"codex", "google-oauth", "copilot"})
 
 # Refresh the access token early so it cannot expire mid-request.
 OAUTH_EXPIRY_SKEW_SECONDS = 60

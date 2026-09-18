@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     # OAuth device-code / browser-OAuth logins (Codex, Google).
     codex_client_id: str = "app_EMoamEEZ73f0CkXaXp7hrann"
     codex_issuer: str = "https://auth.openai.com"
+    copilot_client_id: str = "Iv1.b507a08c87ecfe98"
     google_oauth_client_id: str = ""
     google_oauth_client_secret: str = ""
     backend_public_url: str = "https://ai-ensemble.samkhya.cloud"

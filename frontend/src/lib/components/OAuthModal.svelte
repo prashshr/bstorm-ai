@@ -7,7 +7,7 @@
   import Icon from "./Icon.svelte";
 
   interface Props {
-    provider: "codex" | "google-oauth";
+    provider: "codex" | "google-oauth" | "copilot";
     onclose: () => void;
   }
   let { provider, onclose }: Props = $props();
@@ -15,9 +15,17 @@
   const POLL_INTERVAL_MS = 2500;
   const POLL_TIMEOUT_MS = 15 * 60 * 1000;
 
-  let title = $derived(provider === "codex" ? "Connect ChatGPT" : "Connect Gemini");
+  let title = $derived(
+    provider === "codex"
+      ? "Connect ChatGPT"
+      : provider === "copilot"
+        ? "Connect GitHub Copilot"
+        : "Connect Gemini"
+  );
   // Model-discovery key after a successful connect.
-  let discoverKey = $derived(provider === "codex" ? "codex" : "google-oauth");
+  let discoverKey = $derived(
+    provider === "codex" ? "codex" : provider === "copilot" ? "copilot" : "google-oauth"
+  );
 
   let loading = $state(true);
   let error = $state("");
@@ -143,7 +151,7 @@
     try {
       const res = await api.oauthStart(provider);
       if (destroyed) return;
-      if (provider === "codex" && "verification_url" in res) {
+      if ((provider === "codex" || provider === "copilot") && "verification_url" in res) {
         verificationUrl = res.verification_url;
         userCode = res.user_code;
         expiresIn = res.expires_in;
@@ -231,7 +239,7 @@
         <button class="btn btn-ghost btn-sm" onclick={disconnect}>Disconnect</button>
         <button class="btn btn-primary btn-sm" onclick={onclose}>Close</button>
       </div>
-    {:else if provider === "codex"}
+    {:else if provider === "codex" || provider === "copilot"}
       <p class="hint">Open the verification page and enter this code:</p>
       <div class="user-code">{userCode}</div>
       <div class="row">
