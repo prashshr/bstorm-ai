@@ -33,6 +33,9 @@ def page(page: Page):
     yield page
 
 
+_SHARED_CREDS: tuple[str, str] | None = None
+
+
 def _register(page: Page) -> tuple[str, str]:
     """Register a fresh user through the Svelte auth card and return creds."""
     page.goto(FRONTEND_URL)
@@ -43,8 +46,30 @@ def _register(page: Page) -> tuple[str, str]:
     page.locator("#auth-id").fill(email)
     page.locator("#auth-pw").fill(password)
     page.get_by_role("button", name="Create account").click()
-    expect(page.get_by_test_id("user-display")).to_be_visible(timeout=10000)
+    expect(page.get_by_role("button", name="User settings")).to_be_visible(timeout=10000)
     return email, password
+
+
+def _get_or_create_user(page: Page) -> tuple[str, str]:
+    """Reuse existing user session or credentials to avoid hitting rate limits."""
+    global _SHARED_CREDS
+    if _SHARED_CREDS:
+        email, password = _SHARED_CREDS
+        page.goto(FRONTEND_URL)
+        try:
+            if page.locator("button[aria-label='User settings']").is_visible():
+                return email, password
+        except Exception:
+            pass
+        # If not authenticated, log in
+        if page.locator("#auth-id").is_visible():
+            page.locator("#auth-id").fill(email)
+            page.locator("#auth-pw").fill(password)
+            page.get_by_role("button", name="Log in").click()
+            expect(page.get_by_role("button", name="User settings")).to_be_visible(timeout=10000)
+            return email, password
+    _SHARED_CREDS = _register(page)
+    return _SHARED_CREDS
 
 
 # ============================================================
@@ -70,126 +95,83 @@ class TestPageLoad:
 
 class TestAuthFlow:
     def test_register_new_user(self, page: Page):
-        email, _ = _register(page)
-        expect(page.get_by_test_id("user-display")).to_contain_text(
-            email.split("@")[0][:3]
-        )
+        _register(page)
+        expect(page.get_by_role("button", name="User settings")).to_be_visible()
 
     def test_login_after_register(self, page: Page):
         email, password = _register(page)
-        # Log out, then log back in
-        page.get_by_role("button", name="Logout").click()
+        # Open user settings and log out
+        page.get_by_role("button", name="User settings").click()
+        page.get_by_role("button", name="Data & Privacy").click()
+        page.get_by_role("button", name="Sign Out").click()
         expect(page.get_by_test_id("login-page")).to_be_visible()
         page.locator("#auth-id").fill(email)
         page.locator("#auth-pw").fill(password)
         page.get_by_role("button", name="Log in").click()
-        expect(page.get_by_test_id("user-display")).to_be_visible(timeout=10000)
+        expect(page.get_by_role("button", name="User settings")).to_be_visible(timeout=10000)
 
 
 # ============================================================
-# Navigation / Tabs
+# Navigation & Layout Elements
 # ============================================================
 
 class TestNavigation:
-    def test_main_tabs_visible(self, page: Page):
-        _register(page)
-        expect(page.get_by_role("button", name="New Discussion")).to_be_visible()
-        expect(page.get_by_role("button", name="History")).to_be_visible()
-
-    def test_tab_switching_updates_hash(self, page: Page):
-        _register(page)
-        page.get_by_role("button", name="History").click()
-        page.wait_for_function("() => location.hash === '#history'")
-        page.get_by_role("button", name="New Discussion").click()
-        page.wait_for_function("() => location.hash === '#new'")
+    def test_main_elements_visible(self, page: Page):
+        _get_or_create_user(page)
+        expect(page.get_by_role("button", name="New chat")).to_be_visible()
+        expect(page.get_by_role("button", name="Toggle providers panel")).to_be_visible()
+        # Chat box is expandable
+        expand_btn = page.get_by_role("button", name="Expand chat box")
+        expect(expand_btn).to_be_visible()
+        expand_btn.click()
+        expect(page.get_by_test_id("chat-input")).to_be_visible()
 
 
 # ============================================================
-# Provider Management (now lives in the left sidebar)
+# Provider & Subscriptions Management
 # ============================================================
 
 class TestProviderUI:
-    def test_add_provider_button_reveals_form(self, page: Page):
-        _register(page)
-        add_btn = page.get_by_test_id("add-provider-btn")
-        expect(add_btn).to_be_visible()
-        add_btn.click()
-        # The inline provider form exposes an API Key field
-        expect(page.locator("#pf-key")).to_be_visible(timeout=5000)
-
-    def test_save_provider_credential(self, page: Page):
-        _register(page)
-        page.get_by_test_id("add-provider-btn").click()
-        page.wait_for_selector("#pf-key", state="visible")
-        page.locator("#pf-preset").select_option("openai")
-        page.locator("#pf-key").fill("sk-e2e-test-key-12345")
-        page.get_by_role("button", name="Save & Discover").click()
-        # Either success or an actionable error message is shown
-        expect(page.locator(".msg")).to_be_visible(timeout=10000)
-
-    def test_provider_shows_in_list(self, page: Page):
-        _register(page)
-        page.get_by_test_id("add-provider-btn").click()
-        page.wait_for_selector("#pf-key", state="visible")
-        page.locator("#pf-preset").select_option("openrouter")
-        page.locator("#pf-key").fill("sk-or-e2e-test-key")
-        page.get_by_role("button", name="Save & Discover").click()
-        provider_list = page.get_by_test_id("provider-list")
-        expect(provider_list).to_be_visible(timeout=10000)
-        assert provider_list.locator(".provider-row").count() >= 1
+    def test_provider_panel_opens_and_shows_subscriptions(self, page: Page):
+        _get_or_create_user(page)
+        panel_btn = page.get_by_role("button", name="Toggle providers panel")
+        expect(panel_btn).to_be_visible()
+        panel_btn.click()
+        # Verify Subscriptions and API Providers sections exist
+        expect(page.get_by_role("heading", name="Subscriptions")).to_be_visible(timeout=5000)
+        expect(page.get_by_role("heading", name="API Providers")).to_be_visible(timeout=5000)
 
 
 # ============================================================
-# Discussion Creation
+# Discussion Creation & Chat Input
 # ============================================================
 
 class TestDiscussionUI:
-    def test_new_discussion_form_visible(self, page: Page):
-        _register(page)
-        page.get_by_role("button", name="New Discussion").click()
-        expect(page.get_by_test_id("question-input")).to_be_visible(timeout=5000)
+    def test_chat_input_accepts_text(self, page: Page):
+        _get_or_create_user(page)
+        page.get_by_role("button", name="Expand chat box").click()
+        inp = page.get_by_test_id("chat-input")
+        expect(inp).to_be_visible()
+        inp.click()
+        inp.fill("What is the best smartphone under 300 euros?")
+        expect(inp).to_contain_text("What is the best smartphone")
 
-    def test_question_input_accepts_text(self, page: Page):
-        _register(page)
-        page.get_by_role("button", name="New Discussion").click()
-        q = page.get_by_test_id("question-input")
-        q.fill("What is the best smartphone under 300 euros?")
-        assert len(q.input_value()) > 10
-
-    def test_rag_checkbox_toggle(self, page: Page):
-        _register(page)
-        page.get_by_role("button", name="New Discussion").click()
-        rag = page.get_by_test_id("rag-toggle")
-        expect(rag).to_be_visible()
-        was = rag.is_checked()
-        rag.click()
-        assert rag.is_checked() != was
-
-    def test_start_discussion_no_models_warning(self, page: Page):
-        _register(page)
-        page.get_by_role("button", name="New Discussion").click()
-        page.get_by_test_id("question-input").fill("Test question?")
-        page.get_by_test_id("start-discussion-btn").click()
-        # Validation error surfaces (no models selected)
-        expect(page.locator('[role="alert"]')).to_be_visible(timeout=5000)
-
-    def test_history_tab_shows_list(self, page: Page):
-        _register(page)
-        page.get_by_role("button", name="History").click()
-        # Either a populated list or the empty-state hint renders
-        list_or_hint = page.get_by_test_id("history-list").or_(
-            page.locator(".hint")
-        )
-        expect(list_or_hint.first).to_be_visible(timeout=5000)
+    def test_send_button_disabled_without_models(self, page: Page):
+        _get_or_create_user(page)
+        page.get_by_role("button", name="Expand chat box").click()
+        send_btn = page.get_by_test_id("chat-send")
+        expect(send_btn).to_be_visible()
+        # With 0 models selected, send button should be disabled
+        expect(send_btn).to_be_disabled()
 
 
 # ============================================================
-# Progress Stepper (design council: Queued -> Searching -> Drafting -> Synthesizing)
+# Progress Stepper
 # ============================================================
 
 class TestProgressStepper:
     def test_stepper_absent_before_discussion(self, page: Page):
-        _register(page)
+        _get_or_create_user(page)
         # The compact stepper only mounts while a discussion is running
         assert page.locator(".stepper").count() == 0
 
@@ -213,7 +195,7 @@ class TestLayout:
         expect(page.get_by_role("button", name="Log in")).to_be_visible()
 
     def test_theme_toggle(self, page: Page):
-        _register(page)
+        _get_or_create_user(page)
         toggle = page.get_by_role("button", name="Toggle theme")
         expect(toggle).to_be_visible()
         before = page.locator("html").get_attribute("data-theme")

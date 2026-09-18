@@ -51,11 +51,18 @@
 
   function cleanUserMessage(msg: string): string {
     if (!msg) return "";
-    const markerIndex = msg.search(/\n\n--- (?:Attached File|Attachment):/);
+    let clean = msg;
+    const markerIndex = clean.search(/\n\n--- (?:Attached File|Attachment):/);
     if (markerIndex !== -1) {
-      return msg.slice(0, markerIndex).trim();
+      clean = clean.slice(0, markerIndex).trim();
     }
-    return msg;
+    const directiveMatch = clean.match(
+      /\[COUNCIL DELIBERATION DIRECTIVE - TURN 2\]\n([\s\S]*?)\n\[END COUNCIL DELIBERATION DIRECTIVE\]/,
+    );
+    if (directiveMatch) {
+      return directiveMatch[1].trim();
+    }
+    return clean;
   }
 
   function getAttachmentsForRound(rn: number): { name: string; type: string; content?: string }[] {
@@ -141,7 +148,15 @@
           </div>
         {/if}
         <div class="user-msg" data-testid="user-message-{rn}">
-          <span class="user-label">{rn === 1 ? "You" : (discussion.data.userMessages[rn] ?? "").startsWith("Continue refining the analysis") ? "Auto-continue" : "You · follow-up"}</span>
+          <span class="user-label">
+            {rn === 1
+              ? "You"
+              : (discussion.data.userMessages[rn] ?? "").includes("COUNCIL DELIBERATION DIRECTIVE") || (discussion.data.userMessages[rn] ?? "").includes("Council Deliberation")
+                ? "Council Deliberation · Turn 2"
+                : (discussion.data.userMessages[rn] ?? "").startsWith("Continue refining the analysis")
+                  ? "Auto-continue"
+                  : "You · follow-up"}
+          </span>
           {#if cleanUserMessage(discussion.data.userMessages[rn] ?? "")}
             <p>{cleanUserMessage(discussion.data.userMessages[rn] ?? "")}</p>
           {/if}

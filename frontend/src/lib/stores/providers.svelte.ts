@@ -118,6 +118,21 @@ class ProvidersStore {
     }
   }
 
+  async disconnectOAuth(provider: string): Promise<boolean> {
+    try {
+      await api.oauthDisconnect(provider);
+      this.#verified.delete(provider);
+      if (this.#active === provider) this.#active = null;
+      await this.loadOAuth();
+      await this.load();
+      debug.log(`Disconnected OAuth provider ${provider}`);
+      return true;
+    } catch (e) {
+      debug.log(`Failed to disconnect OAuth provider ${provider}: ${e}`, "error");
+      return false;
+    }
+  }
+
   markVerified(provider: string): void {
     this.#verified = new Set(this.#verified).add(provider);
   }

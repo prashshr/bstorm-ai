@@ -11,6 +11,7 @@ from app.api.routes.providers_oauth import (
     _poll_copilot_once,
     _poll_openrouter,
     copilot_start,
+    delete_oauth_connection,
     openrouter_start,
 )
 from app.services.typesafe_service import classify_oauth_error
@@ -116,3 +117,32 @@ class TestTypeSafeOAuthDiagnostics:
         res = await classify_oauth_error("copilot", "slow_down: rate limit exceeded")
         assert "category" in res
         assert "actionable_hint" in res
+
+
+class TestOAuthDisconnect:
+    @pytest.mark.asyncio
+    async def test_delete_oauth_connection_success(self):
+        mock_user = MagicMock(id=42)
+        mock_db = MagicMock()
+        mock_row = MagicMock()
+        mock_cred = MagicMock()
+
+        # When both token and cred exist
+        mock_db.query.return_value.filter.return_value.first.side_effect = [mock_row, mock_cred]
+        scope = {"type": "http", "method": "DELETE", "path": "/api/providers/oauth/copilot", "headers": [], "client": ("127.0.0.1", 12345)}
+        req = Request(scope=scope)
+        res = await delete_oauth_connection(request=req, provider="copilot", db=mock_db, current_user=mock_user)
+        assert res == {"status": "deleted", "provider": "copilot"}
+        assert mock_db.delete.call_count == 2
+        mock_db.commit.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_delete_oauth_connection_not_found(self):
+        mock_user = MagicMock(id=42)
+        mock_db = MagicMock()
+        mock_db.query.return_value.filter.return_value.first.return_value = None
+        scope = {"type": "http", "method": "DELETE", "path": "/api/providers/oauth/nonexistent", "headers": [], "client": ("127.0.0.1", 12345)}
+        req = Request(scope=scope)
+        with pytest.raises(HTTPException) as exc_info:
+            await delete_oauth_connection(request=req, provider="nonexistent", db=mock_db, current_user=mock_user)
+        assert exc_info.value.status_code == 404

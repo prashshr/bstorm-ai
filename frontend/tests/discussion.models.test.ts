@@ -11,6 +11,25 @@ vi.mock("../src/lib/api/client", () => ({
       return "hello";
     }),
     chat: vi.fn(async () => ({ output: "consensus" })),
+    deliberationTopology: vi.fn(async () => ({
+      model_count: 2,
+      consensus_score: 3.0,
+      consensus_percent: 100,
+      has_disagreement: false,
+      primary_divergence: "unanimous",
+      dissenting_model: null,
+      should_deliberate_round_2: false,
+      deliberation_directive: null,
+      summary_badge: "Unanimous Consensus",
+      rationale: "All models agreed.",
+    })),
+    triageDocument: vi.fn(async () => ({
+      original_length: 100,
+      triaged_length: 100,
+      is_triaged: false,
+      has_prompt_injection: false,
+      triaged_content: "content",
+    })),
   },
 }));
 

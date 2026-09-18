@@ -23,6 +23,9 @@
   let parsed = $derived(parseModelThinking(rawConsensus));
   let consensus = $derived(parsed.finalText || rawConsensus);
   let rendered = $derived(safeRenderMarkdown(consensus));
+  let topology = $derived(
+    roundNum ? discussion.data.topologyByRound?.[roundNum] : undefined,
+  );
   let generating = $derived(
     discussion.phase === "synthesizing" &&
       (roundNum === 0 || roundNum === discussion.currentRound),
@@ -41,6 +44,20 @@
    <div class="c-head">
       <h2><Icon name="star" size="sm" /> Consensus</h2>
       <div class="c-head-right">
+        {#if topology}
+          <span
+            class="topology-pill"
+            class:dissent={topology.has_disagreement}
+            title={topology.rationale}
+          >
+            <span class="topo-dot"></span>
+            {#if topology.has_disagreement}
+              Dissent: {topology.dissenting_model ? topology.dissenting_model.split("::").pop() : "Divergence"} ({topology.primary_divergence.replace(/_/g, " ")})
+            {:else}
+              Consensus: {topology.consensus_percent}%
+            {/if}
+          </span>
+        {/if}
         {#if discussion.data.consensusModel}
           <span class="c-model"
             >via {discussion.data.consensusModel.split("::")[1]}</span
@@ -57,6 +74,15 @@
         {/if}
        </div>
     </div>
+
+    {#if topology?.has_disagreement && topology.dissenting_model}
+      <div class="dissent-banner">
+        <Icon name="alert-triangle" size="sm" />
+        <span class="dissent-text">
+          <strong>Deliberation Focus:</strong> Model <code>{topology.dissenting_model.split("::").pop()}</code> raised an alternative view on <em>{topology.primary_divergence.replace(/_/g, " ")}</em>.
+        </span>
+      </div>
+    {/if}
 
     {#if generating}
      <div class="generating">
@@ -176,5 +202,49 @@
     to {
       transform: rotate(360deg);
     }
+  }
+  .topology-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+  }
+  .topology-pill.dissent {
+    border-color: #f59e0b;
+    background: rgba(245, 158, 11, 0.1);
+    color: #d97706;
+  }
+  .topo-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #10b981;
+  }
+  .topology-pill.dissent .topo-dot {
+    background: #f59e0b;
+  }
+  .dissent-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    border-radius: var(--radius);
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    font-size: 0.82rem;
+    color: var(--text-primary);
+  }
+  .dissent-banner code {
+    background: rgba(0, 0, 0, 0.06);
+    padding: 1px 4px;
+    border-radius: 4px;
+    font-size: 0.78rem;
   }
 </style>

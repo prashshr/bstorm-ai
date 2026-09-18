@@ -46,3 +46,38 @@ class MessageResponse(BaseModel):
     role: str
     content: str
     created_at: datetime
+
+
+class TriageDocumentRequest(BaseModel):
+    filename: str
+    content: str
+    query: str = ""
+    max_chars_budget: int = 16000
+
+
+class TriageDocumentResponse(BaseModel):
+    filename: str
+    triaged_content: str
+    is_triaged: bool
+    original_length: int
+    triaged_length: int
+    has_prompt_injection: bool = False
+    safety_advisory: Optional[str] = None
+
+
+class DeliberationTopologyRequest(BaseModel):
+    question: str
+    model_responses: dict[str, str]
+
+
+class DeliberationTopologyResponse(BaseModel):
+    model_count: int
+    consensus_score: float
+    consensus_percent: int
+    has_disagreement: bool
+    primary_divergence: str
+    dissenting_model: Optional[str] = None
+    should_deliberate_round_2: bool
+    deliberation_directive: Optional[str] = None
+    summary_badge: str
+    rationale: str

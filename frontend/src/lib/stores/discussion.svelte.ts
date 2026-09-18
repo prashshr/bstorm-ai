@@ -3,6 +3,7 @@ import type {
   ChatAttachment,
   ChatRequest,
   Contribution,
+  DeliberationTopologyResponse,
   DiscussionState,
   ModelResult,
   ProgressPhase,
@@ -65,6 +66,7 @@ function emptyState(): DiscussionState {
     responseFormat: "compact",
     responseFormatText:
       "STRICT COMPACT LENGTH & FORMAT MANDATE: Provide a direct, highly concise, and brief response. Maximum 150-250 words total (maximum 2-3 short paragraphs or bullet points). Eliminate all introductory filler, background summaries, conversational remarks, and repetitive restatements. Get straight to the point.",
+    topologyByRound: {},
   };
 }
 
@@ -404,6 +406,30 @@ class DiscussionStore {
     this.#attachmentsByRound = opts.attachments?.length
       ? { 1: opts.attachments }
       : {};
+
+    // Triage large text attachments using TypeSafe System One to prevent context window overflow / timeouts
+    if (opts.attachments?.length) {
+      for (const att of opts.attachments) {
+        if (!att.type?.startsWith("image/") && att.content && att.content.length > 16000) {
+          try {
+            debug.log(`Triaging large attachment '${att.name}' (${att.content.length} chars) with TypeSafe...`);
+            const triaged = await api.triageDocument({
+              filename: att.name,
+              content: att.content,
+              query: opts.question,
+              max_chars_budget: 16000,
+            });
+            if (triaged?.triaged_content) {
+              att.content = triaged.triaged_content;
+              debug.log(`Triaged '${att.name}' from ${triaged.original_length} to ${triaged.triaged_length} chars`);
+            }
+          } catch (e) {
+            debug.log(`Attachment triage failed for ${att.name}: ${e}`, "warn");
+          }
+        }
+      }
+    }
+
     await this.runRound(1);
   }
 
@@ -442,6 +468,25 @@ class DiscussionStore {
     const roundNum = Object.keys(this.#data.rounds).length + 1;
     this.#data.userMessages = { ...this.#data.userMessages, [roundNum]: followUp };
     if (attachments && attachments.length > 0) {
+      for (const att of attachments) {
+        if (!att.type?.startsWith("image/") && att.content && att.content.length > 16000) {
+          try {
+            debug.log(`Triaging large attachment '${att.name}' (${att.content.length} chars) with TypeSafe...`);
+            const triaged = await api.triageDocument({
+              filename: att.name,
+              content: att.content,
+              query: followUp,
+              max_chars_budget: 16000,
+            });
+            if (triaged?.triaged_content) {
+              att.content = triaged.triaged_content;
+              debug.log(`Triaged '${att.name}' from ${triaged.original_length} to ${triaged.triaged_length} chars`);
+            }
+          } catch (e) {
+            debug.log(`Attachment triage failed for ${att.name}: ${e}`, "warn");
+          }
+        }
+      }
       this.#data.attachments = attachments.map((a) => ({ name: a.name, size: 0, type: a.type, content: a.content }));
       this.#attachmentsByRound[roundNum] = attachments;
     }
@@ -512,14 +557,73 @@ class DiscussionStore {
       await this.generateConsensus(roundNum);
     }
 
-    const total = this.#data.totalRounds || 1;
-    if (roundNum < total) {
-      // Auto-advance to the next round so the models can refine their
-      // answers based on the previous round's results and consensus.
+    // Capability 2: Objective Consensus & Topology Mapping using TypeSafe System One
+    const responses: Record<string, string> = {};
+    for (const [mKey, res] of Object.entries(this.#data.rounds[roundNum] ?? {})) {
+      if (res.status === "complete" && res.text) {
+        responses[mKey] = res.text;
+      }
+    }
+
+    let topology: DeliberationTopologyResponse | null = null;
+    if (Object.keys(responses).length > 0) {
+      try {
+        topology = await api.deliberationTopology({
+          question: this.#data.question,
+          model_responses: responses,
+        });
+        this.#data.topologyByRound = {
+          ...(this.#data.topologyByRound ?? {}),
+          [roundNum]: topology,
+        };
+        this.#data = { ...this.#data };
+        this.persist();
+      } catch (e) {
+        debug.log(`Topology analysis error: ${e}`, "warn");
+      }
+    }
+
+    const modelCount = this.#data.models.length;
+    // Capability 3: Dynamic Deliberation Gating
+    // Rule 1: If just 1 model, obviously no rounds needed!
+    if (modelCount <= 1) {
+      debug.log("Single model evaluated; deliberation complete without additional rounds.");
+      this.finish();
+      return;
+    }
+
+    // Rule 2: If multi-model deliberation in Round 1:
+    // If any model disagrees, trigger Round 2 so peer models deliberate on that dissenting view
+    if (roundNum === 1) {
+      const hasDissent = topology ? topology.should_deliberate_round_2 : false;
+      if (hasDissent) {
+        const nextRound = 2;
+        const directive = topology?.deliberation_directive ||
+          `[COUNCIL DELIBERATION DIRECTIVE - TURN 2]\nIn Round 1, peer models presented differing perspectives. Re-examine the differing arguments, evaluate their merits and trade-offs, and synthesize your refined position.\n[END COUNCIL DELIBERATION DIRECTIVE]`;
+        this.#data.userMessages = {
+          ...this.#data.userMessages,
+          [nextRound]: directive,
+        };
+        this.persist();
+        debug.log(`Dissent detected in Round 1 (${topology?.summary_badge}). Advancing to Round 2 deliberation...`);
+        await this.runRound(nextRound);
+        return;
+      } else {
+        // High consensus; all models agree! Finish early without Round 2
+        debug.log(`Unanimous consensus in Round 1 (${topology?.summary_badge || "All models agree"}). Discussion complete.`);
+        this.finish();
+        return;
+      }
+    }
+
+    // For rounds beyond Round 1 (Round 2+):
+    const total = this.#data.totalRounds || 2;
+    if (roundNum < total && (topology?.should_deliberate_round_2 ?? false)) {
       const nextRound = roundNum + 1;
       this.#data.userMessages = {
         ...this.#data.userMessages,
-        [nextRound]: `Continue refining the analysis. Review all previous rounds including their model responses and consensus. Provide a refined, enhanced response that builds on the best insights so far.`,
+        [nextRound]: topology?.deliberation_directive ||
+          `Continue refining the analysis. Review all previous rounds including their model responses and consensus. Provide a refined, enhanced response that builds on the best insights so far.`,
       };
       this.persist();
       await this.runRound(nextRound);
@@ -998,9 +1102,15 @@ class DiscussionStore {
               }
             }
           } else {
-            const header = `--- Attached File: ${att.name} ---`;
+            const header = `--- Attached File: ${att.name}`;
             if (!prompt.includes(header)) {
-              prompt += `${header}\n${att.content}\n[End Attached File: ${att.name}]\n\n`;
+              if (att.content.length > 16000 && !att.content.includes("[DOCUMENT OUTLINE]")) {
+                const head = att.content.slice(0, 10000);
+                const tail = att.content.slice(-4000);
+                prompt += `--- Attached File: ${att.name} (Budgeted Excerpt: ${att.content.length} chars) ---\n${head}\n\n[... middle sections omitted to protect model context window ...]\n\n${tail}\n[End Attached File: ${att.name}]\n\n`;
+              } else {
+                prompt += `--- Attached File: ${att.name} ---\n${att.content}\n[End Attached File: ${att.name}]\n\n`;
+              }
             }
           }
         }

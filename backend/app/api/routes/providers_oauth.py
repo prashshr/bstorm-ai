@@ -785,12 +785,6 @@ async def delete_oauth_connection(
         )
         .first()
     )
-    if not row:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No OAuth connection found for provider '{provider}'",
-        )
-    db.delete(row)
     cred = (
         db.query(ProviderCredential)
         .filter(
@@ -799,6 +793,13 @@ async def delete_oauth_connection(
         )
         .first()
     )
+    if not row and not cred:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No OAuth connection found for provider '{provider}'",
+        )
+    if row is not None:
+        db.delete(row)
     if cred is not None:
         db.delete(cred)
     db.commit()

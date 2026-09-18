@@ -1,6 +1,7 @@
 import inspect
 import json
 import logging
+import re
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -316,6 +317,44 @@ async def _resolve_credential_and_prompt(
                     f"[RAG] Injected {len(rag_context)} chars of context into prompt "
                     f"for discussion {payload.discussion_id}"
                 )
+
+    # Screen and triage large text attachments or embedded files to protect model context
+    attachments = payload.attachments or []
+    if attachments:
+        from app.services.typesafe_service import triage_document_for_query
+        for att in attachments:
+            att_type = getattr(att, "type", "") or ""
+            att_name = getattr(att, "name", "file") or "file"
+            att_content = getattr(att, "content", "") or ""
+            if not att_type.startswith("image/") and len(att_content) > 16000:
+                try:
+                    triaged = await triage_document_for_query(
+                        query=payload.prompt[:500],
+                        filename=att_name,
+                        content=att_content,
+                        max_chars_budget=16000,
+                    )
+                    if hasattr(att, "content"):
+                        att.content = triaged["triaged_content"]
+                except Exception as exc:
+                    logging.getLogger("ai_ensemble.proxy").warning(f"Attachment triage fallback: {exc}")
+
+    # Fallback safeguarding if prompt contains huge inline file blocks
+    if len(prompt) > 20000 and "--- Attached File:" in prompt:
+        pattern = re.compile(r"--- Attached File: ([^\n]+) ---\n(.*?)\n\[End Attached File: \1\]", re.DOTALL)
+        def repl(match):
+            fname = match.group(1)
+            fcontent = match.group(2)
+            if len(fcontent) > 16000 and "[DOCUMENT OUTLINE]" not in fcontent:
+                head = fcontent[:8000]
+                tail = fcontent[-4000:]
+                return (
+                    f"--- Attached File: {fname} (Budgeted Excerpt: {len(fcontent):,} chars) ---\n"
+                    f"{head}\n\n[... middle sections omitted to protect context window ...]\n\n{tail}\n"
+                    f"[End Attached File: {fname}]"
+                )
+            return match.group(0)
+        prompt = pattern.sub(repl, prompt)
 
     endpoint = normalize_endpoint(payload.endpoint or cred.endpoint or "")
     if endpoint and not is_safe_provider_url(endpoint):

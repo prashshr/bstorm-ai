@@ -115,6 +115,13 @@
     }
   }
 
+  async function handleDisconnect(provider: string, label: string) {
+    if (confirm(`Disconnect ${label}? Your saved session will be removed.`)) {
+      await providers.disconnectOAuth(provider);
+      if (editing === provider) editing = null;
+    }
+  }
+
   function toggleEdit(key: string) {
     editing = editing === key ? null : key;
     adding = false;
@@ -155,22 +162,15 @@
   ></div>
 
   <div class="p-head">
-    <h2>Providers & Models</h2>
+    <h2>Subscriptions</h2>
     <button class="btn btn-ghost icon-btn" onclick={onclose} aria-label="Close panel">
       <Icon name="close" size="sm" />
     </button>
   </div>
 
   <div class="p-body">
-    <!-- Top Section: Direct Subscriptions & OAuth Accounts -->
+    <!-- Top Section: Subscriptions (ChatGPT, GitHub Copilot, OpenRouter) -->
     <div class="section-block oauth-section">
-      <div class="section-header">
-        <div class="section-title-wrap">
-          <h3 class="section-title">Direct Subscriptions & OAuth</h3>
-          <span class="section-subtitle">Connect your accounts without manual API keys</span>
-        </div>
-      </div>
-
       <div class="oauth-cards-stack">
         <!-- ChatGPT Row -->
         <div class="oauth-card" class:is-connected={Boolean(codexAccount)}>
@@ -203,15 +203,26 @@
           </div>
           <div class="oauth-card-right">
             {#if codexAccount}
-              <button
-                class="btn btn-ghost btn-sm oauth-action-btn"
-                aria-label="Switch ChatGPT"
-                title="Switch account (currently {codexAccount})"
-                onclick={() => (oauthModal = "codex")}
-              >
-                <Icon name="refresh" size="sm" />
-                <span>Switch</span>
-              </button>
+              <div class="oauth-btn-group">
+                <button
+                  class="btn btn-ghost btn-sm oauth-action-btn"
+                  aria-label="Switch ChatGPT"
+                  title="Switch account (currently {codexAccount})"
+                  onclick={() => (oauthModal = "codex")}
+                >
+                  <Icon name="refresh" size="sm" />
+                  <span>Switch</span>
+                </button>
+                <button
+                  class="btn btn-ghost btn-sm oauth-action-btn oauth-disconnect-btn"
+                  aria-label="Disconnect ChatGPT"
+                  title="Disconnect account ({codexAccount})"
+                  onclick={() => handleDisconnect("codex", "ChatGPT")}
+                >
+                  <Icon name="trash" size="sm" />
+                  <span>Disconnect</span>
+                </button>
+              </div>
             {:else}
               <button
                 class="btn btn-primary btn-sm oauth-action-btn"
@@ -256,15 +267,26 @@
           </div>
           <div class="oauth-card-right">
             {#if copilotAccount}
-              <button
-                class="btn btn-ghost btn-sm oauth-action-btn"
-                aria-label="Switch GitHub Copilot"
-                title="Switch account (currently @{copilotAccount})"
-                onclick={() => (oauthModal = "copilot")}
-              >
-                <Icon name="refresh" size="sm" />
-                <span>Switch</span>
-              </button>
+              <div class="oauth-btn-group">
+                <button
+                  class="btn btn-ghost btn-sm oauth-action-btn"
+                  aria-label="Switch GitHub Copilot"
+                  title="Switch account (currently @{copilotAccount})"
+                  onclick={() => (oauthModal = "copilot")}
+                >
+                  <Icon name="refresh" size="sm" />
+                  <span>Switch</span>
+                </button>
+                <button
+                  class="btn btn-ghost btn-sm oauth-action-btn oauth-disconnect-btn"
+                  aria-label="Disconnect GitHub Copilot"
+                  title="Disconnect account (@{copilotAccount})"
+                  onclick={() => handleDisconnect("copilot", "GitHub Copilot")}
+                >
+                  <Icon name="trash" size="sm" />
+                  <span>Disconnect</span>
+                </button>
+              </div>
             {:else}
               <button
                 class="btn btn-primary btn-sm oauth-action-btn"
@@ -309,15 +331,26 @@
           </div>
           <div class="oauth-card-right">
             {#if openrouterAccount}
-              <button
-                class="btn btn-ghost btn-sm oauth-action-btn"
-                aria-label="Switch OpenRouter"
-                title="Switch key (currently {openrouterAccount})"
-                onclick={() => (oauthModal = "openrouter")}
-              >
-                <Icon name="refresh" size="sm" />
-                <span>Switch</span>
-              </button>
+              <div class="oauth-btn-group">
+                <button
+                  class="btn btn-ghost btn-sm oauth-action-btn"
+                  aria-label="Switch OpenRouter"
+                  title="Switch key (currently {openrouterAccount})"
+                  onclick={() => (oauthModal = "openrouter")}
+                >
+                  <Icon name="refresh" size="sm" />
+                  <span>Switch</span>
+                </button>
+                <button
+                  class="btn btn-ghost btn-sm oauth-action-btn oauth-disconnect-btn"
+                  aria-label="Disconnect OpenRouter"
+                  title="Disconnect OpenRouter"
+                  onclick={() => handleDisconnect("openrouter", "OpenRouter")}
+                >
+                  <Icon name="trash" size="sm" />
+                  <span>Disconnect</span>
+                </button>
+              </div>
             {:else}
               <button
                 class="btn btn-primary btn-sm oauth-action-btn"
@@ -333,12 +366,11 @@
       </div>
     </div>
 
-    <!-- Bottom Section: Configured Providers & Models -->
+    <!-- Bottom Section: API Providers & Models -->
     <div class="section-block custom-section">
       <div class="section-header split">
         <div class="section-title-wrap">
-          <h3 class="section-title">Configured Providers</h3>
-          <span class="section-subtitle">API keys, endpoints, and models</span>
+          <h3 class="section-title">API Providers</h3>
         </div>
         <button
           class="btn {adding ? 'btn-secondary' : 'btn-outline'} btn-sm add-custom-btn"
@@ -362,7 +394,7 @@
         <p class="muted">Loading…</p>
       {:else if providers.list.length === 0}
         <div class="empty-state">
-          <p class="muted">No providers configured yet. Connect an account above or click <strong>Add Provider</strong>.</p>
+          <p class="muted">No API providers configured yet. Connect a subscription above or click <strong>Add Provider</strong>.</p>
         </div>
       {:else}
         <ul class="provider-list">
@@ -628,13 +660,6 @@
     color: var(--text-tertiary);
     line-height: 1.3;
   }
-  .section-subtitle {
-    display: block;
-    font-size: 11px;
-    color: var(--text-secondary);
-    line-height: 1.3;
-    margin-top: 1px;
-  }
   .add-custom-btn {
     flex-shrink: 0;
     display: inline-flex;
@@ -771,14 +796,33 @@
 
   .oauth-card-right {
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+  }
+  .oauth-btn-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
   }
   .oauth-action-btn {
-    font-size: 11.5px;
-    padding: 4px 9px;
-    height: 26px;
+    font-size: 11px;
+    padding: 2px 8px;
+    height: 24px;
     display: inline-flex;
     align-items: center;
     gap: 4px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    white-space: nowrap;
+    transition: all var(--transition);
+  }
+  .oauth-disconnect-btn {
+    color: var(--text-tertiary);
+  }
+  .oauth-disconnect-btn:hover {
+    color: var(--danger, #ef4444);
+    border-color: rgba(239, 68, 68, 0.4);
+    background: rgba(239, 68, 68, 0.08);
   }
 
   .add-pane {

@@ -18,6 +18,10 @@ import type {
   ProviderCredentialResponse,
   StreamEvent,
   TokenResponse,
+  TriageDocumentRequest,
+  TriageDocumentResponse,
+  DeliberationTopologyRequest,
+  DeliberationTopologyResponse,
   UpsertProviderCredentialRequest,
 } from "./types";
 
@@ -307,6 +311,23 @@ export const api = {
     return request<DiscussionResponse>(`/api/discussions/${id}/research`, {
       method: "POST",
     });
+  },
+  triageDocument(body: TriageDocumentRequest): Promise<TriageDocumentResponse> {
+    return request<TriageDocumentResponse>("/api/discussions/triage-document", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  deliberationTopology(
+    body: DeliberationTopologyRequest,
+  ): Promise<DeliberationTopologyResponse> {
+    return request<DeliberationTopologyResponse>(
+      "/api/discussions/deliberation-topology",
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+      },
+    );
   },
 
   // ---- Folders ----

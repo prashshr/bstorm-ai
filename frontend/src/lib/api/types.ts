@@ -88,6 +88,41 @@ export interface ChatResponse {
   output: string;
 }
 
+export interface TriageDocumentRequest {
+  filename: string;
+  content: string;
+  query?: string;
+  max_chars_budget?: number;
+}
+
+export interface TriageDocumentResponse {
+  filename: string;
+  triaged_content: string;
+  is_triaged: boolean;
+  original_length: number;
+  triaged_length: number;
+  has_prompt_injection: boolean;
+  safety_advisory?: string | null;
+}
+
+export interface DeliberationTopologyRequest {
+  question: string;
+  model_responses: Record<string, string>;
+}
+
+export interface DeliberationTopologyResponse {
+  model_count: number;
+  consensus_score: number;
+  consensus_percent: number;
+  has_disagreement: boolean;
+  primary_divergence: string;
+  dissenting_model?: string | null;
+  should_deliberate_round_2: boolean;
+  deliberation_directive?: string | null;
+  summary_badge: string;
+  rationale: string;
+}
+
 // SSE stream event shape from /api/proxy/chat/stream
 export interface StreamEvent {
   type: "delta" | "thinking_delta" | "done" | "error";
@@ -200,6 +235,7 @@ export interface DiscussionState {
   summaryInstructions: string;
   responseFormat: "none" | "compact" | "elaborate" | "custom";
   responseFormatText: string;
+  topologyByRound?: Record<number, DeliberationTopologyResponse>;
 }
 
 export interface DiscussionAggregateStats {

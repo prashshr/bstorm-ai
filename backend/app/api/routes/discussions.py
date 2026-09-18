@@ -16,11 +16,16 @@ from app.schemas.discussion import (
     DiscussionUpdateRequest,
     MessageCreateRequest,
     MessageResponse,
+    TriageDocumentRequest,
+    TriageDocumentResponse,
+    DeliberationTopologyRequest,
+    DeliberationTopologyResponse,
 )
 
 logger = logging.getLogger("ai_ensemble.discussions")
 from app.core.crypto import encrypt_field, decrypt_field_or_plaintext
 from app.services.retrieval import get_retrieved_context
+from app.services.typesafe_service import triage_document_for_query, analyze_deliberation_consensus
 
 
 router = APIRouter()
@@ -381,3 +386,35 @@ async def research_next_round(
         retrieved_context=retrieved_context,
         created_at=discussion.created_at,
     )
+
+
+@router.post("/triage-document", response_model=TriageDocumentResponse)
+@limiter.limit("60/minute")
+async def triage_document_endpoint(
+    request: Request,
+    payload: TriageDocumentRequest,
+    current_user: User = Depends(get_current_user),
+) -> TriageDocumentResponse:
+    """Triage large attachments and screen for prompt injection using TypeSafe System One."""
+    res = await triage_document_for_query(
+        query=payload.query,
+        filename=payload.filename,
+        content=payload.content,
+        max_chars_budget=payload.max_chars_budget,
+    )
+    return TriageDocumentResponse(**res)
+
+
+@router.post("/deliberation-topology", response_model=DeliberationTopologyResponse)
+@limiter.limit("60/minute")
+async def deliberation_topology_endpoint(
+    request: Request,
+    payload: DeliberationTopologyRequest,
+    current_user: User = Depends(get_current_user),
+) -> DeliberationTopologyResponse:
+    """Analyze multi-model consensus topology and determine if Round 2 is needed using TypeSafe System One."""
+    res = await analyze_deliberation_consensus(
+        question=payload.question,
+        model_responses=payload.model_responses,
+    )
+    return DeliberationTopologyResponse(**res)
