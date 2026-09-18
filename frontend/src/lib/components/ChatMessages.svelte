@@ -48,6 +48,41 @@
       .map(Number)
       .sort((a, b) => a - b),
   );
+
+  function cleanUserMessage(msg: string): string {
+    if (!msg) return "";
+    const markerIndex = msg.search(/\n\n--- (?:Attached File|Attachment):/);
+    if (markerIndex !== -1) {
+      return msg.slice(0, markerIndex).trim();
+    }
+    return msg;
+  }
+
+  function getAttachmentsForRound(rn: number): { name: string; type: string; content?: string }[] {
+    const list = discussion.attachmentsForRound(rn);
+    if (list && list.length > 0) return list;
+    const msg = discussion.data.userMessages[rn] ?? "";
+    const regex = /\n\n--- (?:Attached File|Attachment): ([^\n]+) ---\n/g;
+    const legacyAttachments: { name: string; type: string }[] = [];
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(msg)) !== null) {
+      const name = match[1].trim();
+      legacyAttachments.push({
+        name,
+        type: name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".webp")
+          ? "image/png"
+          : "text/plain",
+      });
+    }
+    return legacyAttachments;
+  }
+
+  function formatSize(bytes?: number): string {
+    if (!bytes || bytes <= 0) return "";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
 </script>
 
 <div class="chat">
@@ -107,21 +142,40 @@
         {/if}
         <div class="user-msg" data-testid="user-message-{rn}">
           <span class="user-label">{rn === 1 ? "You" : (discussion.data.userMessages[rn] ?? "").startsWith("Continue refining the analysis") ? "Auto-continue" : "You · follow-up"}</span>
-          <p>{discussion.data.userMessages[rn] ?? ""}</p>
-          {#each discussion.attachmentsForRound(rn) as att (att.name)}
-            {#if att.type.startsWith("image/")}
-              <img
-                class="att-thumb"
-                src={"data:" + att.type + ";base64," + att.content}
-                alt={att.name}
-                title={att.name}
-              />
-            {:else}
-              <span class="att-chip">
-                <Icon name="file" size="sm" /> {att.name}
-              </span>
-            {/if}
-          {/each}
+          {#if cleanUserMessage(discussion.data.userMessages[rn] ?? "")}
+            <p>{cleanUserMessage(discussion.data.userMessages[rn] ?? "")}</p>
+          {/if}
+          {#if getAttachmentsForRound(rn).length > 0}
+            <div class="user-attachments-grid">
+              {#each getAttachmentsForRound(rn) as att (att.name)}
+                {#if att.type.startsWith("image/") && att.content}
+                  <div class="att-image-preview">
+                    <img
+                      class="att-thumb"
+                      src={"data:" + att.type + ";base64," + att.content}
+                      alt={att.name}
+                      title={att.name}
+                    />
+                    <span class="att-image-name" title={att.name}>{att.name}</span>
+                  </div>
+                {:else}
+                  <div class="att-file-card" title={att.name}>
+                    <div class="att-file-icon">
+                      <Icon name="file" size="sm" />
+                    </div>
+                    <div class="att-file-info">
+                      <span class="att-file-name" title={att.name}>{att.name}</span>
+                      {#if att.content}
+                        <span class="att-file-meta">{formatSize(att.content.length)}</span>
+                      {:else}
+                        <span class="att-file-meta">Attached</span>
+                      {/if}
+                    </div>
+                  </div>
+                {/if}
+              {/each}
+            </div>
+          {/if}
         </div>
 
         <div class="model-row">
@@ -301,25 +355,72 @@
     white-space: pre-wrap;
     word-break: break-word;
   }
-  .att-thumb {
-    display: block;
-    max-width: 280px;
-    max-height: 280px;
-    margin-top: 8px;
-    border-radius: var(--radius);
-    border: 1px solid var(--border);
+  .user-attachments-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 6px;
   }
-  .att-chip {
+  .att-file-card {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    margin-top: 8px;
-    padding: 4px 10px;
-    font-size: 12px;
-    color: var(--text-secondary);
-    background: var(--bg-secondary);
+    gap: 8px;
+    padding: 6px 12px;
+    background: var(--bg-primary);
     border: 1px solid var(--border);
-    border-radius: 999px;
+    border-radius: var(--radius);
+    max-width: 320px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  }
+  .att-file-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 4px;
+    background: var(--bg-tertiary);
+    color: var(--accent);
+    flex-shrink: 0;
+  }
+  .att-file-info {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .att-file-name {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 220px;
+  }
+  .att-file-meta {
+    font-size: 10.5px;
+    color: var(--text-tertiary);
+  }
+  .att-image-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-width: 260px;
+  }
+  .att-thumb {
+    display: block;
+    max-width: 260px;
+    max-height: 200px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    object-fit: cover;
+  }
+  .att-image-name {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .model-row {
     display: grid;

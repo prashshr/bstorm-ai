@@ -162,107 +162,264 @@
   </div>
 
   <div class="p-body">
-    <div class="p-head-actions">
-      <button
-        class="btn btn-primary btn-sm"
-        onclick={() => {
-          adding = !adding;
-          editing = null;
-        }}
-      >
-        <Icon name="plus" size="sm" /> Add Provider
-      </button>
-    </div>
-
-    {#if adding}
-      <div class="edit-pane">
-        <ProviderForm ondone={() => (adding = false)} />
+    <!-- Top Section: Direct Subscriptions & OAuth Accounts -->
+    <div class="section-block oauth-section">
+      <div class="section-header">
+        <div class="section-title-wrap">
+          <h3 class="section-title">Direct Subscriptions & OAuth</h3>
+          <span class="section-subtitle">Connect your accounts without manual API keys</span>
+        </div>
       </div>
-    {/if}
 
-    <div class="oauth-row">
-      <button
-        class="btn btn-ghost btn-sm"
-        title={codexAccount ? `ChatGPT connected: ${codexAccount}` : "Connect with ChatGPT"}
-        onclick={() => (oauthModal = "codex")}
-      >
-        {#if codexAccount}ChatGPT ✓ {codexAccount}{:else}Connect ChatGPT{/if}
-      </button>
-      <button
-        class="btn btn-ghost btn-sm"
-        title={openrouterAccount ? `OpenRouter connected: ${openrouterAccount}` : "Connect with OpenRouter"}
-        onclick={() => (oauthModal = "openrouter")}
-      >
-        {#if openrouterAccount}OpenRouter ✓ {openrouterAccount}{:else}Connect OpenRouter{/if}
-      </button>
-      <button
-        class="btn btn-ghost btn-sm"
-        title={copilotAccount ? `Copilot connected: ${copilotAccount}` : "Connect with GitHub Copilot"}
-        onclick={() => (oauthModal = "copilot")}
-      >
-        {#if copilotAccount}Copilot ✓ {copilotAccount}{:else}Connect Copilot{/if}
-      </button>
-    </div>
-
-    {#if providers.loading}
-      <p class="muted">Loading…</p>
-    {:else if providers.list.length === 0}
-      <p class="muted">No providers yet. Click Add to create one.</p>
-    {:else}
-      <ul class="provider-list">
-        {#each sortedProviders as p (p.provider)}
-          <li class="provider-row" class:active={providers.active === p.provider}>
-            <div class="row-main">
-              <button
-                class="provider-item"
-                class:active={providers.active === p.provider}
-                class:open={editing === p.provider}
-                aria-expanded={editing === p.provider}
-                onclick={() => toggleEdit(p.provider)}
-              >
-                <Icon
-                  name={editing === p.provider ? "chevron-down" : "chevron-right"}
-                  size="sm"
-                />
-                <span class="pname" title={providers.oauthAccountFor(p.provider) ?? undefined}
-                  >{providerDisplayName(p.provider, p.label)}{#if providers.oauthAccountFor(p.provider)} (OAuth){/if}</span
-                >
-                {#if providers.isVerified(p.provider) || providers.oauthAccountFor(p.provider)}
-                  <span
-                    class="verified"
-                    title={providers.oauthAccountFor(p.provider)
-                      ? `OAuth connected: ${providers.oauthAccountFor(p.provider)}`
-                      : "Models discovered"}
-                  ></span>
+      <div class="oauth-cards-stack">
+        <!-- ChatGPT Row -->
+        <div class="oauth-card" class:is-connected={Boolean(codexAccount)}>
+          <div class="oauth-card-left">
+            <div class="oauth-icon-badge brand-chatgpt" aria-hidden="true">
+              <Icon name="chatgpt" size="sm" />
+            </div>
+            <div class="oauth-meta">
+              <div class="oauth-name-row">
+                <span class="oauth-name">ChatGPT</span>
+                {#if codexAccount}
+                  <span class="oauth-status-badge connected" title="Connected: {codexAccount}">
+                    <span class="status-indicator-dot"></span>
+                    <span>Active</span>
+                  </span>
+                {:else}
+                  <span class="oauth-status-badge disconnected">
+                    <span>Not linked</span>
+                  </span>
                 {/if}
-              </button>
-              <div class="row-actions">
-                <button class="btn btn-ghost btn-sm" title="Select & discover models" onclick={() => selectProvider(p.provider)}>
-                  <Icon name="refresh" size="sm" />
-                </button>
-                <button class="btn btn-ghost btn-sm danger" title="Remove" onclick={() => remove(p.provider)}>
-                  <Icon name="trash" size="sm" />
-                </button>
+              </div>
+              <div class="oauth-detail-row" title={codexAccount || "Sign-in with ChatGPT subscription"}>
+                {#if codexAccount}
+                  <span class="oauth-account-id">{codexAccount}</span>
+                {:else}
+                  <span class="oauth-hint-text">Plus &bull; Team &bull; Pro login</span>
+                {/if}
               </div>
             </div>
-            {#if editing === p.provider}
-              <div class="edit-pane">
-                <details class="settings-details" open>
-                  <summary>Settings</summary>
-                  <ProviderForm initialProvider={p.provider} ondone={() => (editing = null)} />
-                </details>
-                {#if providers.isVerified(p.provider) && providers.active === p.provider}
-                  <details class="settings-details" open>
-                    <summary>Models</summary>
-                    <ModelSelector />
-                  </details>
+          </div>
+          <div class="oauth-card-right">
+            {#if codexAccount}
+              <button
+                class="btn btn-ghost btn-sm oauth-action-btn"
+                aria-label="Switch ChatGPT"
+                title="Switch account (currently {codexAccount})"
+                onclick={() => (oauthModal = "codex")}
+              >
+                <Icon name="refresh" size="sm" />
+                <span>Switch</span>
+              </button>
+            {:else}
+              <button
+                class="btn btn-primary btn-sm oauth-action-btn"
+                aria-label="Connect ChatGPT"
+                title="Connect ChatGPT"
+                onclick={() => (oauthModal = "codex")}
+              >
+                Connect
+              </button>
+            {/if}
+          </div>
+        </div>
+
+        <!-- GitHub Copilot Row -->
+        <div class="oauth-card" class:is-connected={Boolean(copilotAccount)}>
+          <div class="oauth-card-left">
+            <div class="oauth-icon-badge brand-copilot" aria-hidden="true">
+              <Icon name="github" size="sm" />
+            </div>
+            <div class="oauth-meta">
+              <div class="oauth-name-row">
+                <span class="oauth-name">GitHub Copilot</span>
+                {#if copilotAccount}
+                  <span class="oauth-status-badge connected" title="Connected: @{copilotAccount}">
+                    <span class="status-indicator-dot"></span>
+                    <span>Active</span>
+                  </span>
+                {:else}
+                  <span class="oauth-status-badge disconnected">
+                    <span>Not linked</span>
+                  </span>
                 {/if}
               </div>
+              <div class="oauth-detail-row" title={copilotAccount ? `@${copilotAccount}` : "Claude 3.5, GPT-4o, and o1 via GitHub authorization"}>
+                {#if copilotAccount}
+                  <span class="oauth-account-id">@{copilotAccount}</span>
+                {:else}
+                  <span class="oauth-hint-text">Claude 3.5 &bull; GPT-4o &bull; o1</span>
+                {/if}
+              </div>
+            </div>
+          </div>
+          <div class="oauth-card-right">
+            {#if copilotAccount}
+              <button
+                class="btn btn-ghost btn-sm oauth-action-btn"
+                aria-label="Switch GitHub Copilot"
+                title="Switch account (currently @{copilotAccount})"
+                onclick={() => (oauthModal = "copilot")}
+              >
+                <Icon name="refresh" size="sm" />
+                <span>Switch</span>
+              </button>
+            {:else}
+              <button
+                class="btn btn-primary btn-sm oauth-action-btn"
+                aria-label="Connect Copilot"
+                title="Connect GitHub Copilot"
+                onclick={() => (oauthModal = "copilot")}
+              >
+                Connect
+              </button>
             {/if}
-          </li>
-        {/each}
-      </ul>
-    {/if}
+          </div>
+        </div>
+
+        <!-- OpenRouter Row -->
+        <div class="oauth-card" class:is-connected={Boolean(openrouterAccount)}>
+          <div class="oauth-card-left">
+            <div class="oauth-icon-badge brand-openrouter" aria-hidden="true">
+              <Icon name="openrouter" size="sm" />
+            </div>
+            <div class="oauth-meta">
+              <div class="oauth-name-row">
+                <span class="oauth-name">OpenRouter</span>
+                {#if openrouterAccount}
+                  <span class="oauth-status-badge connected" title="Connected: {openrouterAccount}">
+                    <span class="status-indicator-dot"></span>
+                    <span>Active</span>
+                  </span>
+                {:else}
+                  <span class="oauth-status-badge disconnected">
+                    <span>Not linked</span>
+                  </span>
+                {/if}
+              </div>
+              <div class="oauth-detail-row" title={openrouterAccount || "Multi-model PKCE browser authorization"}>
+                {#if openrouterAccount}
+                  <span class="oauth-account-id">{openrouterAccount}</span>
+                {:else}
+                  <span class="oauth-hint-text">Unified catalog &bull; PKCE login</span>
+                {/if}
+              </div>
+            </div>
+          </div>
+          <div class="oauth-card-right">
+            {#if openrouterAccount}
+              <button
+                class="btn btn-ghost btn-sm oauth-action-btn"
+                aria-label="Switch OpenRouter"
+                title="Switch key (currently {openrouterAccount})"
+                onclick={() => (oauthModal = "openrouter")}
+              >
+                <Icon name="refresh" size="sm" />
+                <span>Switch</span>
+              </button>
+            {:else}
+              <button
+                class="btn btn-primary btn-sm oauth-action-btn"
+                aria-label="Connect OpenRouter"
+                title="Connect OpenRouter"
+                onclick={() => (oauthModal = "openrouter")}
+              >
+                Connect
+              </button>
+            {/if}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Section: Configured Providers & Models -->
+    <div class="section-block custom-section">
+      <div class="section-header split">
+        <div class="section-title-wrap">
+          <h3 class="section-title">Configured Providers</h3>
+          <span class="section-subtitle">API keys, endpoints, and models</span>
+        </div>
+        <button
+          class="btn {adding ? 'btn-secondary' : 'btn-outline'} btn-sm add-custom-btn"
+          onclick={() => {
+            adding = !adding;
+            editing = null;
+          }}
+        >
+          <Icon name={adding ? "close" : "plus"} size="sm" />
+          <span>{adding ? "Cancel" : "Add Provider"}</span>
+        </button>
+      </div>
+
+      {#if adding}
+        <div class="edit-pane add-pane">
+          <ProviderForm ondone={() => (adding = false)} />
+        </div>
+      {/if}
+
+      {#if providers.loading}
+        <p class="muted">Loading…</p>
+      {:else if providers.list.length === 0}
+        <div class="empty-state">
+          <p class="muted">No providers configured yet. Connect an account above or click <strong>Add Provider</strong>.</p>
+        </div>
+      {:else}
+        <ul class="provider-list">
+          {#each sortedProviders as p (p.provider)}
+            <li class="provider-row" class:active={providers.active === p.provider}>
+              <div class="row-main">
+                <button
+                  class="provider-item"
+                  class:active={providers.active === p.provider}
+                  class:open={editing === p.provider}
+                  aria-expanded={editing === p.provider}
+                  onclick={() => toggleEdit(p.provider)}
+                >
+                  <Icon
+                    name={editing === p.provider ? "chevron-down" : "chevron-right"}
+                    size="sm"
+                  />
+                  <span class="pname" title={providers.oauthAccountFor(p.provider) ?? undefined}
+                    >{providerDisplayName(p.provider, p.label)}{#if providers.oauthAccountFor(p.provider)} (OAuth){/if}</span
+                  >
+                  {#if providers.isVerified(p.provider) || providers.oauthAccountFor(p.provider)}
+                    <span
+                      class="verified"
+                      title={providers.oauthAccountFor(p.provider)
+                        ? `OAuth connected: ${providers.oauthAccountFor(p.provider)}`
+                        : "Models discovered"}
+                    ></span>
+                  {/if}
+                </button>
+                <div class="row-actions">
+                  <button class="btn btn-ghost btn-sm" title="Select & discover models" onclick={() => selectProvider(p.provider)}>
+                    <Icon name="refresh" size="sm" />
+                  </button>
+                  <button class="btn btn-ghost btn-sm danger" title="Remove" onclick={() => remove(p.provider)}>
+                    <Icon name="trash" size="sm" />
+                  </button>
+                </div>
+              </div>
+              {#if editing === p.provider}
+                <div class="edit-pane">
+                  <details class="settings-details" open>
+                    <summary>Settings</summary>
+                    <ProviderForm initialProvider={p.provider} ondone={() => (editing = null)} />
+                  </details>
+                  {#if providers.isVerified(p.provider) && providers.active === p.provider}
+                    <details class="settings-details" open>
+                      <summary>Models</summary>
+                      <ModelSelector />
+                    </details>
+                  {/if}
+                </div>
+              {/if}
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    </div>
   </div>
 
   <!-- Bottom Foldable Favorite Models Section -->
@@ -442,29 +599,194 @@
     overflow-y: auto;
     padding: 10px;
   }
-  .p-head-actions {
+  /* Section layouts */
+  .section-block {
+    margin-bottom: 16px;
+  }
+  .oauth-section {
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-header {
     margin-bottom: 10px;
   }
-  .p-head-actions .btn {
-    width: 100%;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-  }
-  .oauth-row {
+  .section-header.split {
     display: flex;
-    gap: 6px;
-    margin-bottom: 10px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
   }
-  .oauth-row .btn {
-    flex: 1;
+  .section-title-wrap {
     min-width: 0;
+  }
+  .section-title {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-tertiary);
+    line-height: 1.3;
+  }
+  .section-subtitle {
+    display: block;
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.3;
+    margin-top: 1px;
+  }
+  .add-custom-btn {
+    flex-shrink: 0;
     display: inline-flex;
     align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+
+  /* OAuth Cards Stack: each in a row */
+  .oauth-cards-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .oauth-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 10px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    transition: all var(--transition);
+  }
+  .oauth-card:hover {
+    border-color: var(--border-hover);
+    background: var(--bg-tertiary);
+  }
+  .oauth-card.is-connected {
+    border-color: rgba(43, 122, 77, 0.35);
+    background: rgba(43, 122, 77, 0.04);
+  }
+  .oauth-card.is-connected:hover {
+    border-color: rgba(43, 122, 77, 0.55);
+  }
+
+  .oauth-card-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    flex: 1;
+  }
+  .oauth-icon-badge {
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
     justify-content: center;
+    flex-shrink: 0;
+  }
+  .oauth-icon-badge.brand-chatgpt {
+    background: rgba(16, 163, 127, 0.12);
+    color: #10a37f;
+  }
+  .oauth-icon-badge.brand-copilot {
+    background: rgba(88, 101, 242, 0.12);
+    color: #5865f2;
+  }
+  .oauth-icon-badge.brand-openrouter {
+    background: rgba(99, 102, 241, 0.12);
+    color: #6366f1;
+  }
+
+  .oauth-meta {
+    min-width: 0;
+    flex: 1;
+  }
+  .oauth-name-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    line-height: 1.2;
+  }
+  .oauth-name {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+  }
+  .oauth-status-badge {
+    font-size: 10px;
+    font-weight: 500;
+    padding: 1px 5px;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    line-height: 1;
+  }
+  .oauth-status-badge.connected {
+    color: #34d399;
+    background: rgba(16, 185, 129, 0.12);
+  }
+  .oauth-status-badge.disconnected {
+    color: var(--text-tertiary);
+    background: rgba(255, 255, 255, 0.05);
+  }
+  .status-indicator-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #10b981;
+    display: inline-block;
+  }
+
+  .oauth-detail-row {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 2px;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .oauth-account-id {
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .oauth-hint-text {
+    color: var(--text-tertiary);
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .oauth-card-right {
+    flex-shrink: 0;
+  }
+  .oauth-action-btn {
+    font-size: 11.5px;
+    padding: 4px 9px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .add-pane {
+    margin-bottom: 10px;
+  }
+  .empty-state {
+    padding: 12px 6px;
+    color: var(--text-secondary);
   }
   .edit-pane {
     padding: 8px 8px 14px;

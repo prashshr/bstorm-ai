@@ -87,4 +87,18 @@ describe("discussion store contributions", () => {
     expect(t).toContain("### gpt-4o");
     expect(t).toContain("### claude");
   });
+
+  it("preserves attachments in attachmentsForRound and keeps userMessages clean", () => {
+    discussion.load({
+      ...discussion.data,
+      attachments: [{ name: "code.py", type: "text/x-python", content: "print('hello')", size: 14 }],
+      userMessages: { 1: "Analyze this code" },
+    });
+    expect(discussion.data.userMessages[1]).toBe("Analyze this code");
+    const atts = discussion.attachmentsForRound(1);
+    expect(atts.length).toBe(1);
+    expect(atts[0].name).toBe("code.py");
+    expect(atts[0].content).toBe("print('hello')");
+  });
 });
+

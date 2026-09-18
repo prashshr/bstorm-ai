@@ -213,7 +213,7 @@ class DiscussionStore {
 
   /** Attachments uploaded on a given turn, for rendering in the chat UI. */
   attachmentsForRound(roundNum: number): ChatAttachment[] {
-    return this.#attachmentsByRound[roundNum] ?? [];
+    return this.#attachmentsByRound[roundNum] ?? (roundNum === 1 ? (this.#data.attachments ?? []) : []);
   }
 
   get data() {
@@ -896,7 +896,7 @@ class DiscussionStore {
     this.#currentRound = 0;
     this.#phase = "done";
     this.#imageTranscriptions = {};
-    this.#attachmentsByRound = {};
+    this.#attachmentsByRound = loaded.attachments?.length ? { 1: loaded.attachments } : {};
     // Persist so a page reload restores the currently-viewed discussion
     // instead of dropping to a blank "New Discussion" screen.
     this.persist();
@@ -981,7 +981,9 @@ class DiscussionStore {
     }
 
     const isVision = this.#isVisionModel(compositeKey);
-    const roundAttach = this.#attachmentsByRound[roundNum] || (roundNum === 1 ? this.#data.attachments : []);
+    const roundAttach = this.#attachmentsByRound[roundNum]?.length
+      ? this.#attachmentsByRound[roundNum]
+      : (this.#data.attachments ?? []);
     if (roundAttach && roundAttach.length > 0) {
       for (const att of roundAttach) {
         if (att.content) {
@@ -995,8 +997,11 @@ class DiscussionStore {
                 prompt += `[Attached image: ${att.name} (Image attached by user — analyzed in text-only mode)]\n\n`;
               }
             }
-          } else if (!currentMsg.includes(att.name)) {
-            prompt += `--- Attached File: ${att.name} ---\n${att.content}\n\n`;
+          } else {
+            const header = `--- Attached File: ${att.name} ---`;
+            if (!prompt.includes(header)) {
+              prompt += `${header}\n${att.content}\n[End Attached File: ${att.name}]\n\n`;
+            }
           }
         }
       }

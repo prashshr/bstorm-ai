@@ -234,14 +234,6 @@
     if (models.selected.length === 0) return;
     const attach = attachments;
     const chatAttachments = attach.map((a) => ({ name: a.name, type: a.type, content: a.content }));
-    const textAttachments = attach.filter((a) => !a.type.startsWith("image/"));
-    
-    let fullQuestion = question;
-    if (textAttachments.length > 0) {
-      fullQuestion += textAttachments
-        .map((a) => `\n\n--- Attached File: ${a.name} ---\n${a.content}`)
-        .join("");
-    }
 
     if (editorEl) editorEl.innerHTML = "";
     text = "";
@@ -250,7 +242,7 @@
     try {
       if (discussion.data.id == null) {
         await discussion.start({
-          question: fullQuestion,
+          question,
           models: models.selected,
           instructions,
           consensusEnabled,
@@ -269,7 +261,7 @@
           attachments: chatAttachments,
         });
       } else {
-        await discussion.nextTurn(fullQuestion, models.selected, chatAttachments, {
+        await discussion.nextTurn(question, models.selected, chatAttachments, {
           instructions,
           consensusModel: consensusModel || models.selected[0],
           totalRounds,
