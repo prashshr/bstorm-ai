@@ -128,6 +128,9 @@
       popup = null;
     }
     popupBlocked = !popup || popup.closed;
+    if (popupBlocked && typeof window !== "undefined" && (window as any).Capacitor?.isNativePlatform?.()) {
+      window.open(url, "_system");
+    }
   }
 
   function onMessage(ev: MessageEvent): void {
