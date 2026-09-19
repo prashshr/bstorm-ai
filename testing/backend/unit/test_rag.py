@@ -147,3 +147,24 @@ class TestRagPipeline:
         # Odd URL must not raise exception
         assert rank_odd is not None
 
+    def test_extract_search_queries_crypto_and_indicators(self):
+        from app.services.retrieval import extract_search_queries
+        prompt = (
+            "Act as an independent crypto technical analyst. Audit these supplied pure-model targets: "
+            "ETH 1936, SOL 78.62, NEAR 1.29, HYPE 48.50, AAVE 88.20. Limit low enough for a BTC 200D retest. "
+            "Return one concise table. Cite data sources and timestamp."
+        )
+        queries = extract_search_queries(prompt)
+        assert len(queries) >= 2
+        # Must have extracted crypto price query with detected tickers
+        assert any("crypto prices" in q and "ETH" in q and "SOL" in q for q in queries)
+        # Must have extracted 200D moving average indicator query
+        assert any("200 day moving average" in q or "200D SMA" in q for q in queries)
+        # Must not contain instruction boilerplate
+        assert not any("Act as an independent" in q for q in queries)
+
+    def test_extract_search_queries_short_prompt(self):
+        from app.services.retrieval import extract_search_queries
+        queries = extract_search_queries("latest AI breakthroughs in quantum computing")
+        assert "latest AI breakthroughs in quantum computing" in queries
+

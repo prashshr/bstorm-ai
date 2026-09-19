@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import json
+import re
 import time
 from typing import List, Dict, Optional
 from urllib.parse import urlparse, parse_qs, unquote
@@ -330,6 +331,64 @@ def _candidate_rank(r: Dict) -> tuple:
     return (1 if is_blocked else 0, engine_priority)
 
 
+def extract_search_queries(user_prompt: str, topic_context: Optional[str] = None) -> List[str]:
+    """
+    Extract focused, high-yield search queries from a potentially long, instruction-heavy user prompt.
+    Search engines degrade significantly when fed 100+ word conversational directives, persona setups,
+    or negative constraint checklists.
+    """
+    queries: List[str] = []
+    prompt_words = [w.strip(",.:;()\"'[]{}") for w in user_prompt.split()]
+
+    # 1. Detect crypto tokens/tickers for targeted high-yield price retrieval
+    CRYPTO_SYMBOLS = {
+        "BTC", "ETH", "SOL", "NEAR", "HYPE", "AAVE", "ASTER", "TRX", "XRP",
+        "BNB", "DOGE", "UNI", "ADA", "AVAX", "DOT", "LINK", "SUI", "APT",
+        "MATIC", "POL", "LTC", "SHIB", "PEPE", "TAO", "RENDER", "FET", "INJ"
+    }
+    found_symbols = [w.upper() for w in prompt_words if w.upper() in CRYPTO_SYMBOLS]
+    unique_symbols = list(dict.fromkeys(found_symbols))
+
+    prompt_lower = user_prompt.lower()
+    if unique_symbols:
+        sym_str = " ".join(unique_symbols[:8])
+        queries.append(f"crypto prices {sym_str} coinmarketcap")
+        if any(term in prompt_lower for term in ["200d", "200 day", "moving average", "sma", "retest", "support", "technical"]):
+            queries.append("Bitcoin BTC 200 day moving average price 200D SMA")
+
+    # 2. Extract cleaned core query by removing prompt directives and boilerplate
+    cleaned = user_prompt
+    boilerplate_patterns = [
+        r"(?i)\bAct as (?:an?|the)? [^.!?\n]+[.!?\n]",
+        r"(?i)\bDo not [^.!?\n]+[.!?\n]",
+        r"(?i)\bReturn (?:a|one)? [^.!?\n]+[.!?\n]",
+        r"(?i)\bCite [^.!?\n]+[.!?\n]",
+        r"(?i)\bPlease [^.!?\n]+[.!?\n]",
+        r"(?i)\bProvide [^.!?\n]+[.!?\n]",
+        r"(?i)\bAudit [^.!?\n]+[.!?\n]",
+        r"(?i)\bFormat [^.!?\n]+[.!?\n]",
+        r"(?i)\bYour task is [^.!?\n]+[.!?\n]",
+        r"(?i)\bYou are [^.!?\n]+[.!?\n]",
+    ]
+    for pat in boilerplate_patterns:
+        cleaned = re.sub(pat, " ", cleaned)
+    cleaned = " ".join(cleaned.split())
+
+    if len(prompt_words) <= 15:
+        if topic_context and topic_context.strip() and topic_context.strip().lower() not in user_prompt.lower():
+            queries.append(f"{user_prompt} {topic_context}")
+        queries.append(user_prompt)
+    else:
+        cleaned_words = cleaned.split()
+        if cleaned_words:
+            queries.append(" ".join(cleaned_words[:15]))
+        if topic_context and topic_context.strip():
+            queries.append(topic_context.strip())
+
+    final_queries = list(dict.fromkeys(q.strip() for q in queries if q.strip()))
+    return final_queries[:3] if final_queries else [user_prompt]
+
+
 async def get_retrieved_context(user_prompt: str, topic_context: Optional[str] = None) -> Optional[str]:
     logger.info(f"[RAG] === Starting RAG pipeline ===")
     normalized = _normalize_query(user_prompt)
@@ -339,13 +398,8 @@ async def get_retrieved_context(user_prompt: str, topic_context: Optional[str] =
         logger.info(f"[RAG] Cache hit for query ({len(cached)} chars)")
         return cached
 
-    queries = [user_prompt]
-    # For conversational or short follow-ups, blend topic context so search engines receive the actual subject matter
-    if topic_context and topic_context.strip() and topic_context.strip().lower() not in user_prompt.lower():
-        words = user_prompt.strip().split()
-        if len(words) < 16:
-            blended = f"{user_prompt} {topic_context}"
-            queries = [blended, user_prompt]
+    queries = extract_search_queries(user_prompt, topic_context)
+    logger.info(f"[RAG] Extracted search queries: {queries}")
 
     try:
         search_results = await asyncio.wait_for(search_web(queries), timeout=30.0)

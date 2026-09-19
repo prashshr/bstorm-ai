@@ -88,6 +88,43 @@ TOPIC_DATABASE: List[TopicDomain] = [
     ),
 
     # ============================================================
+    # CRYPTOCURRENCY / BLOCKCHAIN / WEB3
+    # ============================================================
+    TopicDomain(
+        name="crypto",
+        keywords=[
+            "crypto", "cryptocurrency", "bitcoin", "btc", "ethereum", "eth",
+            "solana", "sol", "altcoin", "altcoins", "token", "tokens",
+            "binance", "coinbase", "coingecko", "coinmarketcap", "defi",
+            "dex", "uniswap", "aave", "near", "xrp", "ripple", "doge",
+            "dogecoin", "bnb", "cardano", "ada", "polkadot", "dot",
+            "chainlink", "link", "avalanche", "avax", "sui", "aptos",
+            "pepe", "shib", "memecoin", "blockchain", "web3", "staking",
+            "crypto price", "crypto prices", "crypto trading", "crypto market",
+            "crypto technical analysis", "btc 200d", "btc beta",
+        ],
+        sub_keywords={
+            "prices_and_analytics": [
+                "coinmarketcap", "coingecko", "cryptorank", "tradingview",
+                "dexscreener", "dextools", "defillama",
+            ],
+            "news_and_research": [
+                "coindesk", "cointelegraph", "decrypt", "the block",
+                "bankless", "messari",
+            ],
+            "exchanges": [
+                "binance", "coinbase", "kraken", "bybit", "okx", "kucoin",
+            ],
+        },
+        domains=[
+            "coinmarketcap.com", "coingecko.com", "coindesk.com",
+            "tradingview.com", "cointelegraph.com", "cryptorank.io",
+            "binance.com", "cryptopanic.com", "defillama.com",
+        ],
+        priority=6,
+    ),
+
+    # ============================================================
     # FINANCE / INVESTING / BANKING
     # ============================================================
     TopicDomain(
@@ -1265,6 +1302,12 @@ def enrich_query_with_domains(query: str) -> str:
         "nvidia stock performance 2026"
         → "nvidia stock performance 2026 (site:finance.yahoo.com OR site:reuters.com OR site:bloomberg.com OR site:morningstar.com)"
     """
+    if "site:" in query.lower() or any(d in query.lower() for d in ["coinmarketcap", "coingecko", "github.com", "wikipedia.org"]):
+        return query
+
+    if len(query.split()) > 20:
+        return query
+
     topic_name, confidence, topic = classify_query(query)
     logger = logging.getLogger("ai_ensemble.rag")
 
