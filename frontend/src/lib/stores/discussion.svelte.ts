@@ -74,6 +74,7 @@ function emptyState(): DiscussionState {
       "STRICT COMPACT LENGTH & FORMAT MANDATE: Provide a direct, highly concise, and brief response. Maximum 150-250 words total (maximum 2-3 short paragraphs or bullet points). Eliminate all introductory filler, background summaries, conversational remarks, and repetitive restatements. Get straight to the point.",
     topologyByRound: {},
     turnAnalysisByRound: {},
+    retrievedContextByRound: {},
   };
 }
 
@@ -404,6 +405,10 @@ class DiscussionStore {
       });
       this.#data.id = created.id;
       this.#data.retrieved_context = created.retrieved_context;
+      if (created.retrieved_context) {
+        this.#data.retrievedContextByRound = { 1: created.retrieved_context };
+      }
+      this.#data.use_rag = created.use_rag;
       history.add(created);
       debug.log(`Created discussion ${created.id}`);
     } catch (e) {
@@ -515,6 +520,32 @@ class DiscussionStore {
       debug.log(`Turn ${roundNum} Intent Analysis: needs_fresh=${turnAnalysis.needs_fresh_entities}, type=${turnAnalysis.interaction_type} (${turnAnalysis.reasoning})`);
     } catch (e) {
       debug.log(`Turn intent analysis failed: ${e}`, "warn");
+    }
+
+    // Multi-turn Web Retrieval (RAG): Retrieve fresh online context for follow-up turns
+    const isRagEnabled = this.#data.use_rag || this.#data.ragMode === "model-self";
+    if (isRagEnabled) {
+      try {
+        this.#phase = "searching";
+        const topicContext = this.#data.question || "";
+        const res = await api.retrieveContext({
+          query: followUp,
+          topic_context: topicContext,
+          deep_research: this.#data.deep_research,
+        });
+        if (res.retrieved_context) {
+          this.#data.retrieved_context = res.retrieved_context;
+          this.#data.retrievedContextByRound = {
+            ...(this.#data.retrievedContextByRound ?? {}),
+            [roundNum]: res.retrieved_context,
+          };
+          debug.log(`Turn ${roundNum} RAG: Retrieved fresh context (${res.retrieved_context.length} chars)`);
+        } else if (res.searched) {
+          debug.log(`Turn ${roundNum} RAG: Search completed with no new context`);
+        }
+      } catch (e) {
+        debug.log(`Turn ${roundNum} RAG retrieval failed: ${e}`, "warn");
+      }
     }
 
     if (!this.#data.title) this.#data.title = followUp.slice(0, 60);
@@ -1099,12 +1130,8 @@ class DiscussionStore {
       day: "numeric",
     });
     const dateContext =
-      `[SYSTEM NOTICE: Today's date is ${dateStr}. Treat today as the absolute present ` +
-      `moment for your temporal grounding. If you have search, browsing, or real-time ` +
-      `web-access capabilities, you must actively perform live internet search queries ` +
-      `to retrieve and incorporate the latest, up-to-the-minute information from the ` +
-      `most authoritative, reliable, and primary online sources before formulating your ` +
-      `analysis or recommendations. Do not work on pre-training cutoff or stale offline data.]`;
+      `[TEMPORAL GROUNDING: Today's date is ${dateStr}. You are operating in the present year ${now.getFullYear()}. ` +
+      `Treat today as the current real-world moment for all temporal references, market states, and factual analysis.]`;
 
     let prompt = `${dateContext}\n\n`;
 
@@ -1113,19 +1140,17 @@ class DiscussionStore {
       prompt += `[PRIMARY RESPONSE FORMAT DIRECTIVE - ENFORCE STRICTLY]\n${respInstr}\n[END PRIMARY RESPONSE FORMAT DIRECTIVE]\n\n`;
     }
 
-    if (this.#data.use_rag) {
-      prompt += `# Data Source Status\n`;
-      if (!this.#data.retrieved_context) {
-        prompt += `Note: Web research (RAG) was enabled but did not return results.\n`;
-      }
-      prompt += `Start your response with EXACTLY ONE LINE:\n`;
-      prompt += `RAG data: [Used/Not Available] | Self Websearch: [Used/Not Available] | Training Data: [Used/Not Available]\n`;
-      prompt += `Then proceed to answer.\n\n`;
-    }
-    if (this.#data.retrieved_context) {
-      const ctx = this.#data.retrieved_context;
-      const budgeted = ctx.length > 12000 ? `${ctx.slice(0, 12000)}\n[truncated]` : ctx;
-      prompt += `# Retrieved Web Search Context\n${budgeted}\n\n`;
+    const turnContext = this.#data.retrievedContextByRound?.[roundNum] || this.#data.retrieved_context;
+    if (turnContext) {
+      const budgeted = turnContext.length > 12000 ? `${turnContext.slice(0, 12000)}\n[truncated]` : turnContext;
+      prompt +=
+        `[LIVE ONLINE WEB RESEARCH CONTEXT - RETRIEVED AS OF TODAY]\n` +
+        `The following live information was retrieved from current web search to provide up-to-date facts for this turn:\n\n` +
+        `${budgeted}\n` +
+        `[END LIVE ONLINE WEB RESEARCH CONTEXT]\n\n` +
+        `INSTRUCTION: Use the above live online research as your authoritative ground truth for current facts, metrics, stock tickers, and recent developments. Integrate this fresh data directly into your analysis. Do NOT apologize or claim you lack internet access, as the latest live web research has been retrieved and provided to you above.\n\n`;
+    } else if (this.#data.use_rag || this.#data.ragMode === "model-self") {
+      prompt += `[SYSTEM NOTICE: Web research was conducted for this query. If live metrics for today are not fully covered in external sources, provide your best rigorous analysis based on your knowledge base, indicating the reference timeframe gracefully without repetitive disclaimers.]\n\n`;
     }
 
     if (this.#data.instructions) {

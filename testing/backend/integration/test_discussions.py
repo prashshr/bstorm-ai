@@ -171,3 +171,19 @@ class TestDiscussions:
         assert data["interaction_type"] == "fresh_recommendations"
         assert "confidence" in data
 
+    def test_retrieve_context_endpoint(self, client, auth_headers):
+        resp = client.post(
+            "/api/discussions/retrieve-context",
+            json={
+                "query": "recommend next 5 AI hardware companies",
+                "topic_context": "small/mid-cap AI stocks under 50B",
+            },
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "query" in data
+        assert "searched" in data
+        assert "retrieved_context" in data
+
+

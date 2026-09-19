@@ -22,6 +22,8 @@ from app.schemas.discussion import (
     DeliberationTopologyResponse,
     AnalyzeTurnRequest,
     AnalyzeTurnResponse,
+    RetrieveContextRequest,
+    RetrieveContextResponse,
 )
 
 logger = logging.getLogger("ai_ensemble.discussions")
@@ -77,11 +79,13 @@ async def create_discussion(
     if use_rag:
         try:
             should_fetch = True
-            if payload.rag_mode == "model-self":
+            if payload.rag_mode == "model-self" and not payload.use_rag:
                 from app.services.typesafe_service import should_search_web
                 should_fetch = await should_search_web(payload.question)
             if should_fetch:
                 retrieved_context = await get_retrieved_context(payload.question)
+            else:
+                use_rag = False
         except Exception as e:
             logger.warning("Failed to get retrieved context: %s", e)
 
@@ -105,7 +109,7 @@ async def create_discussion(
         title=payload.title,
         question=payload.question,
         status=discussion.status,
-        use_rag=payload.use_rag,
+        use_rag=use_rag,
         deep_research=payload.deep_research,
         retrieved_context=retrieved_context,
         created_at=discussion.created_at,
@@ -440,4 +444,27 @@ async def analyze_turn_endpoint(
         prior_entities=payload.prior_entities,
     )
     return AnalyzeTurnResponse(**res)
+
+
+@router.post("/retrieve-context", response_model=RetrieveContextResponse)
+@limiter.limit("60/minute")
+async def retrieve_context_endpoint(
+    request: Request,
+    payload: RetrieveContextRequest,
+    current_user: User = Depends(get_current_user),
+) -> RetrieveContextResponse:
+    """Retrieve live web search context for a turn with TypeSafe necessity routing."""
+    from app.services.typesafe_service import should_search_web
+    should_fetch = await should_search_web(payload.query)
+    retrieved_context = None
+    if should_fetch:
+        retrieved_context = await get_retrieved_context(
+            user_prompt=payload.query,
+            topic_context=payload.topic_context,
+        )
+    return RetrieveContextResponse(
+        retrieved_context=retrieved_context,
+        query=payload.query,
+        searched=should_fetch,
+    )
 

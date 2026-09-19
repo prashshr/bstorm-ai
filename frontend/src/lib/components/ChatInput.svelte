@@ -552,8 +552,8 @@
                 <div class="adv-field">
                   <label for="pf-rag">RAG Retrieval Mode</label>
                   <select id="pf-rag" bind:value={ragMode} data-testid="rag-mode-select" aria-label="RAG mode">
-                    <option value="model-self">Model/Self (Default)</option>
-                    <option value="model-only">Model-Only</option>
+                    <option value="model-self">Web Search (RAG): Enabled</option>
+                    <option value="model-only">Web Search (RAG): Disabled</option>
                   </select>
                 </div>
 
@@ -656,8 +656,8 @@
 
         <div class="rag-dropdown-wrap">
           <select bind:value={ragMode} aria-label="RAG Mode">
-            <option value="model-self">RAG: Model/Self</option>
-            <option value="model-only">RAG: Model-Only</option>
+            <option value="model-self">Web Search: On</option>
+            <option value="model-only">Web Search: Off</option>
           </select>
         </div>
       </div>

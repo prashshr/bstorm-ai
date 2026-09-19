@@ -114,9 +114,9 @@
             {#if discussion.phase === "searching"}
               Searching the web…
             {:else if discussion.data.retrieved_context}
-              RAG: {Math.round(discussion.data.retrieved_context.length / 1000)} KB context retrieved
+              Web Search: {Math.max(1, Math.round(discussion.data.retrieved_context.length / 1000))} KB live data active
             {:else if discussion.data.use_rag}
-              RAG: No context retrieved (search failed)
+              Web Search: No context retrieved
             {/if}
           </span>
         </div>

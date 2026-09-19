@@ -250,6 +250,7 @@ export interface DiscussionState {
   responseFormatText: string;
   topologyByRound?: Record<number, DeliberationTopologyResponse>;
   turnAnalysisByRound?: Record<number, AnalyzeTurnResponse>;
+  retrievedContextByRound?: Record<number, string>;
 }
 
 export interface DiscussionAggregateStats {
@@ -333,3 +334,16 @@ export interface Contribution {
   weight: number;
   color: string;
 }
+
+export interface RetrieveContextRequest {
+  query: string;
+  topic_context?: string;
+  deep_research?: boolean;
+}
+
+export interface RetrieveContextResponse {
+  retrieved_context: string | null;
+  query: string;
+  searched: boolean;
+}
+

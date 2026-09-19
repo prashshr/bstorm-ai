@@ -318,37 +318,75 @@ async def extract_content_from_urls(urls: List[str], per_url_timeout: float = 5.
     return joined
 
 
-async def get_retrieved_context(user_prompt: str) -> Optional[str]:
+def _candidate_rank(r: Dict) -> tuple:
+    url = r.get("url", "")
+    try:
+        netloc = urlparse(url).netloc.lower()
+    except Exception:
+        netloc = ""
+    is_blocked = any(b in netloc for b in BLOCKED_HOSTS)
+    # Priority: unblocked first (0 vs 1), then Tavily (0) vs SearXNG (1) vs DDG (2)
+    engine_priority = 0 if r.get("_source") == "Tavily" else (1 if r.get("_source") == "SearXNG" else 2)
+    return (1 if is_blocked else 0, engine_priority)
+
+
+async def get_retrieved_context(user_prompt: str, topic_context: Optional[str] = None) -> Optional[str]:
     logger.info(f"[RAG] === Starting RAG pipeline ===")
     normalized = _normalize_query(user_prompt)
-    cached = _rag_cache_get(normalized)
+    cache_key = f"{normalized}__topic__{_normalize_query(topic_context)}" if topic_context else normalized
+    cached = _rag_cache_get(cache_key)
     if cached is not None:
         logger.info(f"[RAG] Cache hit for query ({len(cached)} chars)")
         return cached
+
+    queries = [user_prompt]
+    # For conversational or short follow-ups, blend topic context so search engines receive the actual subject matter
+    if topic_context and topic_context.strip() and topic_context.strip().lower() not in user_prompt.lower():
+        words = user_prompt.strip().split()
+        if len(words) < 16:
+            blended = f"{user_prompt} {topic_context}"
+            queries = [blended, user_prompt]
+
     try:
-        search_results = await asyncio.wait_for(search_web([user_prompt]), timeout=30.0)
+        search_results = await asyncio.wait_for(search_web(queries), timeout=30.0)
         logger.info(f"[RAG] Total search results: {len(search_results)}")
 
         if not search_results:
             logger.warning("[RAG] No search results found, aborting")
             return None
 
-        # Pull candidate URLs from across all search engines (not just the
-        # first engine) so we diversify sources. Some hosts (e.g. Medium) are
-        # not fetchable from this environment; mixing in SearXNG/DDG results
-        # (Wikipedia, news, vendor blogs) avoids an all-fail extraction pass.
-        # De-prioritise known-unfetchable hosts and keep the rest in ranking
-        # order, capped at 6 candidates.
+        # Pull candidate URLs from across all search engines so we diversify sources.
+        # De-prioritise known-unfetchable hosts and prioritize high-yield engines.
         candidates = [r for r in search_results if r.get("url")]
-        candidates.sort(
-            key=lambda r: (r.get("_source") == "Tavily", r.get("url", "").split("/")[2] in BLOCKED_HOSTS)
-        )
+        candidates.sort(key=_candidate_rank)
         urls = [r["url"] for r in candidates[:6]]
         logger.info(f"[RAG] Extracting content from {len(urls)} URLs")
 
-        extracted_content = await asyncio.wait_for(extract_content_from_urls(urls), timeout=30.0)
-        if not extracted_content:
-            logger.warning("[RAG] No content extracted from any URL")
+        extracted_content = ""
+        if urls:
+            try:
+                extracted_content = await asyncio.wait_for(extract_content_from_urls(urls), timeout=25.0)
+            except Exception as e:
+                logger.warning(f"[RAG] Content extraction encountered error: {e}")
+                extracted_content = ""
+
+        # If full-page extraction returned no text (e.g. 403, Cloudflare, SPA, or paywalls),
+        # fall back to the rich search engine summaries/snippets rather than discarding the results!
+        if not extracted_content or not extracted_content.strip():
+            logger.info("[RAG] Full-page extraction returned no text; falling back to rich search engine snippets")
+            snippet_blocks = []
+            for r in search_results:
+                title = (r.get("title") or "").strip()
+                snippet = (r.get("content") or "").strip()
+                url = (r.get("url") or "").strip()
+                engine = r.get("_source", "web")
+                if snippet or title:
+                    snippet_blocks.append(f"### [{engine}] {title}\nURL: {url}\n{snippet}")
+            if snippet_blocks:
+                extracted_content = "\n\n".join(snippet_blocks[:10])
+
+        if not extracted_content or not extracted_content.strip():
+            logger.warning("[RAG] No usable content or snippets extracted from any source")
             return None
 
         sources_lines = []
@@ -370,11 +408,11 @@ async def get_retrieved_context(user_prompt: str) -> Optional[str]:
             f"Content:\n{extracted_content}"
         )
         logger.info(f"[RAG] === RAG SUCCESS === Context size: {len(context)} chars")
-        _rag_cache_set(normalized, context)
+        _rag_cache_set(cache_key, context)
         return context
 
     except asyncio.TimeoutError:
-        logger.warning("[RAG] === RAG TIMEOUT === Pipeline exceeded 60s limit")
+        logger.warning("[RAG] === RAG TIMEOUT === Pipeline exceeded limit")
         return None
     except Exception as e:
         logger.error(f"[RAG] === RAG FAILED === {e}", exc_info=True)

@@ -101,3 +101,49 @@ class TestRagPipeline:
             result = await get_retrieved_context("test")
             assert "[Tavily]" in result
             assert "[SearXNG]" in result
+
+    @pytest.mark.asyncio
+    async def test_get_retrieved_context_falls_back_to_snippets_when_extraction_fails(self):
+        from app.services.retrieval import _RAG_CACHE
+        _RAG_CACHE.clear()
+        with patch("app.services.retrieval.search_web", return_value=[
+            {"url": "https://example.com", "title": "Example", "content": "Rich snippet from Tavily", "_source": "Tavily"},
+        ]), patch("app.services.retrieval.extract_content_from_urls", return_value=""):
+            result = await get_retrieved_context("fallback query")
+            assert result is not None
+            assert "Rich snippet from Tavily" in result
+            assert "### [Tavily] Example" in result
+
+    @pytest.mark.asyncio
+    async def test_get_retrieved_context_blends_topic_context_for_followup(self):
+        with patch("app.services.retrieval.search_web", AsyncMock(return_value=[
+            {"url": "https://example.com", "title": "Example", "content": "AI stocks", "_source": "Tavily"},
+        ])) as mock_search, patch("app.services.retrieval.extract_content_from_urls", return_value="Extracted"):
+            result = await get_retrieved_context(
+                user_prompt="recommend next 5",
+                topic_context="AI companies under 50B",
+            )
+            assert result is not None
+            assert mock_search.called
+            called_queries = mock_search.call_args[0][0]
+            assert any("recommend next 5 AI companies under 50B" in q for q in called_queries)
+
+    def test_candidate_rank_prioritizes_unblocked_and_tavily(self):
+        from app.services.retrieval import _candidate_rank
+        tavily_unblocked = {"url": "https://reuters.com/article", "_source": "Tavily"}
+        searxng_unblocked = {"url": "https://bloomberg.com/news", "_source": "SearXNG"}
+        blocked = {"url": "https://amazon.com/dp/123", "_source": "Tavily"}
+        odd_url = {"url": "not-a-valid-url", "_source": "DuckDuckGo"}
+
+        rank_tavily = _candidate_rank(tavily_unblocked)
+        rank_searxng = _candidate_rank(searxng_unblocked)
+        rank_blocked = _candidate_rank(blocked)
+        rank_odd = _candidate_rank(odd_url)
+
+        # Unblocked must rank before blocked
+        assert rank_tavily < rank_blocked
+        # Tavily unblocked must rank before SearXNG unblocked
+        assert rank_tavily < rank_searxng
+        # Odd URL must not raise exception
+        assert rank_odd is not None
+

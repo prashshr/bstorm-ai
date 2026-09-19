@@ -76,10 +76,15 @@ async def should_search_web(prompt: str) -> bool:
     if not res:
         return True
 
-    noul = res.get("answers", {}).get("needs_web_search", {}).get("noul")
+    ans = res.get("answers", {}).get("needs_web_search", {})
+    noul = ans.get("noul") if isinstance(ans, dict) else None
+    if noul is None and isinstance(ans, dict):
+        noul = ans.get("probability")
+    if noul is None and isinstance(ans, (int, float)):
+        noul = float(ans)
     if noul is not None:
-        logger.info(f"[TypeSafe] Web search necessity probability: {noul:.2f}")
-        return noul >= 0.65
+        logger.info(f"[TypeSafe] Web search necessity probability: {float(noul):.2f}")
+        return float(noul) >= 0.55
     return True
 
 

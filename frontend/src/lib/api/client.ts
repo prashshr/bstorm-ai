@@ -24,6 +24,8 @@ import type {
   DeliberationTopologyResponse,
   AnalyzeTurnRequest,
   AnalyzeTurnResponse,
+  RetrieveContextRequest,
+  RetrieveContextResponse,
   UpsertProviderCredentialRequest,
 } from "./types";
 
@@ -333,6 +335,12 @@ export const api = {
   },
   analyzeTurn(body: AnalyzeTurnRequest): Promise<AnalyzeTurnResponse> {
     return request<AnalyzeTurnResponse>("/api/discussions/analyze-turn", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  retrieveContext(body: RetrieveContextRequest): Promise<RetrieveContextResponse> {
+    return request<RetrieveContextResponse>("/api/discussions/retrieve-context", {
       method: "POST",
       body: JSON.stringify(body),
     });

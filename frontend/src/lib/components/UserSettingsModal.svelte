@@ -140,8 +140,8 @@
                   value={userSettings.data.defaultRagMode}
                   onchange={(e) => userSettings.update({ defaultRagMode: (e.currentTarget as HTMLSelectElement).value as any })}
                 >
-                  <option value="model-self">Model/Self (Default - Search Enabled)</option>
-                  <option value="model-only">Model-Only (Search Disabled)</option>
+                  <option value="model-self">Web Search (RAG): Enabled (Default)</option>
+                  <option value="model-only">Web Search (RAG): Disabled</option>
                 </select>
               </div>
 

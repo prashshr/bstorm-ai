@@ -36,6 +36,11 @@ vi.mock("../src/lib/api/client", () => ({
       confidence: 0.9,
       reasoning: "mock",
     })),
+    retrieveContext: vi.fn(async () => ({
+      retrieved_context: null,
+      query: "mock",
+      searched: false,
+    })),
   },
 }));
 

@@ -95,3 +95,15 @@ class AnalyzeTurnResponse(BaseModel):
     confidence: float
     reasoning: str
 
+
+class RetrieveContextRequest(BaseModel):
+    query: str
+    topic_context: Optional[str] = None
+    deep_research: bool = False
+
+
+class RetrieveContextResponse(BaseModel):
+    retrieved_context: Optional[str] = None
+    query: str
+    searched: bool
+

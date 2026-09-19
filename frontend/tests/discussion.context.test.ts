@@ -41,6 +41,13 @@ vi.mock("../src/lib/api/client", () => {
           reasoning: "Test mock intent classification",
         };
       }),
+      retrieveContext: vi.fn(async (body: { query: string }) => {
+        return {
+          retrieved_context: `Mocked live web search data for query: ${body.query}`,
+          query: body.query,
+          searched: true,
+        };
+      }),
     },
   };
 });
@@ -226,4 +233,41 @@ describe("Multi-Turn Context & Entity Exclusion Ledger in DiscussionStore", () =
     expect(discussion.data.turnAnalysisByRound?.[2]).toBeDefined();
     expect(discussion.data.turnAnalysisByRound?.[2]?.interaction_type).toBe("fresh_recommendations");
   });
+
+  it("fetches fresh web research context on nextTurn and injects authoritative live grounding into prompt", async () => {
+    discussion.data.question = "Latest small cap AI stocks 2026";
+    discussion.data.use_rag = true;
+    discussion.data.ragMode = "model-self";
+    discussion.data.rounds[1] = {
+      "openai::gpt-4o": {
+        text: "1. Celestica (CLS)\n2. Credo (CRDO)",
+        status: "complete",
+      },
+    };
+
+    await discussion.nextTurn("recommend next new 5 companies on same lines", ["openai::gpt-4o"]);
+
+    // Verify retrieveContext was called with the followUp query and topic_context
+    expect(api.retrieveContext).toHaveBeenCalledWith({
+      query: "recommend next new 5 companies on same lines",
+      topic_context: "Latest small cap AI stocks 2026",
+      deep_research: false,
+    });
+
+    // Verify retrievedContextByRound stored the round 2 context
+    expect(discussion.data.retrievedContextByRound?.[2]).toContain("Mocked live web search data");
+
+    // Verify the prompt sent to the model contains live online research context and grounding instructions
+    const chatStreamMock = vi.mocked(api.chatStream);
+    const lastCall = chatStreamMock.mock.calls[chatStreamMock.mock.calls.length - 1];
+    const prompt = (lastCall[0] as { prompt: string }).prompt;
+
+    expect(prompt).toContain("[LIVE ONLINE WEB RESEARCH CONTEXT - RETRIEVED AS OF TODAY]");
+    expect(prompt).toContain("INSTRUCTION: Use the above live online research as your authoritative ground truth");
+    expect(prompt).toContain("Do NOT apologize or claim you lack internet access");
+    // Ensure the old disclaimer-forcing lines are gone
+    expect(prompt).not.toContain("RAG data: [Used/Not Available]");
+    expect(prompt).not.toContain("you must actively perform live internet search queries");
+  });
 });
+
