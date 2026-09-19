@@ -57,7 +57,7 @@
       clean = clean.slice(0, markerIndex).trim();
     }
     const directiveMatch = clean.match(
-      /\[COUNCIL DELIBERATION DIRECTIVE - TURN 2\]\n([\s\S]*?)\n\[END COUNCIL DELIBERATION DIRECTIVE\]/,
+      /\[COUNCIL DELIBERATION DIRECTIVE(?: - TURN \d+)?\]\n([\s\S]*?)\n\[END COUNCIL DELIBERATION DIRECTIVE\]/,
     );
     if (directiveMatch) {
       return directiveMatch[1].trim();
@@ -140,10 +140,15 @@
   <div class="scroll-area" bind:this={scrollEl} onscroll={onScroll}>
     {#each roundNums as rn (rn)}
       <div class="turn" class:followup={rn > 1}>
-        {#if rn > 1}
+        {#if rn > 1 && !(discussion.data.userMessages[rn] ?? "").includes("COUNCIL DELIBERATION DIRECTIVE")}
           <div class="followup-divider">
             <span class="followup-badge">
-              <Icon name="corner-down-right" size="sm" /> Follow-up (turn {rn}) — building on the previous consensus
+              <Icon name="corner-down-right" size="sm" />
+              {#if discussion.data.turnAnalysisByRound?.[rn]?.needs_fresh_entities}
+                Follow-up (turn {rn}) — fresh recommendations requested (exclusion ledger active)
+              {:else}
+                Follow-up (turn {rn}) — building on the previous consensus
+              {/if}
             </span>
           </div>
         {/if}
@@ -152,7 +157,7 @@
             {rn === 1
               ? "You"
               : (discussion.data.userMessages[rn] ?? "").includes("COUNCIL DELIBERATION DIRECTIVE") || (discussion.data.userMessages[rn] ?? "").includes("Council Deliberation")
-                ? "Council Deliberation · Turn 2"
+                ? `Council Deliberation · Turn ${rn}`
                 : (discussion.data.userMessages[rn] ?? "").startsWith("Continue refining the analysis")
                   ? "Auto-continue"
                   : "You · follow-up"}

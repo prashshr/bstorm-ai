@@ -133,3 +133,59 @@ class TestTypeSafeService:
         assert res["should_deliberate_round_2"] is True
         assert res["deliberation_directive"] is not None
         assert "COUNCIL DELIBERATION DIRECTIVE" in res["deliberation_directive"]
+
+    @pytest.mark.asyncio
+    async def test_analyze_deliberation_consensus_dynamic_round_numbers(self):
+        from app.services.typesafe_service import analyze_deliberation_consensus
+        res = await analyze_deliberation_consensus(
+            question="Rank these companies",
+            model_responses={
+                "openai::gpt-4o": "I rank Company A first.",
+                "anthropic::claude-3-5-sonnet": "I strongly disagree, Company B is much better.",
+            },
+            round_number=4,
+        )
+        assert res["should_deliberate_round_2"] is True
+        assert "[COUNCIL DELIBERATION DIRECTIVE - TURN 5]" in res["deliberation_directive"]
+        assert "In Round 4" in res["deliberation_directive"]
+        assert "Advancing to Round 5" in res["summary_badge"]
+
+    @pytest.mark.asyncio
+    async def test_analyze_turn_context_fallback_heuristics(self):
+        from app.services.typesafe_service import analyze_turn_context
+        with patch("app.services.typesafe_service.get_typesafe_api_key", return_value=""):
+            # Fresh entity intent
+            fresh_res = await analyze_turn_context(
+                query="continue your research and recommend next new 5 companies on same lines",
+                prior_entities=["Celestica", "Credo"],
+            )
+            assert fresh_res["needs_fresh_entities"] is True
+            assert fresh_res["interaction_type"] == "fresh_recommendations"
+
+            # Refinement / comparison intent
+            refine_res = await analyze_turn_context(
+                query="compare the margins and debt ratios of Celestica and Credo",
+                prior_entities=["Celestica", "Credo"],
+            )
+            assert refine_res["needs_fresh_entities"] is False
+            assert refine_res["interaction_type"] == "refinement_evaluation"
+
+    @pytest.mark.asyncio
+    async def test_analyze_turn_context_with_typesafe_system_one(self):
+        from app.services.typesafe_service import analyze_turn_context
+        mock_eval = {
+            "answers": {
+                "needs_fresh_entities": {"probability": 0.94},
+                "interaction_type": {"choice": "fresh_recommendations"},
+            }
+        }
+        with patch("app.services.typesafe_service.get_typesafe_api_key", return_value="test_key"):
+            with patch("app.services.typesafe_service.evaluate_system_one", return_value=mock_eval):
+                res = await analyze_turn_context(
+                    query="give me 5 more candidates besides the ones above",
+                    prior_entities=["CLS", "CRDO"],
+                )
+                assert res["needs_fresh_entities"] is True
+                assert res["interaction_type"] == "fresh_recommendations"
+                assert res["confidence"] == 0.94
+

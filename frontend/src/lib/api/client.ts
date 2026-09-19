@@ -22,6 +22,8 @@ import type {
   TriageDocumentResponse,
   DeliberationTopologyRequest,
   DeliberationTopologyResponse,
+  AnalyzeTurnRequest,
+  AnalyzeTurnResponse,
   UpsertProviderCredentialRequest,
 } from "./types";
 
@@ -328,6 +330,12 @@ export const api = {
         body: JSON.stringify(body),
       },
     );
+  },
+  analyzeTurn(body: AnalyzeTurnRequest): Promise<AnalyzeTurnResponse> {
+    return request<AnalyzeTurnResponse>("/api/discussions/analyze-turn", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
   },
 
   // ---- Folders ----

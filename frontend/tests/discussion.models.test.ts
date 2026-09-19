@@ -30,6 +30,12 @@ vi.mock("../src/lib/api/client", () => ({
       has_prompt_injection: false,
       triaged_content: "content",
     })),
+    analyzeTurn: vi.fn(async () => ({
+      needs_fresh_entities: false,
+      interaction_type: "refinement_evaluation",
+      confidence: 0.9,
+      reasoning: "mock",
+    })),
   },
 }));
 

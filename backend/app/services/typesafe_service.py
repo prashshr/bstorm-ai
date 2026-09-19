@@ -376,12 +376,13 @@ async def triage_document_for_query(
 async def analyze_deliberation_consensus(
     question: str,
     model_responses: dict[str, str],
+    round_number: int = 1,
 ) -> dict[str, Any]:
-    """Analyze multi-model agreement/dissent and determine if Round 2 is needed.
+    """Analyze multi-model agreement/dissent and determine if next round is needed.
 
     Rules:
     - If 1 model: No rounds needed.
-    - If >= 2 models: If any model disagrees/dissents, Round 2 is triggered so other
+    - If >= 2 models: If any model disagrees/dissents, next round is triggered so other
       models can deliberate on that dissenting view and refine consensus.
     """
     model_count = len(model_responses)
@@ -399,6 +400,7 @@ async def analyze_deliberation_consensus(
             "rationale": "Only one model responded; multi-model deliberation is not applicable.",
         }
 
+    next_round = round_number + 1
     key = get_typesafe_api_key()
     if not key:
         # Fallback when TypeSafe API key is not configured:
@@ -412,11 +414,11 @@ async def analyze_deliberation_consensus(
             "dissenting_model": list(model_responses.keys())[0],
             "should_deliberate_round_2": True,
             "deliberation_directive": (
-                "Deliberation Round 2: Review all peer perspectives from Round 1. "
+                f"Deliberation Round {next_round}: Review all peer perspectives from Round {round_number}. "
                 "Deliberate on the differing approaches, examine their trade-offs, and synthesize your refined position."
             ),
-            "summary_badge": "Dissent Detected · Deliberation Advancing",
-            "rationale": "Multi-model ensemble in progress (fallback mode).",
+            "summary_badge": f"Dissent Detected · Deliberation Advancing (Turn {next_round})",
+            "rationale": f"Multi-model ensemble in progress (Round {round_number} fallback mode).",
         }
 
     # Prepare state: compact representations of question and model outputs
@@ -448,65 +450,100 @@ async def analyze_deliberation_consensus(
                 "methodology_architecture": "Different recommended architectures, algorithms, technologies, or implementation patterns",
                 "tradeoff_priorities": "Different weighting of trade-offs (e.g. speed vs safety, simplicity vs flexibility)",
                 "interpretation_scope": "Different interpretations of the user query or edge-case handling",
+                "risk_feasibility": "Different assessments of risk, viability, or production readiness",
             },
         },
-        "has_disagreement": {
+        "has_meaningful_dissent": {
             "type": "noul",
             "instructions": (
-                "Does ANY single model express a dissenting opinion, differing conclusion, "
-                "or non-trivial contrarian perspective that contrasts with the other models?"
+                "Is there a meaningful dissent or substantive difference in conclusions, recommendations, "
+                "or risk assessment between at least one model and the majority?"
             ),
-            "criteria": {
-                "true": "At least one model has a distinct dissenting view or alternative approach worth peer evaluation",
-                "false": "All models are essentially aligned; no meaningful dissent exists",
-            },
         },
         "dissenting_model": {
             "type": "choice",
-            "instructions": "Which model, if any, presented the most distinct dissenting or unique alternative perspective?",
+            "instructions": "Which model took the most distinctive, dissenting, or outlier stance relative to peers?",
             "criteria": {
-                **{m: f"Model {m} expressed a dissenting or distinct perspective" for m in model_responses.keys()},
-                "none": "No model had a notable dissenting view",
-            },
+                m: f"Model {m} took a distinctive or dissenting stance"
+                for m in model_responses.keys()
+            } | {"none": "All models aligned; no single outlier exists"},
         },
     }
 
-    res = await evaluate_system_one(state=state, questions=questions, timeout=10.0)
+    res = await evaluate_system_one(
+        state=state,
+        questions=questions,
+        model="jev-latest",
+        timeout=10.0,
+    )
 
     if not res or "answers" not in res:
-        # Graceful fallback
+        # Fallback if call failed
         return {
             "model_count": model_count,
-            "consensus_score": 4.0,
-            "consensus_percent": 80,
+            "consensus_score": 3.8,
+            "consensus_percent": 76,
             "has_disagreement": True,
             "primary_divergence": "methodology_architecture",
-            "dissenting_model": None,
+            "dissenting_model": list(model_responses.keys())[0],
             "should_deliberate_round_2": True,
             "deliberation_directive": (
-                "Deliberation Round 2: Review all peer perspectives from Round 1. "
-                "Deliberate on the differing approaches and refine your position."
+                f"[COUNCIL DELIBERATION DIRECTIVE - TURN {next_round}]\n"
+                f"In Round {round_number}, peer models presented differing perspectives.\n"
+                f"Re-examine the differing arguments, evaluate their merits and trade-offs, and synthesize your refined position for Turn {next_round}.\n"
+                f"[END COUNCIL DELIBERATION DIRECTIVE]"
             ),
-            "summary_badge": "Dissent Detected · Deliberation Advancing",
-            "rationale": "Evaluation completed with fallback settings.",
+            "summary_badge": f"Dissent Detected · Deliberation Advancing (Turn {next_round})",
+            "rationale": f"System One evaluation unavailable; falling back to Round {next_round} deliberation.",
         }
 
-    answers = res["answers"]
-    raw_score = float(answers.get("consensus_score", {}).get("score", 3.0))
-    # Score 0.0 to 3.0 -> percentage 0% to 100%
-    consensus_percent = min(100, max(0, int((raw_score / 3.0) * 100)))
+    answers = res.get("answers", {})
 
-    divergence_choice = answers.get("primary_divergence", {}).get("choice", "unanimous")
-    dissent_noul = float(answers.get("has_disagreement", {}).get("noul", 0.0))
-    dissenting_model_choice = answers.get("dissenting_model", {}).get("choice")
-    if dissenting_model_choice in ("none", "null", ""):
-        dissenting_model_choice = None
+    # Extract score (1-4 scale)
+    raw_score = 3.0
+    score_ans = answers.get("consensus_score")
+    if isinstance(score_ans, (int, float)):
+        raw_score = float(score_ans)
+    elif isinstance(score_ans, dict):
+        raw_score = float(score_ans.get("score", 3.0))
 
-    # Condition: If ANY model disagrees
-    # Dissent detected if noul >= 0.35 OR divergence is not unanimous OR score < 2.2
-    has_disagreement = bool(
-        dissent_noul >= 0.35
-        or (divergence_choice != "unanimous" and divergence_choice != "none")
+    # Normalized percent: score 1 -> 25%, 4 -> 100%
+    consensus_percent = max(10, min(100, int((raw_score / 4.0) * 100)))
+
+    # Extract primary divergence
+    div_ans = answers.get("primary_divergence")
+    divergence_choice = "unanimous"
+    if isinstance(div_ans, str):
+        divergence_choice = div_ans
+    elif isinstance(div_ans, dict):
+        divergence_choice = div_ans.get("choice", "unanimous")
+
+    # Extract dissent noul probability
+    dissent_noul = 0.5
+    dissent_ans = answers.get("has_meaningful_dissent")
+    if isinstance(dissent_ans, (int, float)):
+        dissent_noul = float(dissent_ans)
+    elif isinstance(dissent_ans, dict):
+        dissent_noul = float(dissent_ans.get("probability", 0.5))
+
+    # Extract dissenting model
+    dissent_model_ans = answers.get("dissenting_model")
+    dissenting_model_choice: Optional[str] = None
+    if isinstance(dissent_model_ans, str) and dissent_model_ans != "none":
+        dissenting_model_choice = dissent_model_ans
+    elif isinstance(dissent_model_ans, dict):
+        c = dissent_model_ans.get("choice", "none")
+        if c != "none":
+            dissenting_model_choice = c
+
+    # Consensus determination:
+    # A round is triggered if:
+    # 1. dissent_noul >= 0.55 OR
+    # 2. primary_divergence != "unanimous" OR
+    # 3. raw_score < 2.2
+    has_disagreement = (
+        dissent_noul >= 0.55
+        or divergence_choice != "unanimous"
         or raw_score < 2.2
     )
 
@@ -519,24 +556,24 @@ async def analyze_deliberation_consensus(
         div_label = divergence_choice.replace("_", " ")
         if dissenting_model_choice:
             deliberation_directive = (
-                f"[COUNCIL DELIBERATION DIRECTIVE - TURN 2]\n"
-                f"In Round 1, Model '{dissenting_model_choice}' raised a distinct dissenting or alternative perspective "
+                f"[COUNCIL DELIBERATION DIRECTIVE - TURN {next_round}]\n"
+                f"In Round {round_number}, Model '{dissenting_model_choice}' raised a distinct dissenting or alternative perspective "
                 f"regarding {div_label}.\n"
                 f"Review their arguments with an analytical mind: determine whether that perspective has merit, "
-                f"address any oversights or trade-offs, and synthesize your enhanced judgment for Turn 2.\n"
+                f"address any oversights or trade-offs, and synthesize your enhanced judgment for Turn {next_round}.\n"
                 f"[END COUNCIL DELIBERATION DIRECTIVE]"
             )
-            summary_badge = f"Dissent: {dissenting_model_choice} ({div_label}) → Advancing to Round 2"
+            summary_badge = f"Dissent: {dissenting_model_choice} ({div_label}) → Advancing to Round {next_round}"
         else:
             deliberation_directive = (
-                f"[COUNCIL DELIBERATION DIRECTIVE - TURN 2]\n"
-                f"In Round 1, models diverged on {div_label}.\n"
+                f"[COUNCIL DELIBERATION DIRECTIVE - TURN {next_round}]\n"
+                f"In Round {round_number}, models diverged on {div_label}.\n"
                 f"Analyze the differences between the peer answers, reconcile the competing trade-offs, "
                 f"and provide your refined synthesis.\n"
                 f"[END COUNCIL DELIBERATION DIRECTIVE]"
             )
-            summary_badge = f"Divergence: {div_label} ({consensus_percent}%) → Advancing to Round 2"
-        rationale = f"Disagreement detected (dissent probability: {dissent_noul:.0%}, divergence: {div_label}). Advancing to Round 2."
+            summary_badge = f"Divergence: {div_label} ({consensus_percent}%) → Advancing to Round {next_round}"
+        rationale = f"Disagreement detected (dissent probability: {dissent_noul:.0%}, divergence: {div_label}). Advancing to Round {next_round}."
     else:
         deliberation_directive = None
         summary_badge = f"Unanimous Consensus ({consensus_percent}%) · Complete"
@@ -553,4 +590,112 @@ async def analyze_deliberation_consensus(
         "deliberation_directive": deliberation_directive,
         "summary_badge": summary_badge,
         "rationale": rationale,
+    }
+
+
+async def analyze_turn_context(
+    query: str,
+    prior_entities: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """Analyze turn intent and entity novelty using TypeSafe System One (Jev).
+
+    Determines whether a follow-up query is requesting new, fresh, or next entities,
+    or whether it is a refinement/comparison of existing entities.
+    """
+    prior_entities = prior_entities or []
+    cleaned_query = (query or "").strip()
+
+    patterns = [
+        r"\b(next|new|another|additional|other|fresh|further|more|different|besides|what else)\b.*\b(companies|stocks|names|picks|candidates|options|alternatives|ideas|firms|tickers|recommendations|batch)\b",
+        r"\b(recommend|give|provide|suggest|find|show|list)\b.*\b(next|new|more|another|additional|other|fresh|alternative)\b",
+        r"\b(next\s+new|\bnew\s+\d+|\bnext\s+\d+)\b",
+        r"\b(continue\s+(your\s+)?research\s+and\s+recommend)\b",
+        r"\b(second\s+batch|next\s+batch|next\s+round\s+of|more\s+names|other\s+names)\b",
+        r"\b(beyond\s+(the\s+)?(prior|previous|above|initial))\b",
+        r"\b(excluding\s+(the\s+)?(prior|previous|above|initial))\b",
+        r"\b(weitere|andere|neue|nächste)\b.*\b(aktien|firmen|unternehmen|kandidaten|optionen)\b",
+    ]
+    regex_matches_fresh = any(re.search(p, cleaned_query, re.IGNORECASE) for p in patterns)
+
+    key = get_typesafe_api_key()
+    if not key or not cleaned_query:
+        return {
+            "needs_fresh_entities": regex_matches_fresh,
+            "interaction_type": "fresh_recommendations" if regex_matches_fresh else "refinement_evaluation",
+            "confidence": 1.0 if regex_matches_fresh else 0.8,
+            "reasoning": "Determined via pattern heuristics (TypeSafe key not configured or query empty).",
+        }
+
+    state = {
+        "user_query": cleaned_query[:1000],
+        "prior_entities_count": len(prior_entities),
+        "sample_prior_entities": prior_entities[:15],
+    }
+
+    questions = {
+        "needs_fresh_entities": {
+            "type": "noul",
+            "instructions": (
+                "Does the user's query explicitly or implicitly ask for NEW, NEXT, ADDITIONAL, or "
+                "ALTERNATIVE candidates, entities, companies, or recommendations that were NOT yet covered?"
+            ),
+        },
+        "interaction_type": {
+            "type": "choice",
+            "instructions": "What is the primary conversational intent of this user turn?",
+            "criteria": {
+                "fresh_recommendations": "Requesting new, next, different, or additional candidates, companies, or recommendations",
+                "refinement_evaluation": "Analyzing, critiquing, comparing, verifying, or synthesizing already proposed candidates",
+                "clarification_question": "Asking a factual query, definition, or seeking specific clarification",
+                "workflow_instruction": "Giving procedural instructions, formatting guidelines, or changing output length",
+            },
+        },
+    }
+
+    res = await evaluate_system_one(
+        state=state,
+        questions=questions,
+        model="jev-latest",
+        timeout=8.0,
+    )
+
+    if not res or "answers" not in res:
+        return {
+            "needs_fresh_entities": regex_matches_fresh,
+            "interaction_type": "fresh_recommendations" if regex_matches_fresh else "refinement_evaluation",
+            "confidence": 0.85 if regex_matches_fresh else 0.7,
+            "reasoning": "Evaluated via fallback heuristics after System One call timeout/error.",
+        }
+
+    answers = res.get("answers", {})
+
+    fresh_noul = 0.5
+    fresh_ans = answers.get("needs_fresh_entities")
+    if isinstance(fresh_ans, (int, float)):
+        fresh_noul = float(fresh_ans)
+    elif isinstance(fresh_ans, dict):
+        fresh_noul = float(fresh_ans.get("probability", 0.5))
+
+    type_ans = answers.get("interaction_type")
+    interaction_type = "refinement_evaluation"
+    if isinstance(type_ans, str):
+        interaction_type = type_ans
+    elif isinstance(type_ans, dict):
+        interaction_type = type_ans.get("choice", "refinement_evaluation")
+
+    needs_fresh = (
+        fresh_noul >= 0.55
+        or interaction_type == "fresh_recommendations"
+        or regex_matches_fresh
+    )
+    confidence = max(fresh_noul, 1.0 - fresh_noul)
+
+    return {
+        "needs_fresh_entities": bool(needs_fresh),
+        "interaction_type": interaction_type,
+        "confidence": round(confidence, 2),
+        "reasoning": (
+            f"TypeSafe System One judgment: fresh_prob={fresh_noul:.2f}, "
+            f"interaction_type={interaction_type}, regex_signal={regex_matches_fresh}."
+        ),
     }

@@ -14,6 +14,12 @@ import { providers } from "./providers.svelte";
 import { history } from "./history.svelte";
 import { models } from "./models.svelte";
 import { colorForModel, splitModelKey, modelSupportsVision } from "../utils/helpers";
+import {
+  extractDiscussedEntities,
+  detectNewItemsIntent,
+  isAutomatedDeliberationDirective,
+  buildExclusionLedgerDirective,
+} from "../utils/entityLedger";
 
 const STATE_KEY = "aiEnsembleDiscussionState";
 const MAX_CONCURRENT = 6;
@@ -67,6 +73,7 @@ function emptyState(): DiscussionState {
     responseFormatText:
       "STRICT COMPACT LENGTH & FORMAT MANDATE: Provide a direct, highly concise, and brief response. Maximum 150-250 words total (maximum 2-3 short paragraphs or bullet points). Eliminate all introductory filler, background summaries, conversational remarks, and repetitive restatements. Get straight to the point.",
     topologyByRound: {},
+    turnAnalysisByRound: {},
   };
 }
 
@@ -253,7 +260,10 @@ class DiscussionStore {
       const cons = d.consensuses[rn];
       if (cons) parts.push(`## Consensus (turn ${rn})\n\n${cons}`);
     }
-    if (d.consensus) parts.push(`## Latest Consensus\n\n${d.consensus}`);
+    const lastRound = roundNums[roundNums.length - 1];
+    if (d.consensus && (!lastRound || d.consensus !== d.consensuses[lastRound])) {
+      parts.push(`## Latest Consensus\n\n${d.consensus}`);
+    }
     return parts.join("\n\n");
   }
 
@@ -490,6 +500,23 @@ class DiscussionStore {
       this.#data.attachments = attachments.map((a) => ({ name: a.name, size: 0, type: a.type, content: a.content }));
       this.#attachmentsByRound[roundNum] = attachments;
     }
+
+    // Semantic Turn Intent & Novelty judgment with TypeSafe System One
+    try {
+      const priorEntities = extractDiscussedEntities(this.#data.rounds, this.#data.consensuses, roundNum);
+      const turnAnalysis = await api.analyzeTurn({
+        query: followUp,
+        prior_entities: priorEntities,
+      });
+      this.#data.turnAnalysisByRound = {
+        ...(this.#data.turnAnalysisByRound ?? {}),
+        [roundNum]: turnAnalysis,
+      };
+      debug.log(`Turn ${roundNum} Intent Analysis: needs_fresh=${turnAnalysis.needs_fresh_entities}, type=${turnAnalysis.interaction_type} (${turnAnalysis.reasoning})`);
+    } catch (e) {
+      debug.log(`Turn intent analysis failed: ${e}`, "warn");
+    }
+
     if (!this.#data.title) this.#data.title = followUp.slice(0, 60);
     // Adopt the latest model selection so the next turn reflects any
     // models added or removed since the discussion started / last turn.
@@ -568,9 +595,11 @@ class DiscussionStore {
     let topology: DeliberationTopologyResponse | null = null;
     if (Object.keys(responses).length > 0) {
       try {
+        const currentTurnQuestion = this.#data.userMessages[roundNum] || this.#data.question;
         topology = await api.deliberationTopology({
-          question: this.#data.question,
+          question: currentTurnQuestion,
           model_responses: responses,
+          round_number: roundNum,
         });
         this.#data.topologyByRound = {
           ...(this.#data.topologyByRound ?? {}),
@@ -623,7 +652,7 @@ class DiscussionStore {
       this.#data.userMessages = {
         ...this.#data.userMessages,
         [nextRound]: topology?.deliberation_directive ||
-          `Continue refining the analysis. Review all previous rounds including their model responses and consensus. Provide a refined, enhanced response that builds on the best insights so far.`,
+          `[COUNCIL DELIBERATION DIRECTIVE - TURN ${nextRound}]\nIn Round ${roundNum}, peer models presented differing perspectives. Re-examine the differing arguments, evaluate their merits and trade-offs, and synthesize your refined position.\n[END COUNCIL DELIBERATION DIRECTIVE]`,
       };
       this.persist();
       await this.runRound(nextRound);
@@ -845,19 +874,9 @@ class DiscussionStore {
     const { provider, model: modelId } = splitModelKey(model);
     const cred = providers.find(provider);
 
-    const allResponses = Object.entries(this.#data.rounds)
-      .map(([round, models]) => {
-        const parts = Object.entries(models)
-          .filter(([, r]) => r.status === "complete")
-          .map(([m, r]) => `### ${m}\n${r.text}`)
-          .join("\n\n");
-        const consensus = this.#data.consensuses[Number(round)];
-        const consensusBlock = consensus
-          ? `\n\n### Consensus (turn ${round})\n${consensus}`
-          : "";
-        return `## Round ${round}\n${parts}${consensusBlock}`;
-      })
-      .join("\n\n");
+    const activeQuestion = this.#data.userMessages[roundNum] || this.#data.question;
+    const turnAnalysis = this.#data.turnAnalysisByRound?.[roundNum];
+    const isNewItems = turnAnalysis ? turnAnalysis.needs_fresh_entities : detectNewItemsIntent(activeQuestion);
 
     const dateStr = new Date().toLocaleDateString("en-US", {
       weekday: "long",
@@ -879,25 +898,90 @@ class DiscussionStore {
         consensusFormat =
           "\n\n[MANDATORY COMPACT CONSENSUS FORMAT DIRECTIVE]\n" +
           "Provide a STRICTLY COMPACT, HIGHLY CONCISE consensus synthesis:\n" +
-          "- Start with a 1-sentence verdict\n" +
+          "- Start with a 1-sentence verdict addressing this turn's objective\n" +
           "- Short weighted score table (max 4 core metrics)\n" +
           "- Concise bullet points for key agreements and disagreements\n" +
-          "- Max 3 priority recommendations as short numbered items\n" +
+          "- Max 3 priority recommendations as short numbered items strictly answering this turn's prompt\n" +
           "- Keep response under 250 words total. Eliminate fluff.\n" +
           "[END MANDATORY CONSENSUS FORMAT DIRECTIVE]\n";
       } else {
         consensusFormat =
           "\n\n[MANDATORY ELABORATE CONSENSUS FORMAT DIRECTIVE]\n" +
           "Provide an ELABORATE, FULLY DETAILED consensus synthesis:\n" +
-          "- Start with an executive verdict (2-3 sentences)\n" +
+          "- Start with an executive verdict (2-3 sentences) directly addressing this turn's objective\n" +
           "- Full weighted scoring matrix with rationale for each model\n" +
           "- In-depth council alignment & friction matrix\n" +
-          "- Detailed trade-off analysis and actionable next steps\n" +
+          "- Detailed trade-off analysis and actionable next steps answering this turn's prompt\n" +
           "[END MANDATORY CONSENSUS FORMAT DIRECTIVE]\n";
       }
     }
 
-    const prompt = `${dateContext}\n\nSynthesize a balanced consensus from all perspectives.\n\n"${this.#data.question}"\n\nAll model responses:\n\n${allResponses}${consensusFormat}`;
+    // Current round responses to be synthesized
+    const currentRoundResponses = Object.entries(this.#data.rounds[roundNum] ?? {})
+      .filter(([, r]) => r.status === "complete" && r.text)
+      .map(([m, r]) => `### Model: ${splitModelKey(m).model}\n${r.text}`)
+      .join("\n\n");
+
+    let prompt = "";
+    if (roundNum === 1) {
+      prompt = `${dateContext}\n\n` +
+        `Synthesize a balanced consensus from all perspectives.\n\n` +
+        `USER QUESTION:\n"${this.#data.question}"\n\n` +
+        `MODEL RESPONSES:\n\n${currentRoundResponses}${consensusFormat}`;
+    } else {
+      // Prior rounds summary for background context
+      const priorTurnsSummary = Object.entries(this.#data.rounds)
+        .filter(([r]) => Number(r) < roundNum)
+        .sort(([a], [b]) => Number(a) - Number(b))
+        .map(([r, models]) => {
+          const tNum = Number(r);
+          const userPrompt = this.#data.userMessages[tNum] || this.#data.question;
+          const priorConsensus = this.#data.consensuses[tNum];
+          const consBlock = priorConsensus
+            ? `Consensus for turn ${tNum}:\n${priorConsensus.length > 800 ? priorConsensus.slice(0, 800) + "\n[...]" : priorConsensus}`
+            : "";
+          const modelHighlights = Object.entries(models)
+            .filter(([, res]) => res.status === "complete" && res.text)
+            .map(([m, res]) => `- ${splitModelKey(m).model}: ${res.text.slice(0, 250)}...`)
+            .join("\n");
+          return `### Turn ${tNum} Summary\nUser prompt: "${userPrompt}"\n${consBlock ? consBlock + "\n" : ""}Key model picks:\n${modelHighlights}`;
+        })
+        .join("\n\n");
+
+      const priorEntities = extractDiscussedEntities(this.#data.rounds, this.#data.consensuses, roundNum);
+
+      let directiveBlock = "";
+      if (isNewItems && priorEntities.length > 0) {
+        directiveBlock =
+          `[CRITICAL MANDATE - SYNTHESIZE NEW / NEXT RECOMMENDATIONS ONLY]\n` +
+          `In this turn (Turn ${roundNum}), the user explicitly requested NEW / NEXT candidates: "${activeQuestion}".\n` +
+          `The participating models have proposed new candidates in their Turn ${roundNum} responses below.\n` +
+          `The following entities/companies were ALREADY analyzed or ranked in previous turns and are STRICTLY EXCLUDED from re-ranking:\n` +
+          `${priorEntities.slice(0, 35).map((e) => `• ${e}`).join("\n")}\n\n` +
+          `MANDATORY CONSENSUS RULES:\n` +
+          `1. You MUST synthesize consensus specifically across the NEW candidates proposed in Turn ${roundNum}.\n` +
+          `2. Do NOT repeat or revert to the rankings/picks of previous turns (Turns 1 to ${roundNum - 1}).\n` +
+          `3. Synthesize the strongest agreed consensus among the fresh Turn ${roundNum} recommendations.\n` +
+          `[END CRITICAL MANDATE]\n\n`;
+      } else {
+        directiveBlock =
+          `[ACTIVE TURN OBJECTIVE - TURN ${roundNum}]\n` +
+          `The user's active prompt for this turn is: "${activeQuestion}".\n` +
+          `Synthesize the consensus specifically answering this turn's prompt using the Turn ${roundNum} responses below.\n` +
+          `[END ACTIVE TURN OBJECTIVE]\n\n`;
+      }
+
+      prompt = `${dateContext}\n\n` +
+        `[PRIOR CONVERSATION CONTEXT - TURNS 1 TO ${roundNum - 1}]\n` +
+        `The following provides background context on what was previously discussed. Do NOT confuse prior turn conclusions with the active turn's objective.\n\n` +
+        `${priorTurnsSummary}\n` +
+        `[END PRIOR CONVERSATION CONTEXT]\n\n` +
+        directiveBlock +
+        `[TURN ${roundNum} MODEL RESPONSES TO BE SYNTHESIZED]\n\n` +
+        `${currentRoundResponses}\n\n` +
+        `[END TURN ${roundNum} MODEL RESPONSES]\n\n` +
+        `Synthesize a balanced consensus from all perspectives for TURN ${roundNum} addressing: "${activeQuestion}". Focus on the agreements, friction, and ranked consensus among their Turn ${roundNum} proposals.${consensusFormat}`;
+    }
 
     const scope = this.#linkedTimeoutScope();
     try {
@@ -1057,6 +1141,14 @@ class DiscussionStore {
         prompt += `User (turn ${i}): ${userMsg}\n\n`;
       }
       const prevRound = this.#data.rounds[i] ?? {};
+
+      // Include this model's own response from turn i so it remembers what it previously proposed
+      const ownResp = prevRound[compositeKey];
+      if (ownResp && ownResp.status === "complete" && ownResp.text) {
+        const ownCapped = ownResp.text.length > 6000 ? ownResp.text.slice(0, 6000) + "\n[truncated]" : ownResp.text;
+        prompt += `### Your Response (turn ${i}):\n${ownCapped}\n\n`;
+      }
+
       const parts = Object.entries(prevRound)
         .filter(([m, r]) => m !== compositeKey && r.status === "complete" && r.text)
         .map(([m, r]) => `### Peer Model: ${splitModelKey(m).model}\n${r.text.length > 6000 ? r.text.slice(0, 6000) + "\n[truncated]" : r.text}`)
@@ -1073,15 +1165,39 @@ class DiscussionStore {
 
     // Current user turn
     const currentMsg = this.#data.userMessages[roundNum] ?? this.#data.question;
+    const turnAnalysis = this.#data.turnAnalysisByRound?.[roundNum];
+    const isNewItems = turnAnalysis ? turnAnalysis.needs_fresh_entities : detectNewItemsIntent(currentMsg);
+    const isDeliberation = isAutomatedDeliberationDirective(currentMsg);
+
     prompt += `User (turn ${roundNum}): ${currentMsg}\n\n`;
 
     if (roundNum > 1) {
-      prompt += `[ENSEMBLE DELIBERATION DIRECTIVE - TURN ${roundNum}]\n` +
-        `You are now in deliberation turn ${roundNum}. Review the peer model responses above with an analytical eye:\n` +
-        `1. Integrate the valid points, edge cases, and distinct angles raised by other models (e.g. if another model noticed a constraint, bug, or nuance you did not emphasize).\n` +
-        `2. Respectfully point out and correct any flaws, misconceptions, or false assumptions in their arguments.\n` +
-        `3. Provide your synthesis and enhanced final judgment for this turn.\n` +
-        `[END ENSEMBLE DELIBERATION DIRECTIVE]\n\n`;
+      if (isNewItems) {
+        // Extract all entities/tickers discussed in prior turns
+        const priorEntities = extractDiscussedEntities(this.#data.rounds, this.#data.consensuses, roundNum);
+        const exclusionLedger = buildExclusionLedgerDirective(priorEntities);
+
+        prompt += `${exclusionLedger}` +
+          `[ACTIVE USER MANDATE - FRESH CANDIDATES REQUIRED]\n` +
+          `The user is explicitly asking: "${currentMsg}".\n` +
+          `You MUST propose a completely fresh set of candidates/companies meeting the user's criteria.\n` +
+          `Every entity you recommend must be NEW and NOT listed in the exclusion ledger above.\n` +
+          `Do NOT re-evaluate or repeat previously discussed names.\n` +
+          `[END ACTIVE USER MANDATE]\n\n`;
+      } else if (isDeliberation) {
+        prompt += `[ENSEMBLE DELIBERATION DIRECTIVE - TURN ${roundNum}]\n` +
+          `You are now in deliberation turn ${roundNum}. Review the peer model responses above with an analytical eye:\n` +
+          `1. Integrate the valid points, edge cases, and distinct angles raised by other models (e.g. if another model noticed a constraint, bug, or nuance you did not emphasize).\n` +
+          `2. Respectfully point out and correct any flaws, misconceptions, or false assumptions in their arguments.\n` +
+          `3. Provide your synthesis and enhanced final judgment for this turn.\n` +
+          `[END ENSEMBLE DELIBERATION DIRECTIVE]\n\n`;
+      } else {
+        // Standard user follow-up prompt
+        prompt += `[ACTIVE USER FOLLOW-UP DIRECTIVE - TURN ${roundNum}]\n` +
+          `Address the user's specific follow-up query: "${currentMsg}".\n` +
+          `Draw directly upon the context established in previous turns without unnecessary re-stating of basic premises.\n` +
+          `[END ACTIVE USER FOLLOW-UP DIRECTIVE]\n\n`;
+      }
     }
 
     const isVision = this.#isVisionModel(compositeKey);
@@ -1118,7 +1234,9 @@ class DiscussionStore {
     }
 
     if (turnCount > 1) {
-      if (this.#data.responseFormat === "compact") {
+      if (isNewItems) {
+        prompt += `Provide your fresh analysis and recommendations strictly answering the user's prompt: "${currentMsg}". Ensure all recommended entities are completely new and distinct from all earlier turns.\n\n`;
+      } else if (this.#data.responseFormat === "compact") {
         prompt += `Review the previous turn(s) above and provide a concise, direct contribution focusing strictly on key points, agreements/disagreements, or new insights without repeating what other models already stated. Keep it strictly brief and compact.\n\n`;
       } else {
         prompt += `Review all previous responses above and provide your refined analysis building upon what has been discussed. Focus on areas where you can add value or offer a different perspective.\n\n`;

@@ -20,12 +20,18 @@ from app.schemas.discussion import (
     TriageDocumentResponse,
     DeliberationTopologyRequest,
     DeliberationTopologyResponse,
+    AnalyzeTurnRequest,
+    AnalyzeTurnResponse,
 )
 
 logger = logging.getLogger("ai_ensemble.discussions")
 from app.core.crypto import encrypt_field, decrypt_field_or_plaintext
 from app.services.retrieval import get_retrieved_context
-from app.services.typesafe_service import triage_document_for_query, analyze_deliberation_consensus
+from app.services.typesafe_service import (
+    triage_document_for_query,
+    analyze_deliberation_consensus,
+    analyze_turn_context,
+)
 
 
 router = APIRouter()
@@ -416,5 +422,22 @@ async def deliberation_topology_endpoint(
     res = await analyze_deliberation_consensus(
         question=payload.question,
         model_responses=payload.model_responses,
+        round_number=payload.round_number or 1,
     )
     return DeliberationTopologyResponse(**res)
+
+
+@router.post("/analyze-turn", response_model=AnalyzeTurnResponse)
+@limiter.limit("60/minute")
+async def analyze_turn_endpoint(
+    request: Request,
+    payload: AnalyzeTurnRequest,
+    current_user: User = Depends(get_current_user),
+) -> AnalyzeTurnResponse:
+    """Analyze turn intent and entity novelty using TypeSafe System One."""
+    res = await analyze_turn_context(
+        query=payload.query,
+        prior_entities=payload.prior_entities,
+    )
+    return AnalyzeTurnResponse(**res)
+

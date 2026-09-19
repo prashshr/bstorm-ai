@@ -135,3 +135,39 @@ class TestDiscussions:
             headers=auth_headers,
         )
         assert resp.status_code == 422
+
+    def test_deliberation_topology_with_round_number(self, client, auth_headers):
+        resp = client.post(
+            "/api/discussions/deliberation-topology",
+            json={
+                "question": "Which architecture is better?",
+                "model_responses": {
+                    "m1": "Monolith is definitely better.",
+                    "m2": "I strongly disagree, microservices is better.",
+                },
+                "round_number": 3,
+            },
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["model_count"] == 2
+        assert data["should_deliberate_round_2"] is True
+        assert "TURN 4" in data["deliberation_directive"]
+        assert "Round 3" in data["deliberation_directive"]
+
+    def test_analyze_turn_endpoint(self, client, auth_headers):
+        resp = client.post(
+            "/api/discussions/analyze-turn",
+            json={
+                "query": "continue your research and recommend next new 5 companies on same lines",
+                "prior_entities": ["Celestica", "Credo"],
+            },
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["needs_fresh_entities"] is True
+        assert data["interaction_type"] == "fresh_recommendations"
+        assert "confidence" in data
+

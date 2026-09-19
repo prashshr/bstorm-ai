@@ -108,6 +108,7 @@ export interface TriageDocumentResponse {
 export interface DeliberationTopologyRequest {
   question: string;
   model_responses: Record<string, string>;
+  round_number?: number;
 }
 
 export interface DeliberationTopologyResponse {
@@ -121,6 +122,18 @@ export interface DeliberationTopologyResponse {
   deliberation_directive?: string | null;
   summary_badge: string;
   rationale: string;
+}
+
+export interface AnalyzeTurnRequest {
+  query: string;
+  prior_entities?: string[];
+}
+
+export interface AnalyzeTurnResponse {
+  needs_fresh_entities: boolean;
+  interaction_type: string;
+  confidence: number;
+  reasoning: string;
 }
 
 // SSE stream event shape from /api/proxy/chat/stream
@@ -236,6 +249,7 @@ export interface DiscussionState {
   responseFormat: "none" | "compact" | "elaborate" | "custom";
   responseFormatText: string;
   topologyByRound?: Record<number, DeliberationTopologyResponse>;
+  turnAnalysisByRound?: Record<number, AnalyzeTurnResponse>;
 }
 
 export interface DiscussionAggregateStats {

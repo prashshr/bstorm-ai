@@ -68,6 +68,7 @@ class TriageDocumentResponse(BaseModel):
 class DeliberationTopologyRequest(BaseModel):
     question: str
     model_responses: dict[str, str]
+    round_number: Optional[int] = 1
 
 
 class DeliberationTopologyResponse(BaseModel):
@@ -81,3 +82,16 @@ class DeliberationTopologyResponse(BaseModel):
     deliberation_directive: Optional[str] = None
     summary_badge: str
     rationale: str
+
+
+class AnalyzeTurnRequest(BaseModel):
+    query: str
+    prior_entities: list[str] = Field(default_factory=list)
+
+
+class AnalyzeTurnResponse(BaseModel):
+    needs_fresh_entities: bool
+    interaction_type: str
+    confidence: float
+    reasoning: str
+
