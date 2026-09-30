@@ -306,9 +306,18 @@ class DiscussionStore {
         this.#data = restored;
         this.#running = false;
         this.#phase = "done";
+        this.#syncUrlFromState();
       }
     } catch (e) {
       debug.log(`Failed to restore discussion state: ${e}`, "warn");
+    }
+  }
+
+  #syncUrlFromState(): void {
+    if (typeof this.#data.id === "number") {
+      window.location.hash = `#discussion/${this.#data.id}`;
+    } else {
+      window.location.hash = "";
     }
   }
 
@@ -337,6 +346,7 @@ class DiscussionStore {
     this.#attachmentsByRound = {};
     this.#imageTranscriptions = {};
     localStorage.removeItem(STATE_KEY);
+    window.location.hash = "";
   }
 
   configure(partial: Partial<DiscussionState>): void {
@@ -1119,6 +1129,7 @@ class DiscussionStore {
     // Persist so a page reload restores the currently-viewed discussion
     // instead of dropping to a blank "New Discussion" screen.
     this.persist();
+    this.#syncUrlFromState();
   }
 
   #buildPrompt(compositeKey: string, roundNum: number): string {
