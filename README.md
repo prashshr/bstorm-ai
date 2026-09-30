@@ -99,6 +99,21 @@ npm install
 npm run dev
 ```
 
+## Contribution and Release Workflow
+
+This repository follows a consistent semver and GitHub label workflow:
+
+- Release tags use annotated semver tags: `vMAJOR.MINOR.PATCH`
+- GitHub issues and PRs should use the standard label groups below:
+  - `type:*` (`bug`, `feature`, `docs`, `refactor`, `chore`)
+  - `area:*` (`backend`, `frontend`, `infra`, `docs`, `security`)
+  - `priority:*` (`P0`–`P3`)
+  - `status:*` (`blocked`, `needs-info`, `ready`)
+  - `release:*` (`major`, `minor`, `patch`)
+- Tagging and release notes must match the same version semantics used in `GIT_GUIDELINES.md`.
+
+The issue and PR templates under `.github/ISSUE_TEMPLATE/` and `.github/PULL_REQUEST_TEMPLATE/` enforce that convention for collaborative work.
+
 ## Docker Compose
 
 ```bash
