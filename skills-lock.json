@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "semble": {
+      "source": "akillness/jeo-skills",
+      "sourceType": "github",
+      "skillPath": ".agent-skills/semble/SKILL.md",
+      "computedHash": "0e1e4286a1aeeddf98d10cca0127d14b633d05266df4628f2f582e5a665cb4ac"
+    },
     "typesafe-ai": {
       "source": "typesafe-ai/skills",
       "sourceType": "github",
