@@ -265,7 +265,11 @@ async def search_web(queries: List[str]) -> List[Dict]:
     return all_results[:15]
 
 
-async def extract_content_from_urls(urls: List[str], per_url_timeout: float = 5.0) -> str:
+async def extract_content_from_urls(
+    urls: List[str],
+    per_url_timeout: float = 5.0,
+    include_metadata: bool = False,
+) -> str | List[Dict]:
     headers = {
         "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
         "(KHTML, like Gecko) Chrome/120.0 Safari/537.36",
@@ -273,33 +277,33 @@ async def extract_content_from_urls(urls: List[str], per_url_timeout: float = 5.
     }
     semaphore = asyncio.Semaphore(4)
 
-    async def _fetch_one(client: httpx.AsyncClient, url: str) -> str:
+    async def _fetch_one(client: httpx.AsyncClient, url: str) -> Dict:
         async with semaphore:
             host = url.split("/")[2] if "//" in url else url
             if host in BLOCKED_HOSTS:
                 logger.info(f"[RAG] Skipping blocked host: {host}")
-                return ""
+                return {}
             logger.info(f"[RAG] Fetching content from: {url}")
             try:
                 try:
                     resp = await client.get(url)
                 except Exception as e:
                     logger.warning(f"[RAG] Fetch failed for {url}: {e}")
-                    return ""
+                    return {}
                 if resp.status_code != 200 or not resp.text:
                     logger.warning(f"[RAG] No usable response from {url} ({resp.status_code})")
-                    return ""
+                    return {}
                 doc = await asyncio.to_thread(
                     extract, resp.text, include_comments=False, include_tables=False
                 )
                 if doc:
                     logger.info(f"[RAG] Extracted {len(doc)} chars from {url}")
-                    return doc
+                    return {"url": url, "content": doc}
                 logger.warning(f"[RAG] No text extracted from {url}")
-                return ""
+                return {}
             except Exception as e:
                 logger.error(f"[RAG] Error processing {url}: {e}")
-                return ""
+                return {}
 
     async with httpx.AsyncClient(
         timeout=httpx.Timeout(per_url_timeout), follow_redirects=True, headers=headers
@@ -307,7 +311,10 @@ async def extract_content_from_urls(urls: List[str], per_url_timeout: float = 5.
         # asyncio.gather preserves input order, so results stay aligned with urls.
         results = await asyncio.gather(*[_fetch_one(client, u) for u in urls])
 
-    all_text = [r for r in results if r]
+    records = [r for r in results if r]
+    if include_metadata:
+        return records
+    all_text = [r["content"] for r in records]
     if not all_text:
         logger.warning("[RAG] No content extracted from any URL")
         return ""
@@ -317,6 +324,51 @@ async def extract_content_from_urls(urls: List[str], per_url_timeout: float = 5.
     if len(joined) > 8000:
         joined = joined[:8000]
     return joined
+
+
+def _is_low_quality_result(result: Dict) -> bool:
+    """Reject search results that are mostly cookie/consent boilerplate."""
+    title = str(result.get("title") or "").strip()
+    content = str(result.get("content") or "").strip()
+    combined = f"{title}\n{content}".lower()
+    if not combined.strip():
+        return True
+    markers = (
+        "cookie", "consent", "accept all", "privacy choices", "javascript",
+        "enable javascript", "advertising preferences", "tracking technologies",
+    )
+    marker_count = sum(combined.count(marker) for marker in markers)
+    # Search snippets that contain only a consent wall are not evidence. A real
+    # article may mention privacy once, so require multiple boilerplate signals.
+    return marker_count >= 2 and len(content) < 700
+
+
+def _build_rag_candidates(search_results: List[Dict], extracted_records: List[Dict]) -> List[Dict]:
+    extracted_by_url = {
+        record.get("url"): record.get("content", "")
+        for record in extracted_records
+        if record.get("url") and record.get("content")
+    }
+    candidates = []
+    for result in search_results:
+        if _is_low_quality_result(result):
+            continue
+        url = result.get("url", "")
+        content = extracted_by_url.get(url) or result.get("content") or ""
+        if not content.strip():
+            continue
+        snippet = str(result.get("content") or "").strip()
+        candidates.append({
+            "title": (result.get("title") or "").strip(),
+            "url": url,
+            "content": content,
+            # Judge against the search snippet plus the fetched page. The snippet
+            # often contains the query terms even when the page uses synonyms;
+            # the fetched content remains what is ultimately sent to the agents.
+            "text": f"{snippet}\n{content}".strip(),
+            "_source": result.get("_source", "web"),
+        })
+    return candidates
 
 
 def _candidate_rank(r: Dict) -> tuple:
@@ -417,38 +469,74 @@ async def get_retrieved_context(user_prompt: str, topic_context: Optional[str] =
         logger.info(f"[RAG] Extracting content from {len(urls)} URLs")
 
         extracted_content = ""
+        extracted_records: List[Dict] = []
         if urls:
             try:
-                extracted_content = await asyncio.wait_for(extract_content_from_urls(urls), timeout=25.0)
+                extracted = await asyncio.wait_for(
+                    extract_content_from_urls(urls, include_metadata=True),
+                    timeout=25.0,
+                )
+                if isinstance(extracted, list):
+                    extracted_records = extracted
+                else:
+                    # Backwards-compatible handling for callers/tests that provide
+                    # the legacy joined-string result.
+                    extracted_content = extracted or ""
             except Exception as e:
                 logger.warning(f"[RAG] Content extraction encountered error: {e}")
                 extracted_content = ""
 
-        # If full-page extraction returned no text (e.g. 403, Cloudflare, SPA, or paywalls),
-        # fall back to the rich search engine summaries/snippets rather than discarding the results!
-        if not extracted_content or not extracted_content.strip():
-            logger.info("[RAG] Full-page extraction returned no text; falling back to rich search engine snippets")
-            snippet_blocks = []
-            for r in search_results:
-                title = (r.get("title") or "").strip()
-                snippet = (r.get("content") or "").strip()
-                url = (r.get("url") or "").strip()
-                engine = r.get("_source", "web")
-                if snippet or title:
-                    snippet_blocks.append(f"### [{engine}] {title}\nURL: {url}\n{snippet}")
-            if snippet_blocks:
-                extracted_content = "\n\n".join(snippet_blocks[:10])
+        # Preserve title/URL boundaries so semantic filtering can remove an unrelated
+        # article without accidentally passing its content to every agent.
+        candidates = _build_rag_candidates(search_results, extracted_records)
+        if extracted_content.strip():
+            candidates.extend([
+                {
+                    "title": "Extracted web research",
+                    "url": urls[0] if urls else "",
+                    "content": extracted_content,
+                    "text": extracted_content,
+                    "_source": "web",
+                }
+            ])
 
-        if not extracted_content or not extracted_content.strip():
-            logger.warning("[RAG] No usable content or snippets extracted from any source")
+        from app.services.typesafe_service import select_relevant_rag_candidates
+        candidates = await select_relevant_rag_candidates(
+            # Use the same focused queries sent to the search engines rather than
+            # ranking against persona/instruction boilerplate in the full prompt.
+            query="\n".join(queries),
+            candidates=candidates,
+        )
+        if not candidates:
+            logger.warning("[RAG] Relevance filter rejected all retrieved results")
             return None
 
+        # If full-page extraction returned no text (e.g. 403, Cloudflare, SPA, or
+        # paywalls), the candidates above are still rich search snippets.
+        if not extracted_records and not extracted_content.strip():
+            logger.info("[RAG] Full-page extraction returned no text; falling back to rich search engine snippets")
+        content_blocks = []
         sources_lines = []
-        for r in search_results:
-            engine = r.get("_source", "web")
-            title = r.get("title", "")
-            url = r.get("url", "")
+        used_chars = 0
+        for candidate in candidates:
+            title = candidate.get("title", "")
+            url = candidate.get("url", "")
+            engine = candidate.get("_source", "web")
+            remaining = 8000 - used_chars
+            if remaining <= 0:
+                break
+            text = str(candidate.get("content", "")).strip()
+            block = f"### [{engine}] {title}\nURL: {url}\n{text}"
+            if len(block) > remaining:
+                block = block[:remaining] + "\n[... truncated ...]"
+            content_blocks.append(block)
+            used_chars += len(block)
             sources_lines.append(f"- [{engine}] {title}: {url}")
+        extracted_content = "\n\n---\n\n".join(content_blocks)
+        if not extracted_content.strip():
+            logger.warning("[RAG] No usable relevant content extracted from any source")
+            return None
+
         sources = "\n".join(sources_lines)
         context = (
             "UNTRUSTED WEB DATA — The following content was retrieved from the public web.\n"

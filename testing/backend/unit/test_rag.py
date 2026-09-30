@@ -85,7 +85,9 @@ class TestRagPipeline:
     async def test_get_retrieved_context_returns_formatted_string(self):
         with patch("app.services.retrieval.search_web", return_value=[
             {"url": "https://example.com", "title": "Example", "content": "Test", "_source": "Tavily"},
-        ]), patch("app.services.retrieval.extract_content_from_urls", return_value="Extracted content"):
+        ]), patch("app.services.retrieval.extract_content_from_urls", return_value=[
+            {"url": "https://example.com", "content": "Extracted content"},
+        ]):
             result = await get_retrieved_context("test query")
             assert result is not None
             assert "UNTRUSTED WEB DATA" in result
@@ -97,7 +99,10 @@ class TestRagPipeline:
         with patch("app.services.retrieval.search_web", return_value=[
             {"url": "https://a.com", "title": "A", "content": "A", "_source": "Tavily"},
             {"url": "https://b.com", "title": "B", "content": "B", "_source": "SearXNG"},
-        ]), patch("app.services.retrieval.extract_content_from_urls", return_value="content"):
+        ]), patch("app.services.retrieval.extract_content_from_urls", return_value=[
+            {"url": "https://a.com", "content": "content"},
+            {"url": "https://b.com", "content": "content"},
+        ]):
             result = await get_retrieved_context("test")
             assert "[Tavily]" in result
             assert "[SearXNG]" in result
@@ -107,7 +112,7 @@ class TestRagPipeline:
         from app.services.retrieval import _RAG_CACHE
         _RAG_CACHE.clear()
         with patch("app.services.retrieval.search_web", return_value=[
-            {"url": "https://example.com", "title": "Example", "content": "Rich snippet from Tavily", "_source": "Tavily"},
+            {"url": "https://example.com", "title": "Example", "content": "Rich snippet from Tavily about fallback query", "_source": "Tavily"},
         ]), patch("app.services.retrieval.extract_content_from_urls", return_value=""):
             result = await get_retrieved_context("fallback query")
             assert result is not None
@@ -115,10 +120,36 @@ class TestRagPipeline:
             assert "### [Tavily] Example" in result
 
     @pytest.mark.asyncio
+    async def test_get_retrieved_context_filters_unrelated_cookie_snippets(self):
+        from app.services.retrieval import _RAG_CACHE
+        _RAG_CACHE.clear()
+        with patch("app.services.retrieval.search_web", return_value=[
+            {
+                "url": "https://example.com/altcoins",
+                "title": "Altcoin market outlook",
+                "content": "Altcoin market breadth and liquidity are improving.",
+                "_source": "Tavily",
+            },
+            {
+                "url": "https://example.com/cookies",
+                "title": "Yahoo Finance",
+                "content": "Cookie consent. Accept all cookies. Privacy choices and tracking technologies.",
+                "_source": "SearXNG",
+            },
+        ]), patch("app.services.retrieval.extract_content_from_urls", return_value=[]):
+            result = await get_retrieved_context("Analyze the altcoin market")
+
+        assert result is not None
+        assert "Altcoin market outlook" in result
+        assert "Cookie consent" not in result
+
+    @pytest.mark.asyncio
     async def test_get_retrieved_context_blends_topic_context_for_followup(self):
         with patch("app.services.retrieval.search_web", AsyncMock(return_value=[
-            {"url": "https://example.com", "title": "Example", "content": "AI stocks", "_source": "Tavily"},
-        ])) as mock_search, patch("app.services.retrieval.extract_content_from_urls", return_value="Extracted"):
+            {"url": "https://example.com", "title": "Example", "content": "AI companies and AI stocks", "_source": "Tavily"},
+        ])) as mock_search, patch("app.services.retrieval.extract_content_from_urls", return_value=[
+            {"url": "https://example.com", "content": "Extracted"},
+        ]):
             result = await get_retrieved_context(
                 user_prompt="recommend next 5",
                 topic_context="AI companies under 50B",
@@ -167,4 +198,3 @@ class TestRagPipeline:
         from app.services.retrieval import extract_search_queries
         queries = extract_search_queries("latest AI breakthroughs in quantum computing")
         assert "latest AI breakthroughs in quantum computing" in queries
-
