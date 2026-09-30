@@ -68,13 +68,16 @@ type UnauthorizedHandler = () => void;
 
 let getToken: TokenGetter = () => null;
 let onUnauthorized: UnauthorizedHandler = () => {};
+let refreshToken: () => Promise<boolean> = async () => false;
 
 export function configureApi(opts: {
   getToken: TokenGetter;
   onUnauthorized: UnauthorizedHandler;
+  refreshToken?: () => Promise<boolean>;
 }): void {
   getToken = opts.getToken;
   onUnauthorized = opts.onUnauthorized;
+  if (opts.refreshToken) refreshToken = opts.refreshToken;
 }
 
 async function request<T>(
@@ -97,7 +100,44 @@ async function request<T>(
     // Only a 401 from our own auth layer should end the session. A 401 that
     // bubbles up from an upstream provider (e.g. a bad provider key during a
     // chat/health check) must NOT log the user out.
-    if (logoutOn401) onUnauthorized();
+    if (logoutOn401) {
+      // Attempt silent refresh before logging out.
+      const refreshed = await refreshToken();
+      if (refreshed) {
+        // Retry the request with the new token.
+        const retryHeaders = new Headers(options.headers);
+        retryHeaders.set("Content-Type", "application/json");
+        const newToken = getToken();
+        if (newToken) retryHeaders.set("Authorization", `Bearer ${newToken}`);
+        const retryResp = await fetch(`${baseUrl}${path}`, { ...options, headers: retryHeaders });
+        if (retryResp.ok) {
+          if (retryResp.status === 204) return undefined as T;
+          return (await retryResp.json()) as T;
+        }
+        // If retry also fails with 401, fall through to logout.
+        if (retryResp.status === 401) {
+          onUnauthorized();
+          let detail = "Unauthorized";
+          try {
+            const body = await retryResp.json();
+            detail = body.detail ?? detail;
+          } catch {
+            /* keep default */
+          }
+          throw new ApiError(401, detail);
+        }
+        // For other errors, throw with retry response info.
+        let detail = retryResp.statusText;
+        try {
+          const body = await retryResp.json();
+          detail = body.detail ?? JSON.stringify(body);
+        } catch {
+          /* keep statusText */
+        }
+        throw new ApiError(retryResp.status, detail);
+      }
+      onUnauthorized();
+    }
     let detail = "Unauthorized";
     try {
       const body = await resp.json();

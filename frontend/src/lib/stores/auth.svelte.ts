@@ -110,13 +110,33 @@ class AuthStore {
     configureApi({
       getToken: () => this.#state.token,
       onUnauthorized: () => this.#handleUnauthorized(),
+      refreshToken: () => this.tryRefresh(),
     });
     const token = await store.getItem(TOKEN_KEY);
     const user = await store.getItem(USER_KEY);
     if (token) {
       this.#state.token = token;
       this.#state.user = user;
+      this.#scheduleProactiveRefresh();
     }
+  }
+
+  #refreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+  #scheduleProactiveRefresh(): void {
+    if (this.#refreshTimer) {
+      clearTimeout(this.#refreshTimer);
+      this.#refreshTimer = null;
+    }
+    // Refresh 5 minutes before the 60-minute access token expires.
+    // This prevents any 401 from ever reaching the user.
+    const refreshMs = 55 * 60 * 1000;
+    this.#refreshTimer = setTimeout(async () => {
+      const ok = await this.tryRefresh();
+      if (ok) {
+        this.#scheduleProactiveRefresh();
+      }
+    }, refreshMs);
   }
 
   async login(email: string, password: string): Promise<boolean> {
@@ -131,6 +151,7 @@ class AuthStore {
       if (res.refresh_token) {
         await store.setItem(REFRESH_KEY, res.refresh_token);
       }
+      this.#scheduleProactiveRefresh();
       return true;
     } catch (e) {
       this.#state.error = e instanceof Error ? e.message : "Login failed";
@@ -152,6 +173,7 @@ class AuthStore {
       if (res.refresh_token) {
         await store.setItem(REFRESH_KEY, res.refresh_token);
       }
+      this.#scheduleProactiveRefresh();
       return true;
     } catch (e) {
       this.#state.error = e instanceof Error ? e.message : "Registration failed";
@@ -161,9 +183,8 @@ class AuthStore {
     }
   }
 
-  // Attempt a silent refresh using a stored refresh token (mobile only).
+  // Attempt a silent refresh using a stored refresh token.
   async tryRefresh(): Promise<boolean> {
-    if (!store.isMobile) return false;
     const refreshToken = await store.getItem(REFRESH_KEY);
     if (!refreshToken) return false;
     try {
@@ -183,15 +204,18 @@ class AuthStore {
   }
 
   async #handleUnauthorized(): Promise<void> {
-    // On mobile, a 401 from an expired access token triggers a silent refresh
-    // rather than an immediate logout. Web users are logged out as before.
-    if (store.isMobile && (await this.tryRefresh())) {
+    // Attempt silent refresh before logging out (works for both web and mobile).
+    if (await this.tryRefresh()) {
       return;
     }
     await this.logout();
   }
 
   async logout(): Promise<void> {
+    if (this.#refreshTimer) {
+      clearTimeout(this.#refreshTimer);
+      this.#refreshTimer = null;
+    }
     if (store.isMobile) {
       const refreshToken = await store.getItem(REFRESH_KEY);
       if (refreshToken) {

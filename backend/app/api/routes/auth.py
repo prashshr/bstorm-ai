@@ -71,7 +71,28 @@ def register(request: Request, payload: RegisterRequest, db: Session = Depends(g
     db.commit()
     db.refresh(user)
 
-    return TokenResponse(access_token=create_access_token(str(user.id), extra_claims={"uek": uek}))
+    # Create server-side session for refresh token support
+    sid = new_session_id()
+    put_uek(sid, user.id, uek, ttl_seconds=settings.refresh_token_expire_days * 86400)
+    refresh_jwt = create_refresh_token(str(user.id), extra_claims={"sid": sid})
+    rt_hash = hashlib.sha256(refresh_jwt.encode()).hexdigest()
+    db.add(
+        RefreshToken(
+            user_id=user.id,
+            token_hash=rt_hash,
+            sid=sid,
+            device_id=(request.headers.get("X-Device-Id") or None),
+            expires_at=datetime.now(timezone.utc)
+            + timedelta(days=settings.refresh_token_expire_days),
+            revoked=False,
+        )
+    )
+    db.commit()
+
+    return TokenResponse(
+        access_token=create_access_token(str(user.id), extra_claims={"uek": uek}),
+        refresh_token=refresh_jwt,
+    )
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -157,33 +178,34 @@ def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)
                     detail="Failed to decrypt secure storage key.",
                 )
 
-    access_token = create_access_token(str(user.id), extra_claims={"uek": uek})
-
-    # Mobile clients: issue a refresh token and return an access token that
-    # carries a server session id (sid) instead of the UEK, so the UEK is
-    # never transmitted to or stored on the device.
-    if payload.client == "mobile":
-        sid = new_session_id()
-        put_uek(sid, user.id, uek, ttl_seconds=settings.refresh_token_expire_days * 86400)
-        refresh_jwt = create_refresh_token(str(user.id), extra_claims={"sid": sid})
-        rt_hash = hashlib.sha256(refresh_jwt.encode()).hexdigest()
-        db.add(
-            RefreshToken(
-                user_id=user.id,
-                token_hash=rt_hash,
-                sid=sid,
-                device_id=(request.headers.get("X-Device-Id") or None),
-                expires_at=datetime.now(timezone.utc)
-                + timedelta(days=settings.refresh_token_expire_days),
-                revoked=False,
-            )
+    # Always create a server-side session for the UEK so refresh tokens work
+    # for both web and mobile clients.
+    sid = new_session_id()
+    put_uek(sid, user.id, uek, ttl_seconds=settings.refresh_token_expire_days * 86400)
+    refresh_jwt = create_refresh_token(str(user.id), extra_claims={"sid": sid})
+    rt_hash = hashlib.sha256(refresh_jwt.encode()).hexdigest()
+    db.add(
+        RefreshToken(
+            user_id=user.id,
+            token_hash=rt_hash,
+            sid=sid,
+            device_id=(request.headers.get("X-Device-Id") or None),
+            expires_at=datetime.now(timezone.utc)
+            + timedelta(days=settings.refresh_token_expire_days),
+            revoked=False,
         )
-        db.commit()
-        # Access token for mobile carries sid, NOT uek.
-        access_token = create_access_token(str(user.id), extra_claims={"sid": sid})
-        return TokenResponse(access_token=access_token, refresh_token=refresh_jwt)
+    )
+    db.commit()
 
-    return TokenResponse(access_token=access_token)
+    # Mobile: access token carries sid (UEK stays server-side only).
+    # Web: access token carries uek directly (for stateless API calls),
+    # but we still issue a refresh token for silent renewal.
+    if payload.client == "mobile":
+        access_token = create_access_token(str(user.id), extra_claims={"sid": sid})
+    else:
+        access_token = create_access_token(str(user.id), extra_claims={"uek": uek})
+
+    return TokenResponse(access_token=access_token, refresh_token=refresh_jwt)
 
 
 @router.post("/refresh", response_model=TokenResponse)
