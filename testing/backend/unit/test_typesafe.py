@@ -1,8 +1,44 @@
 import pytest
 from unittest.mock import patch, MagicMock
-from app.services.typesafe_service import should_search_web, evaluate_system_one
+from app.services.typesafe_service import (
+    should_search_web,
+    evaluate_system_one,
+    select_relevant_rag_candidates,
+)
 
 class TestTypeSafeService:
+    @pytest.mark.asyncio
+    async def test_select_relevant_rag_candidates_uses_typesafe_score(self):
+        mock_eval = {
+            "answers": {
+                "relevance_0": {"score": 0},
+                "relevance_1": {"score": 2},
+            }
+        }
+        candidates = [
+            {"title": "Cookie settings", "content": "Accept all cookies", "url": "https://bad.test"},
+            {"title": "Altcoin market overview", "content": "Current altcoin market breadth", "url": "https://good.test"},
+        ]
+        with patch("app.services.typesafe_service.get_typesafe_api_key", return_value="test_key"), \
+             patch("app.services.typesafe_service.evaluate_system_one", return_value=mock_eval) as evaluate:
+            selected = await select_relevant_rag_candidates("Analyze the altcoin market", candidates)
+
+        assert [candidate["title"] for candidate in selected] == ["Altcoin market overview"]
+        state = evaluate.call_args.kwargs["state"]
+        assert state["user_question"] == "Analyze the altcoin market"
+        assert len(state["candidates"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_select_relevant_rag_candidates_fallback_drops_unrelated_content(self):
+        candidates = [
+            {"title": "Altcoin market outlook", "content": "Altcoin liquidity and rotation", "url": "https://good.test"},
+            {"title": "Cookie settings", "content": "Accept all cookies and privacy choices", "url": "https://bad.test"},
+        ]
+        with patch("app.services.typesafe_service.get_typesafe_api_key", return_value=""):
+            selected = await select_relevant_rag_candidates("Analyze the altcoin market", candidates)
+
+        assert [candidate["title"] for candidate in selected] == ["Altcoin market outlook"]
+
     @pytest.mark.asyncio
     async def test_should_search_web_without_api_key_falls_back_to_true(self):
         with patch("app.services.typesafe_service.get_typesafe_api_key", return_value=""):
@@ -188,4 +224,3 @@ class TestTypeSafeService:
                 assert res["needs_fresh_entities"] is True
                 assert res["interaction_type"] == "fresh_recommendations"
                 assert res["confidence"] == 0.94
-

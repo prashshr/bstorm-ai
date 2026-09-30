@@ -15,6 +15,136 @@ def get_typesafe_api_key() -> str:
     return settings.typesafe_api_key or os.getenv("TYPESAFE_API_KEY", "")
 
 
+def _coerce_score(answer: Any) -> Optional[float]:
+    """Normalize the score shapes returned by TypeSafe into a numeric level."""
+    if isinstance(answer, (int, float)):
+        return float(answer)
+    if not isinstance(answer, dict):
+        return None
+
+    value = answer.get("score", answer.get("value"))
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        named_scores = {
+            "irrelevant": 0.0,
+            "unhelpful": 0.0,
+            "related": 1.0,
+            "helpful": 1.0,
+            "direct": 2.0,
+            "directly relevant": 2.0,
+        }
+        if normalized in named_scores:
+            return named_scores[normalized]
+        try:
+            return float(value)
+        except ValueError:
+            return None
+    return None
+
+
+def _lexical_rag_score(query: str, candidate: Dict[str, Any]) -> float:
+    """Conservative no-API fallback for selecting web passages."""
+    stop_words = {
+        "about", "after", "also", "could", "from", "have", "into", "more",
+        "that", "their", "there", "these", "they", "this", "under", "what",
+        "when", "where", "which", "with", "would", "your",
+    }
+    terms = {
+        term for term in re.findall(r"[a-z0-9][a-z0-9-]{2,}", query.lower())
+        if term not in stop_words
+    }
+    if not terms:
+        return 0.0
+
+    title = str(candidate.get("title", "")).lower()
+    text = str(candidate.get("text", candidate.get("content", ""))).lower()
+    title_hits = sum(1 for term in terms if term in title)
+    text_hits = sum(1 for term in terms if term in text)
+    return (title_hits * 2.0) + text_hits
+
+
+async def select_relevant_rag_candidates(
+    query: str,
+    candidates: List[Dict[str, Any]],
+    max_candidates: int = 10,
+) -> List[Dict[str, Any]]:
+    """Keep only web passages that are useful for the user's actual question.
+
+    TypeSafe scores independent candidates in one request. The fallback is deliberately
+    conservative so a temporary TypeSafe outage cannot turn every search result into
+    prompt context.
+    """
+    candidates = [
+        candidate for candidate in candidates
+        if (candidate.get("title") or candidate.get("text") or candidate.get("content"))
+    ][:max_candidates]
+    if not candidates:
+        return []
+
+    key = get_typesafe_api_key()
+    if key:
+        questions = {
+            f"relevance_{index}": {
+                "type": "score",
+                "instructions": (
+                    f"Rate how useful candidate {index} is for answering the user's question. "
+                    "Judge the passage itself, not the reputation of its source. "
+                    "Ignore cookie notices, navigation, ads, and boilerplate."
+                ),
+                "criteria": [
+                    "Irrelevant, boilerplate, inaccessible, or does not help answer the question",
+                    "Related background that may help answer the question",
+                    "Directly relevant evidence or information for answering the question",
+                ],
+            }
+            for index in range(len(candidates))
+        }
+        state = {
+            "user_question": query[:1000],
+            "candidates": [
+                {
+                    "id": index,
+                    "title": str(candidate.get("title", ""))[:300],
+                    "text": str(candidate.get("text", candidate.get("content", "")))[:1800],
+                }
+                for index, candidate in enumerate(candidates)
+            ],
+        }
+        result = await evaluate_system_one(
+            state=state,
+            questions=questions,
+            timeout=10.0,
+        )
+        if result and isinstance(result.get("answers"), dict):
+            selected = []
+            for index, candidate in enumerate(candidates):
+                score = _coerce_score(result["answers"].get(f"relevance_{index}"))
+                if score is not None and score >= 1.0:
+                    selected.append({**candidate, "_relevance": score})
+            selected.sort(key=lambda candidate: candidate["_relevance"], reverse=True)
+            # An authoritative all-irrelevant result must remain empty; do not
+            # resurrect the same passages with a weaker lexical heuristic.
+            if selected or all(f"relevance_{i}" in result["answers"] for i in range(len(candidates))):
+                return selected
+
+    # A one-word query is common in tests and legitimate narrow searches. Keep the
+    # candidates in that case because lexical filtering has no useful discrimination.
+    meaningful_terms = {
+        term for term in re.findall(r"[a-z0-9][a-z0-9-]{2,}", query.lower())
+    }
+    scored = [
+        ({**candidate, "_relevance": _lexical_rag_score(query, candidate)}, index)
+        for index, candidate in enumerate(candidates)
+    ]
+    if len(meaningful_terms) <= 1:
+        return [candidate for candidate, _ in scored]
+    selected = [candidate for candidate, _ in scored if candidate["_relevance"] > 0]
+    selected.sort(key=lambda candidate: candidate["_relevance"], reverse=True)
+    return selected
+
+
 async def evaluate_system_one(
     state: Any,
     questions: Dict[str, Any],
