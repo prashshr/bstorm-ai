@@ -213,6 +213,10 @@
         <div class="pending">
           <span class="spinner"></span> Preparing models…
         </div>
+      {:else if discussion.data.retrieved_context}
+        <div class="empty-state">
+          <p>RAG context was retrieved but no responses were generated yet.</p>
+        </div>
       {:else}
         <div class="empty-state">
           <p>No responses yet. Submit a prompt to start the discussion.</p>
