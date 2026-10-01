@@ -209,9 +209,15 @@
     {/each}
 
     {#if roundNums.length === 0}
-      <div class="pending">
-        <span class="spinner"></span> Preparing models…
-      </div>
+      {#if discussion.data.status === "in_progress" || discussion.data.status === "new"}
+        <div class="pending">
+          <span class="spinner"></span> Preparing models…
+        </div>
+      {:else}
+        <div class="empty-state">
+          <p>No responses yet. Submit a prompt to start the discussion.</p>
+        </div>
+      {/if}
     {/if}
   </div>
 
@@ -447,13 +453,14 @@
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 12px;
   }
-  .pending {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    color: var(--text-secondary);
+  .empty-state {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--text-tertiary);
     font-size: 14px;
-    padding: 20px;
+  }
+  .empty-state p {
+    margin: 0;
   }
   .spinner {
     width: 16px;
