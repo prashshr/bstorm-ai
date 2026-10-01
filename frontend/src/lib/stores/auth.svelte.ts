@@ -115,9 +115,33 @@ class AuthStore {
     const token = await store.getItem(TOKEN_KEY);
     const user = await store.getItem(USER_KEY);
     if (token) {
-      this.#state.token = token;
-      this.#state.user = user;
-      this.#scheduleProactiveRefresh();
+      // Check if token is expired and refresh before loading any data.
+      // This prevents the "Preparing models..." stuck state when returning
+      // to the tab after the access token has expired.
+      if (this.#isTokenExpired(token)) {
+        const refreshed = await this.tryRefresh();
+        if (!refreshed) {
+          // Refresh failed — clear and show login
+          await this.#clearStorage();
+          return;
+        }
+      } else {
+        this.#state.token = token;
+        this.#state.user = user;
+        this.#scheduleProactiveRefresh();
+      }
+    }
+  }
+
+  #isTokenExpired(token: string): boolean {
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      const exp = payload.exp;
+      if (!exp) return true;
+      // Consider token expired 30 seconds before actual expiry
+      return exp * 1000 < Date.now() + 30000;
+    } catch {
+      return true;
     }
   }
 

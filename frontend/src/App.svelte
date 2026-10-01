@@ -14,6 +14,8 @@
   import AppContainer from "./lib/components/AppContainer.svelte";
   import UserSettingsModal from "./lib/components/UserSettingsModal.svelte";
 
+  let initializing = $state(true);
+
   onMount(async () => {
     theme.init();
     await auth.init();
@@ -46,12 +48,42 @@
         }
       }
     }
+    initializing = false;
   });
 </script>
 
-{#if auth.isAuthenticated}
+{#if initializing}
+  <div class="app-loading">
+    <div class="loading-spinner"></div>
+    <span>Loading...</span>
+  </div>
+{:else if auth.isAuthenticated}
   <AppContainer />
   <UserSettingsModal />
 {:else}
   <LoginPage />
 {/if}
+
+<style>
+  .app-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    gap: 16px;
+    color: var(--text-tertiary);
+    font-size: 14px;
+  }
+  .loading-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+</style>
