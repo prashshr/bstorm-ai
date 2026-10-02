@@ -34,6 +34,10 @@
         const discussionId = parseInt(match[1], 10);
         try {
           const res = await api.getDiscussion(discussionId);
+          const state = JSON.parse(res.state_json || "{}");
+          const hasRounds = state.rounds && Object.keys(state.rounds).length > 0;
+          const hasRagContext = !!res.retrieved_context;
+
           discussion.load({
             id: res.id,
             title: res.title,
@@ -43,6 +47,28 @@
             retrieved_context: res.retrieved_context,
             created_at: res.created_at,
           } as any);
+
+          // If discussion has RAG context but no model responses, auto-start it
+          if (!hasRounds && hasRagContext && res.status === "in_progress") {
+            discussion.start({
+              question: res.question,
+              models: state.models || [],
+              instructions: state.instructions || "",
+              consensusEnabled: state.consensus_enabled || false,
+              endpoint: state.endpoint || "",
+              consensusModel: state.consensus_model || "",
+              totalRounds: state.total_rounds || 1,
+              timeout: state.timeout || 120,
+              maxTokens: state.max_tokens || 6000,
+              ragMode: state.rag_mode || "model-only",
+              deepResearch: state.deep_research || false,
+              responseFormat: state.response_format || "none",
+              responseFormatText: state.response_format_text || "",
+              summaryFormat: state.summary_format || "none",
+              summaryFormatText: state.summary_format_text || "",
+              summaryInstructions: state.summary_instructions || "",
+            });
+          }
         } catch (e) {
           console.warn("Failed to load discussion from URL:", e);
         }
