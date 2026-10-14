@@ -123,8 +123,21 @@ docker compose -f deploy/compose/docker-compose.yml up -d
 ## Kubernetes (Production)
 
 ```bash
+# Build and push both images first — apply.sh does NOT build them, it pulls
+# from GHCR. The backend image builds from ./backend; the web image must be
+# built from the repo root because its Dockerfile references frontend/ and deploy/.
+docker build -t ghcr.io/prashshr/ai-ensemble:v5.7.2 ./backend
+docker build -f frontend/Dockerfile -t ghcr.io/prashshr/ai-ensemble-web:v5.7.2 .
+docker push ghcr.io/prashshr/ai-ensemble:v5.7.2
+docker push ghcr.io/prashshr/ai-ensemble-web:v5.7.2
+
+# Then apply. On a single-node k3s cluster the images can be imported locally
+# instead of pushed: docker save <img> | k3s ctr images import -
 ./deploy/k8s/apply.sh
 ```
+
+`deploy/k8s/deployment.yaml` and `web-deployment.yaml` carry the image tags;
+keep the API and web tags in step.
 
 ## Testing
 
@@ -165,8 +178,15 @@ python testing/scripts/run-tests.py --view
 
 ## Changelog (recent)
 
+Full history in [Release Notes](docs/release-notes.md).
+
 | Version | Changes |
 |---------|---------|
-| **v3.3.0** | Manual model entry for proxy-only endpoints; CapacitorHttp CORS fix; Android APK improvements |
-| **v3.2.1** | Custom provider unique keys; self-contained APK; dark theme refinements |
-| **v3.2.0** | DB-backed mobile sessions; RAG timeout fix; multimodal attachments; Android dark theme |
+| **v5.7.2** | Refresh tokens rejected as bearer tokens; unresolvable sessions fail closed with 401; prompt text removed from logs; SQLite foreign-key cascades enforced (deleting a user no longer orphans data); Alembic migrates the real `DATABASE_URL`; theme toggle and settings gear removed from the header's top-left (both remain reachable); hermetic unit tests |
+| **v5.7.1** | Targeted search-query extraction, crypto domain knowledge |
+| **v5.7.0** | Consensus topology; turn-intent analysis; deliberation rounds |
+| **v5.6.0** | Perplexity provider; OAuth vault for Codex / Copilot / OpenRouter |
+| **v5.5.0** | Folders; contribution weighting; agent personas |
+| **v5.4.0** | Vertex AI support (project / region / ADC) |
+| **v5.3.0** | TypeSafe System One integration; model thinking suppression |
+| **v5.2.0** | Speed/smoothness improvements; subscription logins (ChatGPT, Gemini) |

@@ -1,5 +1,87 @@
 # Release Notes
 
+## v5.7.2 — Auth/session hardening, data integrity & header cleanup
+
+Backend and web images: `ghcr.io/prashshr/ai-ensemble:v5.7.2`,
+`ghcr.io/prashshr/ai-ensemble-web:v5.7.2`. API version `5.7.2`.
+Patch release — backward compatible, no schema change, no breaking API change.
+
+### Security
+
+- **Refresh tokens can no longer be used as bearer access tokens.**
+  `get_current_user` accepted any signed JWT, so a refresh token (30-day
+  lifetime) authorised ordinary protected endpoints. The dependency now
+  rejects tokens whose `type` claim is `refresh`. Access tokens do not carry a
+  `type` claim, so existing web and mobile sessions continue to work
+  unchanged. This is the single most important fix in the release: it shrinks
+  a stolen refresh token's usable window from 30 days to the access-token
+  lifetime.
+- **Sessions now fail closed.** When a client presents a session id that no
+  longer resolves, the API returned 200 and silently encrypted new records
+  under the server key instead of the user's key. It now returns
+  `401 Session expired; please sign in again`.
+- **User prompt text is no longer written to logs.** The RAG pipeline logged
+  the first 80 characters of the query and the full extracted query list.
+  Because pod logs are aggregated outside the application's access controls,
+  this leaked prompt content. Counts, timings and engine attribution are
+  retained for diagnostics.
+
+### Data integrity
+
+- **Deleting a user now cascades.** SQLite ignores foreign keys unless they
+  are enabled per connection, so the `ondelete="CASCADE"` declarations in the
+  models were inert. Deleting a user left orphaned discussions, messages,
+  provider credentials, refresh tokens and session rows behind. Foreign keys
+  are now enabled on every SQLite connection created by the application
+  engine. All four existing databases were audited before the change and
+  contained zero orphan rows, so enforcement introduces no failures.
+- **Alembic migrates the database the app actually uses.** `alembic/env.py`
+  read the static URL from `alembic.ini` and ignored `DATABASE_URL`, so
+  `alembic upgrade head` could migrate a stray local file rather than the
+  deployed database. It now resolves the effective application setting. The
+  migration assets also ship inside the backend image.
+  Note: the migration chain `ALTER`s tables without creating them, so a fresh
+  database still needs `init_db()` (application startup) before `upgrade head`.
+
+### Stability
+
+- **`actor_runtime` is importable again.** An invalid method signature made
+  the whole package fail to compile, which broke repository-wide syntax
+  validation. The active app did not import it, so there was no runtime
+  outage, but the package was unusable.
+
+### Frontend
+
+- **Removed the theme toggle and settings gear from the header's top-left.**
+  Both remain reachable: the settings gear sits in the left-pane footer, and
+  theme selection lives under Settings → Appearance, which additionally
+  offers high-contrast and accent palette options that the old two-state
+  toggle could not reach.
+
+### Tests
+
+- Unit tests are hermetic. They previously called the live TypeSafe service
+  whenever `TYPESAFE_API_KEY` happened to be set in the environment, which
+  made the suite non-deterministic; four RAG tests and three consensus tests
+  were affected.
+- The RAG network boundary is stubbed so retrieval-dependent tests are fast
+  and deterministic while `get_retrieved_context` still runs end to end
+  (query extraction, candidate ranking and context formatting are real).
+- A bare `pytest` from the repository root now collects the suite. It
+  previously reported 52 false async failures because `asyncio_mode` lived
+  only in the nested test config.
+
+### Verification
+
+- Backend: 131 passed, 0 failed — identical results with and without
+  `TYPESAFE_API_KEY` set in the environment.
+- Frontend: `svelte-check` 0 errors (20 pre-existing warnings, unchanged),
+  Vitest 95/95, production build succeeds.
+- Live Kubernetes deployment verified: health, auth, mobile `sid` sessions,
+  discussions, messages (content decrypts), folders, personas, OAuth status,
+  user settings and rate limiting all exercised; browser check of the header,
+  sidebar and theme picker with no console errors.
+
 ## v5.3.0 — TypeSafe System One Integration, Model Thinking Suppression & Stability
 
 Backend and web images: `ghcr.io/prashshr/ai-ensemble:v5.3.0`,
