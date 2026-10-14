@@ -36,6 +36,14 @@
     passwordError = "";
 
     try {
+      // Send the stored refresh token so the backend can tell which session is
+      // making this request and preserve it while revoking all others.
+      let currentRefresh: string | null = null;
+      try {
+        currentRefresh = (await auth.getRefreshToken()) ?? null;
+      } catch {
+        currentRefresh = null;
+      }
       const res = await fetch("/api/user/change-password", {
         method: "POST",
         headers: {
@@ -45,12 +53,17 @@
         body: JSON.stringify({
           current_password: currentPassword,
           new_password: newPassword,
+          ...(currentRefresh ? { refresh_token: currentRefresh } : {}),
         }),
       });
 
       const data = await res.json();
       if (res.ok) {
-        passwordMsg = "Password changed successfully!";
+        const revoked = Number(data?.sessions_revoked ?? 0);
+        passwordMsg =
+          revoked > 0
+            ? `Password changed. Signed out of ${revoked} other session${revoked === 1 ? "" : "s"}.`
+            : "Password changed successfully!";
         currentPassword = "";
         newPassword = "";
       } else {

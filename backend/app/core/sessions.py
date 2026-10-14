@@ -105,3 +105,33 @@ def drop_user(user_id: int) -> None:
         db.commit()
     finally:
         db.close()
+
+
+def revoke_user_sessions(user_id: int, keep_sid: str | None = None) -> int:
+    """Invalidate every server-side session for a user except ``keep_sid``.
+
+    Used when a credential changes and the caller's own session must survive.
+    Returns the number of sessions dropped.
+    """
+    with _LOCK:
+        for key in [
+            k
+            for k, v in _CACHE.items()
+            if v.get("user_id") == user_id and k != keep_sid
+        ]:
+            _CACHE.pop(key, None)
+    db = SessionLocal()
+    try:
+        rows = db.execute(
+            select(SessionStore).where(SessionStore.user_id == user_id)
+        ).scalars().all()
+        dropped = 0
+        for r in rows:
+            if keep_sid is not None and r.sid == keep_sid:
+                continue
+            db.delete(r)
+            dropped += 1
+        db.commit()
+        return dropped
+    finally:
+        db.close()

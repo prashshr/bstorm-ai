@@ -897,9 +897,61 @@ docker compose up -d --build
 
 ### Database Migrations
 
-Currently using SQLAlchemy `create_all()` on startup. For schema changes:
-1. Update the model in `models.py`
-2. Delete the SQLite database file (data will be lost) or use Alembic (migrations not yet configured)
+**How the schema is created today**
+
+On startup the app runs `init_db()` (`backend/app/db/session.py`), which:
+
+1. Calls `Base.metadata.create_all()` — creates any missing table.
+2. Runs a short list of best-effort SQLite `ALTER TABLE` statements for
+   pre-migration deployments, rolling back on "duplicate column".
+
+This is the **complete** schema authority. Verified against the models, five of
+the twelve tables (`agent_personas`, `messages`, `search_history`,
+`session_store`, `user_settings`) have **no Alembic revision that creates
+them**, so `alembic upgrade head` alone leaves a database that cannot serve
+ordinary traffic. `create_all()` fills those gaps.
+
+**Alembic's role**
+
+`alembic/env.py` now resolves the effective `DATABASE_URL` (not the static URL
+in `alembic.ini`), and the revision files ship inside the backend image.
+Alembic is therefore usable by an operator, but it is **not** run automatically
+and does not yet replace `init_db()`. Do not add `alembic upgrade head` to the
+application startup path: with the current revision chain that would be an
+incomplete migration, and running it in every pod invites concurrent schema
+changes.
+
+**To migrate an existing deployment**
+
+Use the helper, which takes a consistent backup, applies revisions, and
+verifies the expected tables:
+
+```bash
+backend/scripts/migrate.sh --dry-run   # inspect only
+backend/scripts/migrate.sh             # prompt, back up, migrate, verify
+```
+
+Rollback is a file restore for SQLite (`cp <backup> <db>`); for an external
+database use your platform's point-in-time recovery.
+
+**Adding a schema change**
+
+1. Update the model in `backend/app/models/models.py` — `create_all()` will add
+   new *tables* on an existing deployment automatically.
+2. Add a column? `init_db()` does **not** add new columns automatically (it only
+   patches the historical ones listed above). Either add an `ALTER TABLE` shim
+   in the same style, or add an Alembic revision and run `migrate.sh`.
+3. Prefer an Alembic revision for anything that transforms existing data.
+4. Never delete the SQLite file to "reset" a deployment with real data.
+
+**Environment file resolution (local development)**
+
+`Settings` reads `.env` **relative to the process working directory**. The
+quick start launches uvicorn from `backend/`, so the file must be at
+`backend/.env`; a repo-root `.env` is not read by the backend. Containers pass
+configuration through real environment variables instead, so this only affects
+local development. A mismatched location fails silently into defaults, so keep
+the documented path.
 
 ---
 

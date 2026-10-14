@@ -1,10 +1,12 @@
 import asyncio
+import ipaddress
 import logging
 import json
 import re
+import socket
 import time
 from typing import List, Dict, Optional
-from urllib.parse import urlparse, parse_qs, unquote
+from urllib.parse import urlparse, parse_qs, unquote, urljoin
 
 import httpx
 
@@ -267,6 +269,98 @@ async def search_web(queries: List[str]) -> List[Dict]:
     return all_results[:15]
 
 
+# Hostnames that must never be fetched regardless of what they resolve to.
+BLOCKED_HOSTNAMES = {
+    "metadata.google.internal",
+    "metadata.goog",
+    "instance-data",
+    "localhost",
+}
+
+# Upper bound on bytes read from a single page. Generously above real articles
+# so legitimate sources keep working, while still bounding memory use.
+MAX_FETCH_BYTES = 4 * 1024 * 1024
+
+# Maximum redirect hops followed per page; each hop is revalidated.
+MAX_REDIRECTS = 5
+
+
+def _is_public_ip(ip_text: str) -> bool:
+    """True when the address is a routable public address."""
+    try:
+        ip = ipaddress.ip_address(ip_text)
+    except ValueError:
+        return False
+    if ip.is_private or ip.is_loopback or ip.is_link_local:
+        return False
+    if ip.is_multicast or ip.is_reserved or ip.is_unspecified:
+        return False
+    # IPv4-mapped / compatible IPv6 (e.g. ::ffff:169.254.169.254) unwrap to v4.
+    mapped = getattr(ip, "ipv4_mapped", None) or getattr(ip, "sixtofour", None)
+    if mapped is not None:
+        return _is_public_ip(str(mapped))
+    return True
+
+
+async def _host_is_fetchable(hostname: str) -> bool:
+    """Validate the scheme/host of a URL before any request is made.
+
+    Rejects non-HTTP schemes, cloud metadata hostnames, and any host that
+    resolves to a private, loopback, link-local or otherwise non-public
+    address. Resolution is checked here *and* again for every redirect hop.
+
+    A host that cannot be resolved is refused: without a verified address
+    there is no way to know the request is not aimed at internal
+    infrastructure, and RAG degrades gracefully by returning no context.
+    """
+    if not hostname:
+        return False
+    host = hostname.strip().lower().rstrip(".")
+    if host in BLOCKED_HOSTNAMES:
+        return False
+
+    # A bare IP literal needs no DNS lookup. Note _is_public_ip returns False
+    # rather than raising for a non-address, so test the literal explicitly.
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        pass
+    else:
+        return _is_public_ip(host)
+
+    try:
+        infos = await asyncio.get_running_loop().getaddrinfo(host, None)
+    except (socket.gaierror, UnicodeError, OSError):
+        return False
+    if not infos:
+        return False
+    return all(_is_public_ip(info[4][0]) for info in infos)
+
+
+async def _read_capped_text(resp: httpx.Response, limit: int) -> str:
+    """Read a response body up to ``limit`` bytes.
+
+    ``resp.text`` would buffer an arbitrarily large body, so stream instead and
+    stop as soon as the cap is reached. The response comes from an
+    ``AsyncClient``, so the async iterator must be used.
+    """
+    chunks: List[bytes] = []
+    total = 0
+    async for chunk in resp.aiter_bytes():
+        if not chunk:
+            continue
+        chunks.append(chunk)
+        total += len(chunk)
+        if total >= limit:
+            break
+    raw = b"".join(chunks)[:limit]
+    encoding = resp.encoding or "utf-8"
+    try:
+        return raw.decode(encoding, errors="replace")
+    except (LookupError, TypeError):
+        return raw.decode("utf-8", errors="replace")
+
+
 async def extract_content_from_urls(
     urls: List[str],
     per_url_timeout: float = 5.0,
@@ -281,34 +375,63 @@ async def extract_content_from_urls(
 
     async def _fetch_one(client: httpx.AsyncClient, url: str) -> Dict:
         async with semaphore:
-            host = url.split("/")[2] if "//" in url else url
-            if host in BLOCKED_HOSTS:
-                logger.info(f"[RAG] Skipping blocked host: {host}")
-                return {}
-            logger.info(f"[RAG] Fetching content from: {url}")
-            try:
-                try:
-                    resp = await client.get(url)
-                except Exception as e:
-                    logger.warning(f"[RAG] Fetch failed for {url}: {e}")
-                    return {}
-                if resp.status_code != 200 or not resp.text:
-                    logger.warning(f"[RAG] No usable response from {url} ({resp.status_code})")
-                    return {}
-                doc = await asyncio.to_thread(
-                    extract, resp.text, include_comments=False, include_tables=False
-                )
-                if doc:
-                    logger.info(f"[RAG] Extracted {len(doc)} chars from {url}")
-                    return {"url": url, "content": doc}
-                logger.warning(f"[RAG] No text extracted from {url}")
-                return {}
-            except Exception as e:
-                logger.error(f"[RAG] Error processing {url}: {e}")
+            # Legacy blocklist on the raw host, kept for the hosts the
+            # extraction pass cannot get text from anyway.
+            parsed = urlparse(url)
+            raw_host = parsed.netloc or url.split("/")[2] if "//" in url else url
+            if raw_host in BLOCKED_HOSTS:
+                logger.info(f"[RAG] Skipping blocked host: {raw_host}")
                 return {}
 
+            current = url
+            for _hop in range(MAX_REDIRECTS + 1):
+                scheme = urlparse(current).scheme.lower()
+                if scheme not in ("http", "https"):
+                    logger.info("[RAG] Skipping non-HTTP(S) URL")
+                    return {}
+                hostname = urlparse(current).hostname
+                if not await _host_is_fetchable(hostname or ""):
+                    logger.info("[RAG] Refusing non-public or unresolvable host")
+                    return {}
+                logger.info(f"[RAG] Fetching content from: {current}")
+                try:
+                    # Redirects are followed manually so every hop is validated
+                    # by _host_is_fetchable; httpx's own redirect following is off.
+                    async with client.stream(
+                        "GET", current, follow_redirects=False
+                    ) as resp:
+                        if resp.status_code in (301, 302, 303, 307, 308):
+                            location = resp.headers.get("location")
+                            if not location:
+                                return {}
+                            current = urljoin(current, location)
+                            continue
+                        if resp.status_code != 200:
+                            logger.warning(
+                                f"[RAG] No usable response from {current} ({resp.status_code})"
+                            )
+                            return {}
+                        body = await _read_capped_text(resp, MAX_FETCH_BYTES)
+                except Exception as e:
+                    logger.warning(f"[RAG] Fetch failed for {current}: {e}")
+                    return {}
+                try:
+                    doc = await asyncio.to_thread(
+                        extract, body, include_comments=False, include_tables=False
+                    )
+                except Exception as e:
+                    logger.warning(f"[RAG] Extraction failed for {current}: {e}")
+                    return {}
+                if doc:
+                    logger.info(f"[RAG] Extracted {len(doc)} chars from {current}")
+                    return {"url": current, "content": doc}
+                logger.warning(f"[RAG] No text extracted from {current}")
+                return {}
+            logger.info("[RAG] Too many redirects")
+            return {}
+
     async with httpx.AsyncClient(
-        timeout=httpx.Timeout(per_url_timeout), follow_redirects=True, headers=headers
+        timeout=httpx.Timeout(per_url_timeout), follow_redirects=False, headers=headers
     ) as client:
         # asyncio.gather preserves input order, so results stay aligned with urls.
         results = await asyncio.gather(*[_fetch_one(client, u) for u in urls])

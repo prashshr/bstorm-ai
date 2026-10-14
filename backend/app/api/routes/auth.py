@@ -89,8 +89,15 @@ def register(request: Request, payload: RegisterRequest, db: Session = Depends(g
     )
     db.commit()
 
+    # Mobile: the access token carries a server session id so the UEK never
+    # reaches the device. Web: legacy UEK-bearing token (unchanged default).
+    if payload.client == "mobile":
+        access_token = create_access_token(str(user.id), extra_claims={"sid": sid})
+    else:
+        access_token = create_access_token(str(user.id), extra_claims={"uek": uek})
+
     return TokenResponse(
-        access_token=create_access_token(str(user.id), extra_claims={"uek": uek}),
+        access_token=access_token,
         refresh_token=refresh_jwt,
     )
 

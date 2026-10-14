@@ -7,6 +7,10 @@ from pydantic import BaseModel, Field
 class RegisterRequest(BaseModel):
     email: str = Field(min_length=1, max_length=255)
     password: str = Field(min_length=8, max_length=128)
+    # Same contract as LoginRequest.client: "mobile" keeps the UEK server-side
+    # (the access token carries a session id instead). Omitted for web, which
+    # keeps the legacy UEK-bearing token. Defaults preserve existing behaviour.
+    client: str | None = None
 
 
 class LoginRequest(BaseModel):

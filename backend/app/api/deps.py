@@ -52,4 +52,7 @@ def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_
                 detail="Session expired; please sign in again",
             )
     user.uek = uek  # Transient attribute for this request lifecycle
+    # Exposed so credential-changing endpoints can tell which server-side
+    # session is making the request and preserve just that one.
+    user.sid = sid
     return user

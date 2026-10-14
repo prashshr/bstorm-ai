@@ -91,6 +91,12 @@ class DiscussionStore {
   #attachmentsByRound: Record<number, ChatAttachment[]> = {};
   // Cached visual data transcriptions for text-only models, keyed by image attachment name.
   #imageTranscriptions: Record<string, string> = {};
+  // True while a round is driving queries. A standalone model retry is not a
+  // round, so it must not leave the store marked as running once it settles.
+  #roundActive = false;
+  // In-flight standalone retries, so concurrent retries cannot race each other
+  // into clearing #running while another one is still in flight.
+  #standaloneRetries = 0;
 
   #isVisionModel(key: string): boolean {
     const { model } = splitModelKey(key);
@@ -306,6 +312,8 @@ class DiscussionStore {
           }
         }
         this.#data = restored;
+        this.#roundActive = false;
+        this.#standaloneRetries = 0;
         this.#running = false;
         this.#phase = "done";
         // Callers with an incoming #discussion/N deep link pass
@@ -347,6 +355,8 @@ class DiscussionStore {
   }
 
   reset(): void {
+    this.#roundActive = false;
+    this.#standaloneRetries = 0;
     this.#abort?.abort();
     this.#data = emptyState();
     this.#running = false;
@@ -387,6 +397,8 @@ class DiscussionStore {
     branchFromTitle?: string;
   }): Promise<void> {
     this.#abort = new AbortController();
+    this.#roundActive = false;
+    this.#standaloneRetries = 0;
     this.#running = true;
     const useRag = opts.ragMode === "model-self";
     this.#phase = useRag ? "searching" : "queued";
@@ -626,6 +638,7 @@ class DiscussionStore {
 
   async runRound(roundNum: number, opts?: { resume?: boolean }): Promise<void> {
     if (!this.#running) return;
+    this.#roundActive = true;
     this.#currentRound = roundNum;
     this.#phase = "drafting";
     // @mention routing: only the targeted roster models answer this round.
@@ -977,8 +990,25 @@ class DiscussionStore {
   }
 
   async retryModel(compositeKey: string, roundNum: number): Promise<void> {
+    // Never race a standalone retry against an in-flight round: the round owns
+    // #running until finish() and would stop early if this cleared it.
+    if (this.#roundActive) return;
+    this.#standaloneRetries += 1;
     this.#running = true;
-    await this.queryModel(compositeKey, roundNum);
+    this.#phase = "drafting";
+    try {
+      await this.queryModel(compositeKey, roundNum);
+    } finally {
+      this.#standaloneRetries -= 1;
+      // Only return to idle once the last standalone retry has settled and no
+      // round is still driving queries. The retry itself is over either way, so
+      // the phase reports done regardless of the discussion's stored status.
+      if (this.#standaloneRetries <= 0 && !this.#roundActive) {
+        this.#standaloneRetries = 0;
+        this.#running = false;
+        this.#phase = "done";
+      }
+    }
     this.persist();
   }
 
@@ -1143,6 +1173,8 @@ class DiscussionStore {
   }
 
   stop(): void {
+    this.#roundActive = false;
+    this.#standaloneRetries = 0;
     this.#running = false;
     this.#abort?.abort();
     this.#data.status = "stopped";
@@ -1157,6 +1189,8 @@ class DiscussionStore {
    * "Stop Discussion and Summarize" action).
    */
   async stopAndSummarize(): Promise<void> {
+    this.#roundActive = false;
+    this.#standaloneRetries = 0;
     this.#running = false;
     this.#abort?.abort();
     this.#data.status = "stopped";
@@ -1173,6 +1207,8 @@ class DiscussionStore {
   }
 
   finish(): void {
+    this.#roundActive = false;
+    this.#standaloneRetries = 0;
     this.#running = false;
     if (this.#data.status !== "stopped") {
       this.#data.status = "completed";
@@ -1267,6 +1303,8 @@ class DiscussionStore {
     }
     this.#data = loaded;
     this.#abort?.abort();
+    this.#roundActive = false;
+    this.#standaloneRetries = 0;
     this.#running = false;
     this.#currentRound = 0;
     this.#phase = "done";
@@ -1276,6 +1314,29 @@ class DiscussionStore {
     // instead of dropping to a blank "New Discussion" screen.
     this.persist();
     this.#syncUrlFromState();
+  }
+
+  /**
+   * Continue an already-persisted discussion that has RAG context but no
+   * responses yet (for example after a reload or a shared deep link).
+   *
+   * Unlike `start()`, this does NOT create a new discussion: it reuses the id
+   * that `load()` put into `#data`, so the original record is updated rather
+   * than orphaned and duplicated. Requires `load()` to have run first.
+   */
+  async resume(): Promise<void> {
+    if (this.#running) return;
+    // Nothing to resume without a server-backed discussion and a roster.
+    if (typeof this.#data.id !== "number") return;
+    if (!this.#data.models || this.#data.models.length === 0) return;
+
+    this.#abort = new AbortController();
+    this.#running = true;
+    this.#data.status = "in_progress";
+    this.#data = { ...this.#data };
+    // runRound() owns round bookkeeping and calls persist(), which writes to
+    // this existing discussion id.
+    await this.runRound(1);
   }
 
   #buildPrompt(compositeKey: string, roundNum: number): string {

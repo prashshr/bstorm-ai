@@ -218,10 +218,10 @@ function oauthStartSegment(provider: string): string {
 
 export const api = {
   // ---- Auth ----
-  register(email: string, password: string): Promise<TokenResponse> {
+  register(email: string, password: string, client?: string): Promise<TokenResponse> {
     return request<TokenResponse>(
       "/api/auth/register",
-      { method: "POST", body: JSON.stringify({ email, password }) },
+      { method: "POST", body: JSON.stringify({ email, password, client }) },
       false,
     );
   },

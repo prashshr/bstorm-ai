@@ -114,5 +114,18 @@ export function buildCompactedTranscript(
     return { text: tier1, tier: 1, originalChars: tier0.length };
   }
   const tier2 = buildPromptTranscript(data, turnCount, compositeKey, 2);
-  return { text: tier2, tier: 2, originalChars: tier0.length };
+  if (tier2.length <= budget) {
+    return { text: tier2, tier: 2, originalChars: tier0.length };
+  }
+  // Even the most aggressive compaction still exceeds the budget. Truncate so
+  // the combined prompt + transcript stays bounded rather than silently
+  // overflowing the model's context window. Reaching this branch means the
+  // discussion is far larger than the configured budget.
+  const marker = "\n\n[... transcript truncated to fit the context budget ...]";
+  const keep = Math.max(0, budget - marker.length);
+  return {
+    text: tier2.slice(0, keep) + marker,
+    tier: 2,
+    originalChars: tier2.length,
+  };
 }

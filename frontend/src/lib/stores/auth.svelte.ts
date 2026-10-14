@@ -105,6 +105,19 @@ class AuthStore {
     return store.isMobile;
   }
 
+  /**
+   * Read the stored refresh token without exposing it as reactive state.
+   * Used so a password change can tell the backend which session to keep.
+   * Returns null on native storage errors or when nothing is stored.
+   */
+  async getRefreshToken(): Promise<string | null> {
+    try {
+      return await store.getItem(REFRESH_KEY);
+    } catch {
+      return null;
+    }
+  }
+
   async init(): Promise<void> {
     await resolveStore();
     configureApi({
@@ -189,7 +202,7 @@ class AuthStore {
     this.#state.loading = true;
     this.#state.error = null;
     try {
-      const res = await api.register(email, password);
+      const res = await api.register(email, password, store.isMobile ? "mobile" : undefined);
       this.#state.token = res.access_token;
       this.#state.user = email || decodeSub(res.access_token) || "user";
       await store.setItem(TOKEN_KEY, res.access_token);

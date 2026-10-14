@@ -8,10 +8,17 @@ Also available as a **self-contained Android APK** — see [Android Build](docs/
 
 ```bash
 # Prerequisites: Python 3.12, API keys from providers
-cp .env.example .env          # Configure your secrets
+
+# IMPORTANT: the backend resolves .env relative to the directory you launch it
+# from. Because the command below runs from backend/, the file must live at
+# backend/.env — a repo-root .env is NOT read by the backend process.
+cp .env.example backend/.env    # Configure your secrets
 cd backend && pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8080  # Start API
 ```
+
+Kubernetes and Docker Compose pass configuration through environment variables,
+so `.env` only matters for local development.
 
 ## Documentation
 

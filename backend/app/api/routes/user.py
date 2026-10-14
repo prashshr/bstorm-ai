@@ -1,5 +1,7 @@
 import json
 import logging
+import hashlib
+from datetime import datetime, timezone
 from typing import Dict, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -8,10 +10,11 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.core.limiter import limiter
+from app.core.sessions import revoke_user_sessions
 from app.core.security import get_password_hash, verify_password
 from app.core.crypto import derive_pdk, encrypt_uek, decrypt_uek
 from app.db.session import get_db
-from app.models.models import User, UserSetting
+from app.models.models import RefreshToken, User, UserSetting
 
 logger = logging.getLogger("ai_ensemble.user")
 
@@ -29,6 +32,11 @@ class UserSettingsUpdateRequest(BaseModel):
 class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str
+    # Optional. When supplied and still valid for this user, the matching
+    # session is preserved and every other session is revoked. When omitted,
+    # all sessions are revoked, which is the safe default; the caller's
+    # stateless access token keeps working until it expires on its own.
+    refresh_token: str | None = None
 
 
 @router.get("/settings", response_model=UserSettingsResponse)
@@ -106,5 +114,53 @@ def change_password(
         current_user.master_key_encrypted = encrypt_uek(uek, new_pdk)
 
     current_user.password_hash = get_password_hash(payload.new_password)
+
+    # Revoke every other session so a password change actually ends access from
+    # a stolen device. The session that is making this request is preserved when
+    # it can be identified, so the user is not logged out of the action they
+    # just performed. Stateless web access tokens (UEK claim, no sid) cannot be
+    # revoked this way and stay valid until they expire; shortening that needs
+    # token versioning.
+    keep_sid: str | None = None
+    if payload.refresh_token:
+        token_hash = hashlib.sha256(payload.refresh_token.encode()).hexdigest()
+        candidate = (
+            db.query(RefreshToken)
+            .filter(
+                RefreshToken.token_hash == token_hash,
+                RefreshToken.user_id == current_user.id,
+                RefreshToken.revoked == False,  # noqa: E712
+            )
+            .first()
+        )
+        # Only honour the hint when the row is still live and unexpired.
+        # expires_at is read back from a timezone-naive DateTime column, so the
+        # comparison must use a naive UTC value; comparing against an aware
+        # datetime raises TypeError.
+        if candidate is not None and candidate.expires_at > datetime.utcnow():
+            keep_sid = candidate.sid
+
+    rows = (
+        db.query(RefreshToken)
+        .filter(
+            RefreshToken.user_id == current_user.id,
+            RefreshToken.revoked == False,  # noqa: E712
+        )
+        .all()
+    )
+    revoked = 0
+    for row in rows:
+        if keep_sid is not None and row.sid == keep_sid:
+            continue
+        row.revoked = True
+        revoked += 1
+    dropped_sessions = revoke_user_sessions(current_user.id, keep_sid=keep_sid)
+
     db.commit()
-    return {"ok": True, "message": "Password updated successfully."}
+    return {
+        "ok": True,
+        "message": "Password updated successfully.",
+        "sessions_revoked": revoked,
+        "server_sessions_dropped": dropped_sessions,
+        "current_session_kept": keep_sid is not None,
+    }

@@ -44,26 +44,11 @@
         retrieved_context: res.retrieved_context ?? state.retrieved_context ?? null,
       } as any);
 
-      // If discussion has RAG context but no model responses, auto-start it
+      // If the discussion has RAG context but no model responses yet, continue
+      // the EXISTING discussion. start() would create a new record and orphan
+      // this one, duplicating it on every reload of a shared deep link.
       if (!hasRounds && hasRagContext && res.status === "in_progress") {
-        discussion.start({
-          question: res.question,
-          models: state.models || [],
-          instructions: state.instructions || "",
-          consensusEnabled: state.consensus_enabled || false,
-          endpoint: state.endpoint || "",
-          consensusModel: state.consensus_model || "",
-          totalRounds: state.total_rounds || 1,
-          timeout: state.timeout || 120,
-          maxTokens: state.max_tokens || 6000,
-          ragMode: state.rag_mode || "model-only",
-          deepResearch: state.deep_research || false,
-          responseFormat: state.response_format || "none",
-          responseFormatText: state.response_format_text || "",
-          summaryFormat: state.summary_format || "none",
-          summaryFormatText: state.summary_format_text || "",
-          summaryInstructions: state.summary_instructions || "",
-        });
+        await discussion.resume();
       }
     } catch (e) {
       console.warn("Failed to load discussion from URL:", e);
