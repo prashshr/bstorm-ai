@@ -2,10 +2,13 @@
   import { history } from "../stores/history.svelte";
   import { folders } from "../stores/folders.svelte";
   import { discussion } from "../stores/discussion.svelte";
+  import { debug } from "../stores/debug.svelte";
   import { auth } from "../stores/auth.svelte";
   import { models } from "../stores/models.svelte";
   import { providers } from "../stores/providers.svelte";
   import { userSettings } from "../stores/settings.svelte";
+  import { api } from "../api/client";
+  import { splitModelKey } from "../utils/helpers";
   import type { DiscussionResponse } from "../api/types";
   import Icon from "./Icon.svelte";
 
@@ -14,6 +17,7 @@
   let expandedFolders = $state<Record<number, boolean>>({});
   let newFolderName = $state("");
   let addingFolder = $state(false);
+  let generateTitle = $state(false);
 
   const activeId = $derived(
     typeof discussion.data.id === "number" ? discussion.data.id : null,
@@ -40,6 +44,85 @@
     }
     return groups;
   }
+
+  async function generateDiscussionTitle() {
+    if (generateTitle) return;
+    const question = (
+      discussion.data.question ||
+      Object.values(discussion.data.userMessages)[0] ||
+      ""
+    ).trim();
+    if (!question) return;
+    generateTitle = true;
+    try {
+      let title = "";
+      const modelKey = discussion.data.models[0];
+      if (modelKey) {
+        const { provider, model } = splitModelKey(modelKey);
+        try {
+          const out = await api.chatStream(
+            {
+              provider,
+              model,
+              prompt:
+                "Generate a short title (max 6 words) for this discussion topic. " +
+                "Reply with ONLY the title text, no quotes, no trailing punctuation.\n\n" +
+                `Topic: ${question}`,
+              max_tokens: 30,
+              temperature: 0.3,
+              timeout: 20,
+            },
+            () => {},
+          );
+          const firstLine = (out || "")
+            .split("\n")
+            .map((s) => s.trim())
+            .find(Boolean);
+          if (firstLine) {
+            title = firstLine
+              .replace(/^["'“”\s]+/, "")
+              .replace(/["'“”.!?,\s]+$/, "")
+              .slice(0, 70)
+              .trim();
+          }
+        } catch (e) {
+          debug.log(`AI title generation failed: ${e}`, "warn");
+        }
+      }
+      if (!title) {
+        title = question.replace(/\s+/g, " ").slice(0, 60);
+      }
+      discussion.configure({ title });
+      titledQuestion = question;
+    } finally {
+      generateTitle = false;
+    }
+  }
+
+  let titledQuestion = "";
+
+  $effect(() => {
+    if (discussion.running || generateTitle) return;
+    const question = (discussion.data.question || "").trim();
+    if (!question || question === titledQuestion) return;
+    const hasComplete = Object.values(discussion.data.rounds).some((round) =>
+      Object.values(round).some((m) => m.status === "complete" && m.text),
+    );
+    if (!hasComplete) return;
+    // Only generate a title while it still looks like the default
+    // (question-derived) title. A discussion with a custom/AI title is left
+    // alone — otherwise every page load would re-generate and overwrite it.
+    const defaultTitles = new Set([
+      question.slice(0, 60),
+      question.replace(/\s+/g, " ").slice(0, 60),
+    ]);
+    if (discussion.data.title && !defaultTitles.has(discussion.data.title)) {
+      titledQuestion = question;
+      return;
+    }
+    void generateDiscussionTitle();
+  });
+
 
   const filtered = $derived(
     history.items.filter((d) =>

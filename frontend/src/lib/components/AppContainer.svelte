@@ -1,6 +1,8 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { discussion } from "../stores/discussion.svelte";
   import AppHeader from "./AppHeader.svelte";
+  import Icon from "./Icon.svelte";
   import ChatSessions from "./ChatSessions.svelte";
   import ChatHome from "./ChatHome.svelte";
   import ChatMessages from "./ChatMessages.svelte";
@@ -13,6 +15,22 @@
   let sidebarWidth = $state<number>(
     Number(localStorage.getItem("aiEnsembleSidebarWidth")) || 260,
   );
+  let online = $state(typeof navigator === "undefined" ? true : navigator.onLine);
+
+  onMount(() => {
+    const handleOnline = () => {
+      online = true;
+      // Flush any state that failed to sync while offline.
+      discussion.persist();
+    };
+    const handleOffline = () => (online = false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  });
 
   const hasActive = $derived(
     discussion.data.id != null || discussion.data.question !== "" || discussion.running,
@@ -26,6 +44,12 @@
     onTogglePanel={() => (panelOpen = !panelOpen)}
     onToggleSessions={() => (sidebarMobileOpen = !sidebarMobileOpen)}
   />
+  {#if !online}
+    <div class="offline-banner" data-testid="offline-banner" role="status">
+      <Icon name="alert" size="sm" />
+      You're offline — completed responses are saved locally and sync automatically when you reconnect.
+    </div>
+  {/if}
   <div class="body">
     <ChatSessions
       bind:collapsed={sidebarCollapsed}
@@ -45,6 +69,17 @@
 </div>
 
 <style>
+  .offline-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 6px 12px;
+    font-size: 12px;
+    color: var(--warning);
+    background: var(--warning-bg);
+    border-bottom: 1px solid var(--border);
+  }
   .shell {
     position: relative;
     flex: 1;

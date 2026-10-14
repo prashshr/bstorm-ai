@@ -9,6 +9,8 @@ import {
   copyToClipboard,
   modelSupportsVision,
   PROVIDER_PRESETS,
+  parseModelMentions,
+  findResumableRound,
 } from "../src/lib/utils/helpers";
 
 describe("copyToClipboard", () => {
@@ -137,5 +139,122 @@ describe("PROVIDER_PRESETS", () => {
     expect(keys).toContain("openrouter");
     expect(keys).toContain("openai");
     expect(keys).toContain("custom");
+  });
+});
+
+describe("parseModelMentions", () => {
+  const roster = [
+    "openai::gpt-4o",
+    "anthropic::claude-3-5-sonnet-20241022",
+    "openrouter::meta-llama/llama-3.3-70b-instruct",
+    "gemini::gemini-2.5-flash",
+  ];
+
+  it("returns null (everyone) when there are no mentions", () => {
+    expect(parseModelMentions("hello everyone", roster).targets).toBeNull();
+  });
+
+  it("routes to all models on @all", () => {
+    const r = parseModelMentions("@all what do you think?", roster);
+    expect(r.targets).toBeNull();
+  });
+
+  it("@all wins over specific mentions", () => {
+    const r = parseModelMentions("@gpt-4o @all compare", roster);
+    expect(r.targets).toBeNull();
+  });
+
+  it("matches a model id substring", () => {
+    const r = parseModelMentions("@gpt-4o summarize this", roster);
+    expect(r.targets).toEqual(["openai::gpt-4o"]);
+  });
+
+  it("matches a model id prefix used casually (@claude)", () => {
+    const r = parseModelMentions("@claude do you agree?", roster);
+    expect(r.targets).toEqual(["anthropic::claude-3-5-sonnet-20241022"]);
+  });
+
+  it("matches a provider name for all its models", () => {
+    const r = parseModelMentions("@anthropic weigh in", roster);
+    expect(r.targets).toEqual(["anthropic::claude-3-5-sonnet-20241022"]);
+  });
+
+  it("matches slashed ids like @meta-llama/llama-3.3", () => {
+    const r = parseModelMentions("@meta-llama/llama-3.3 thoughts?", roster);
+    expect(r.targets).toEqual(["openrouter::meta-llama/llama-3.3-70b-instruct"]);
+  });
+
+  it("unions multiple mentions and preserves roster order", () => {
+    const r = parseModelMentions("@gemini and @gpt-4o please answer", roster);
+    expect(r.targets).toEqual(["openai::gpt-4o", "gemini::gemini-2.5-flash"]);
+  });
+
+  it("ignores tokens that match nothing (everyone answers)", () => {
+    const r = parseModelMentions("@nonexistentmodel hi", roster);
+    expect(r.targets).toBeNull();
+    expect(r.matched).toEqual([]);
+  });
+
+  it("is case-insensitive", () => {
+    const r = parseModelMentions("@GPT-4O @Anthropic", roster);
+    expect(r.targets).toEqual(["openai::gpt-4o", "anthropic::claude-3-5-sonnet-20241022"]);
+  });
+
+  it("handles empty roster or empty text", () => {
+    expect(parseModelMentions("@gpt-4o", []).targets).toBeNull();
+    expect(parseModelMentions("", roster).targets).toBeNull();
+  });
+});
+
+describe("findResumableRound", () => {
+  const complete = (text = "answer") => ({ status: "complete" as const, text });
+
+  it("returns null when there are no rounds", () => {
+    expect(findResumableRound({ rounds: {} })).toBeNull();
+  });
+
+  it("returns null when every model completed", () => {
+    expect(
+      findResumableRound({
+        rounds: { 1: { a: complete(), b: complete() } },
+      }),
+    ).toBeNull();
+  });
+
+  it("finds a round with a skipped/interrupted model", () => {
+    const r = findResumableRound({
+      rounds: { 1: { a: complete(), b: { status: "skipped", text: "" } } },
+    });
+    expect(r?.round).toBe(1);
+    expect(r?.missing).toEqual(["b"]);
+  });
+
+  it("finds the earliest incomplete round", () => {
+    const r = findResumableRound({
+      rounds: {
+        1: { a: { status: "error", text: "" }, b: complete() },
+        2: { a: { status: "waiting", text: "" } },
+      },
+    });
+    expect(r?.round).toBe(1);
+    expect(r?.missing).toEqual(["a"]);
+  });
+
+  it("treats complete-but-empty responses as missing", () => {
+    const r = findResumableRound({ rounds: { 1: { a: complete("") } } });
+    expect(r?.missing).toEqual(["a"]);
+  });
+
+  it("ignores models added to the roster after the round ran", () => {
+    // round 1 only ever ran model a; model b joined later and must not
+    // make the old round look resumable
+    expect(findResumableRound({ rounds: { 1: { a: complete() } } })).toBeNull();
+  });
+
+  it("returns entries for a round that never got responses", () => {
+    const r = findResumableRound({
+      rounds: { 1: { a: { status: "waiting", text: "" } } },
+    });
+    expect(r).toEqual({ round: 1, missing: ["a"] });
   });
 });

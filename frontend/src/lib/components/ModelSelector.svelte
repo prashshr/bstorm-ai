@@ -1,7 +1,7 @@
 <script lang="ts">
   import { models } from "../stores/models.svelte";
   import { providers } from "../stores/providers.svelte";
-  import { providerDisplayName, modelSupportsVision } from "../utils/helpers";
+  import { providerDisplayName, modelSupportsVision, providerIconName } from "../utils/helpers";
   import Icon from "./Icon.svelte";
 
   let { collapsible = false } = $props<{ collapsible?: boolean }>();
@@ -99,7 +99,7 @@
         aria-expanded={!collapsed}
       >
         <Icon name={collapsed ? "chevron-right" : "chevron-down"} size="sm" />
-        <h3>Models {providers.active ? `· ${providerDisplayName(providers.active)}` : ""}</h3>
+        <h3 class="models-title">Models {#if providers.active}· <Icon name={providerIconName(providers.active)} size="sm" /> {providerDisplayName(providers.active)}{/if}</h3>
         {#if models.available.length > 0}
           <span class="count-pill"
             >{models.selected.length}/{models.available.length}</span
@@ -107,7 +107,7 @@
         {/if}
       </button>
     {:else}
-      <h3>Models {providers.active ? `· ${providers.active}` : ""}</h3>
+      <h3 class="models-title">Models {#if providers.active}· <Icon name={providerIconName(providers.active)} size="sm" /> {providerDisplayName(providers.active)}{/if}</h3>
     {/if}
     {#if models.available.length > 0}
       <button class="btn btn-ghost btn-sm" onclick={retestAll}>
@@ -244,6 +244,11 @@
   .head h3 {
     font-size: 14px;
     margin: 0;
+  }
+  .models-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
   }
   .collapse-toggle {
     display: flex;

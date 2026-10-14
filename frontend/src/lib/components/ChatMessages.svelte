@@ -1,6 +1,7 @@
 <script lang="ts">
   import { discussion } from "../stores/discussion.svelte";
-  import { copyToClipboard } from "../utils/helpers";
+import { userSettings } from "../stores/settings.svelte";
+  import { copyToClipboard, findResumableRound } from "../utils/helpers";
   import Icon from "./Icon.svelte";
   import ModelCard from "./ModelCard.svelte";
   import ConsensusSection from "./ConsensusSection.svelte";
@@ -11,6 +12,12 @@
   let scrollEl = $state<HTMLElement | null>(null);
   let atBottom = $state(true);
   let showJump = $derived(!atBottom && discussion.running);
+
+  // Edit-question (branch) UI: scoped to the discussion id it was opened on,
+  // so switching discussions hides the editor without extra effects.
+  let editingQuestion = $state(false);
+  let editingQuestionForId = $state<string | number | null>(null);
+  let editQuestionText = $state("");
 
   interface Props {
     onEditModels?: () => void;
@@ -43,11 +50,32 @@
     });
   }
 
+  const editingActive = $derived(
+    editingQuestion && editingQuestionForId === discussion.data.id,
+  );
+
+  function startEditQuestion(rn: number) {
+    editingQuestion = true;
+    editingQuestionForId = discussion.data.id ?? null;
+    editQuestionText = cleanUserMessage(discussion.data.userMessages[rn] ?? "");
+  }
+
+  async function branchFromEditedQuestion() {
+    const q = editQuestionText.trim();
+    if (!q) return;
+    editingQuestion = false;
+    await discussion.branch({ question: q });
+  }
+
   const roundNums = $derived(
     Object.keys(discussion.data.rounds)
       .map(Number)
       .sort((a, b) => a - b),
   );
+
+  // A round with models that never finished (reload/offline/timeout/error)
+  // can be resumed without redoing completed work.
+  const resumable = $derived(findResumableRound(discussion.data));
 
   function cleanUserMessage(msg: string): string {
     if (!msg) return "";
@@ -122,7 +150,7 @@
         </div>
       {/if}
     </div>
-    <div class="ch-right">
+<div class="ch-right">
       {#if discussion.running}
         <div class="stop-group">
           <button class="btn btn-ghost btn-sm" onclick={() => discussion.stop()}>
@@ -133,9 +161,32 @@
           </button>
         </div>
       {/if}
+      <div class="top-toolbar">
+        {#if !discussion.running}
+          {#if resumable}
+            <button
+              class="btn btn-ghost btn-sm"
+              data-testid="resume-round-btn"
+              title="Re-run only the models that did not finish — completed answers are kept"
+              onclick={() => discussion.resumeRound(resumable.round)}
+            >
+              <Icon name="refresh" size="sm" /> Resume round {resumable.round}
+            </button>
+          {/if}
+          <button class="btn btn-ghost btn-sm" onclick={() => discussion.reset()} title="New discussion">
+            <Icon name="plus" size="sm" /> New
+          </button>
+          <button class="btn btn-ghost btn-sm" onclick={() => userSettings.openModal()} title="Settings">
+            <Icon name="settings" size="sm" />
+          </button>
+        {/if}
+        <button class="btn btn-ghost btn-sm" onclick={() => window.print()} title="Print discussion">
+          <Icon name="file" size="sm" />
+        </button>
+      </div>
       <ChatExport />
     </div>
-  </div>
+</div>
 
   <div class="scroll-area" bind:this={scrollEl} onscroll={onScroll}>
     {#each roundNums as rn (rn)}
@@ -153,6 +204,23 @@
           </div>
         {/if}
         <div class="user-msg" data-testid="user-message-{rn}">
+          {#if rn === 1 && discussion.data.branchOf}
+            <a
+              class="branch-chip"
+              data-testid="branch-chip"
+              href="#discussion/{discussion.data.branchOf}"
+              onclick={(e) => {
+                e.preventDefault();
+                const parent = discussion.data.branchOf;
+                if (parent) discussion.openDiscussion(parent);
+              }}
+            >
+              <Icon name="git-branch" size="sm" />
+              Branched from #{discussion.data.branchOf}{discussion.data.branchFromTitle
+                ? `: ${discussion.data.branchFromTitle}`
+                : ""}
+            </a>
+          {/if}
           <span class="user-label">
             {rn === 1
               ? "You"
@@ -162,8 +230,66 @@
                   ? "Auto-continue"
                   : "You · follow-up"}
           </span>
-          {#if cleanUserMessage(discussion.data.userMessages[rn] ?? "")}
+          {#if editingActive && rn === 1}
+            <div class="question-edit" data-testid="question-edit">
+              <textarea
+                class="question-edit-input"
+                rows="4"
+                bind:value={editQuestionText}
+                data-testid="question-edit-input"
+              ></textarea>
+              <div class="question-edit-actions">
+                <button
+                  class="btn btn-primary btn-xs"
+                  data-testid="branch-create-btn"
+                  disabled={!editQuestionText.trim()}
+                  onclick={branchFromEditedQuestion}
+                >
+                  <Icon name="git-branch" size="sm" /> Create branch
+                </button>
+                <button class="btn btn-ghost btn-xs" data-testid="branch-cancel-btn" onclick={() => (editingQuestion = false)}>
+                  Cancel
+                </button>
+                <span class="question-edit-hint">
+                  Starts a new discussion with this question — this one stays unchanged.
+                </span>
+              </div>
+            </div>
+          {:else if cleanUserMessage(discussion.data.userMessages[rn] ?? "")}
             <p>{cleanUserMessage(discussion.data.userMessages[rn] ?? "")}</p>
+            <div class="user-msg-actions">
+              <button class="btn btn-ghost btn-xs copy-msg" title="Copy" onclick={(e) => {
+                e.stopPropagation();
+                navigator.clipboard.writeText(cleanUserMessage(discussion.data.userMessages[rn] ?? ""));
+              }}>
+                <Icon name="copy" size="sm" />
+              </button>
+              {#if rn === 1 && !discussion.running && discussion.data.userMessages[rn]}
+                <button
+                  class="btn btn-ghost btn-xs edit-msg"
+                  title="Edit question (creates a new branch)"
+                  data-testid="edit-question-btn"
+                  onclick={(e) => {
+                    e.stopPropagation();
+                    startEditQuestion(rn);
+                  }}
+                >
+                  <Icon name="pencil" size="sm" /> Edit
+                </button>
+              {/if}
+              <button class="btn btn-ghost btn-xs delete-msg" title="Delete" onclick={(e) => {
+                e.stopPropagation();
+                if (confirm("Delete this user message?")) {
+                  discussion.configure({
+                    userMessages: Object.fromEntries(
+                      Object.entries(discussion.data.userMessages).filter(([k]) => k !== String(rn)),
+                    ) as Record<number, string>,
+                  });
+                }
+              }}>
+                <Icon name="trash" size="sm" />
+              </button>
+            </div>
           {/if}
           {#if getAttachmentsForRound(rn).length > 0}
             <div class="user-attachments-grid">
@@ -385,6 +511,63 @@
     white-space: pre-wrap;
     word-break: break-word;
   }
+  .user-msg-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+  }
+  .user-msg-actions .btn {
+    padding: 4px 8px;
+    font-size: 10px;
+    opacity: 0.8;
+  }
+  .user-msg-actions .btn:hover {
+    opacity: 1;
+  }
+  .branch-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 6px;
+    padding: 3px 9px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    color: var(--accent);
+    font-size: 11px;
+    text-decoration: none;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .branch-chip:hover {
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    border-color: var(--accent);
+  }
+  .question-edit {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .question-edit-input {
+    width: 100%;
+    resize: vertical;
+    font: inherit;
+    min-height: 72px;
+  }
+  .question-edit-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .question-edit-hint {
+    font-size: 11px;
+    opacity: 0.65;
+  }
   .user-attachments-grid {
     display: flex;
     flex-wrap: wrap;
@@ -456,6 +639,21 @@
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 12px;
+    align-items: stretch;
+  }
+  .model-card {
+    display: flex;
+    flex-direction: column;
+    min-height: 320px;
+  }
+  .top-toolbar {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+  .top-toolbar .btn {
+    padding: 4px 8px;
+    font-size: 11px;
   }
   .empty-state {
     padding: 40px 20px;

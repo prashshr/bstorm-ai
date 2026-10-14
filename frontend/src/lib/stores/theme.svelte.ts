@@ -1,5 +1,5 @@
 const THEME_KEY = "aiEnsembleTheme";
-export type Theme = "dark" | "light" | "ps-xai-orange";
+export type Theme = "dark" | "light" | "high-contrast" | "ps-xai-orange";
 
 class ThemeStore {
   #theme = $state<Theme>("dark");
@@ -20,7 +20,10 @@ class ThemeStore {
   }
 
   toggle(): void {
-    this.set(this.#theme === "dark" ? "light" : "dark");
+    const themes: Theme[] = ["dark", "light", "high-contrast", "ps-xai-orange"];
+    const currentIndex = themes.indexOf(this.#theme);
+    const nextIndex = (currentIndex + 1) % themes.length;
+    this.set(themes[nextIndex]);
   }
 }
 

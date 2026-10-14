@@ -233,16 +233,30 @@
                 <button
                   class="btn btn-ghost theme-opt"
                   class:active={theme.theme === "dark"}
-                  onclick={() => theme.toggle()}
+                  onclick={() => theme.set("dark")}
                 >
                   <Icon name="moon" size="sm" /> Dark Mode
                 </button>
                 <button
                   class="btn btn-ghost theme-opt"
                   class:active={theme.theme === "light"}
-                  onclick={() => theme.toggle()}
+                  onclick={() => theme.set("light")}
                 >
                   <Icon name="sun" size="sm" /> Light Mode
+                </button>
+                <button
+                  class="btn btn-ghost theme-opt"
+                  class:active={theme.theme === "high-contrast"}
+                  onclick={() => theme.set("high-contrast")}
+                >
+                  <Icon name="sun" size="sm" /> High Contrast
+                </button>
+                <button
+                  class="btn btn-ghost theme-opt"
+                  class:active={theme.theme === "ps-xai-orange"}
+                  onclick={() => theme.set("ps-xai-orange")}
+                >
+                  <Icon name="star" size="sm" /> Orange Mode
                 </button>
               </div>
             </div>

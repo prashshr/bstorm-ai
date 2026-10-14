@@ -5,7 +5,7 @@
   import ProviderForm from "./ProviderForm.svelte";
   import ModelSelector from "./ModelSelector.svelte";
   import OAuthModal from "./OAuthModal.svelte";
-  import { providerDisplayName, splitModelKey } from "../utils/helpers";
+  import { providerDisplayName, splitModelKey, providerIconName } from "../utils/helpers";
 
   interface Props {
     open: boolean;
@@ -412,6 +412,7 @@
                     name={editing === p.provider ? "chevron-down" : "chevron-right"}
                     size="sm"
                   />
+                  <Icon class="brand" name={providerIconName(p.provider)} size="sm" />
                   <span class="pname" title={providers.oauthAccountFor(p.provider) ?? undefined}
                     >{providerDisplayName(p.provider, p.label)}{#if providers.oauthAccountFor(p.provider)} (OAuth){/if}</span
                   >
@@ -550,7 +551,7 @@
     position: absolute;
     inset: 0;
     background: rgba(0, 0, 0, 0.4);
-    z-index: 40;
+    z-index: 50;
   }
   .panel {
     position: absolute;
@@ -565,7 +566,7 @@
     box-shadow: var(--shadow-md);
     transform: translateX(100%);
     transition: transform var(--transition), visibility var(--transition);
-    z-index: 50;
+    z-index: 70;
     display: flex;
     flex-direction: column;
     box-sizing: border-box;
@@ -587,7 +588,7 @@
     width: 16px;
     height: 100%;
     cursor: col-resize;
-    z-index: 70;
+    z-index: 80;
     background: transparent;
     display: flex;
     justify-content: center;

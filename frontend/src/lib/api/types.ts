@@ -236,6 +236,7 @@ export interface DiscussionState {
   timeout: number;
   maxTokens: number;
   attachments: AttachedFile[];
+  tokensUsed?: number;
   stats: DiscussionAggregateStats;
   status: DiscussionStatus;
   totalRounds: number;
@@ -251,6 +252,13 @@ export interface DiscussionState {
   topologyByRound?: Record<number, DeliberationTopologyResponse>;
   turnAnalysisByRound?: Record<number, AnalyzeTurnResponse>;
   retrievedContextByRound?: Record<number, string>;
+  /** Per-round model routing from @mentions: only these roster models answer
+   *  that round. Absent = the full roster answers. */
+  targetModelsByRound?: Record<number, string[]>;
+  /** Set when this discussion was created by editing the parent's question
+   *  (branch). Stored in state_json only — no backend schema change. */
+  branchOf?: number;
+  branchFromTitle?: string;
 }
 
 export interface DiscussionAggregateStats {

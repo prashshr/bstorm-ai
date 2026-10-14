@@ -13,13 +13,14 @@ import { debug } from "./debug.svelte";
 import { providers } from "./providers.svelte";
 import { history } from "./history.svelte";
 import { models } from "./models.svelte";
-import { colorForModel, splitModelKey, modelSupportsVision } from "../utils/helpers";
+import { colorForModel, splitModelKey, modelSupportsVision, recoverDiscussionState } from "../utils/helpers";
 import {
   extractDiscussedEntities,
   detectNewItemsIntent,
   isAutomatedDeliberationDirective,
   buildExclusionLedgerDirective,
 } from "../utils/entityLedger";
+import { buildCompactedTranscript } from "../utils/compaction";
 
 const STATE_KEY = "aiEnsembleDiscussionState";
 const MAX_CONCURRENT = 6;
@@ -51,6 +52,7 @@ function emptyState(): DiscussionState {
     timeout: 120,
     maxTokens: 6000,
     attachments: [],
+    tokensUsed: 0,
     stats: {
       totalInputTokens: 0,
       totalOutputTokens: 0,
@@ -287,12 +289,12 @@ class DiscussionStore {
       .sort((a, b) => b.weight - a.weight);
   }
 
-  restore(): void {
+  restore(opts?: { syncUrl?: boolean }): void {
     try {
       const raw = localStorage.getItem(STATE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw) as DiscussionState;
-        const restored = { ...emptyState(), ...parsed };
+        const restored = { ...emptyState(), ...recoverDiscussionState(parsed) };
         if (restored.status !== "completed" && restored.status !== "closed") {
           restored.status = "stopped";
         }
@@ -306,7 +308,9 @@ class DiscussionStore {
         this.#data = restored;
         this.#running = false;
         this.#phase = "done";
-        this.#syncUrlFromState();
+        // Callers with an incoming #discussion/N deep link pass
+        // syncUrl: false — the deep link must win over local state.
+        if (opts?.syncUrl !== false) this.#syncUrlFromState();
       }
     } catch (e) {
       debug.log(`Failed to restore discussion state: ${e}`, "warn");
@@ -322,8 +326,13 @@ class DiscussionStore {
   }
 
   persist(): void {
+    // Guard: whatever path hydrated #data, a leftover nested state_json
+    // string must never be persisted again — serializing it re-wraps the
+    // state (one more nesting level per save) and hides the real content.
+    // recoverDiscussionState also unwraps any empty-outer envelope first.
+    const snapshot = recoverDiscussionState(this.#data);
     try {
-      localStorage.setItem(STATE_KEY, JSON.stringify(this.#data));
+      localStorage.setItem(STATE_KEY, JSON.stringify(snapshot));
     } catch (e) {
       debug.log(`Failed to persist discussion state: ${e}`, "warn");
     }
@@ -331,7 +340,7 @@ class DiscussionStore {
       api
         .updateDiscussion(this.#data.id, {
           status: this.#data.status,
-          state_json: JSON.stringify(this.#data),
+          state_json: JSON.stringify(snapshot),
         })
         .catch((e) => debug.log(`Backend state sync failed: ${e}`, "warn"));
     }
@@ -371,6 +380,11 @@ class DiscussionStore {
     summaryFormatText: string;
     summaryInstructions: string;
     attachments?: ChatAttachment[];
+    /** @mention routing: only these roster models answer round 1. */
+    targetModels?: string[];
+    /** Set when branching from an existing discussion via question edit. */
+    branchOf?: number;
+    branchFromTitle?: string;
   }): Promise<void> {
     this.#abort = new AbortController();
     this.#running = true;
@@ -403,7 +417,12 @@ class DiscussionStore {
       status: "in_progress",
       timestamp: Date.now(),
       stats: { ...emptyState().stats, modelCount: opts.models.length },
+      ...(opts.branchOf ? { branchOf: opts.branchOf, branchFromTitle: opts.branchFromTitle } : {}),
     };
+    // @mention routing for the first message (subset of the roster only).
+    if (opts.targetModels && opts.targetModels.length > 0 && opts.targetModels.length < opts.models.length) {
+      this.#data.targetModelsByRound = { 1: [...opts.targetModels] };
+    }
 
     try {
       const created = await api.createDiscussion({
@@ -426,6 +445,9 @@ class DiscussionStore {
       debug.log(`Discussion create failed, using local id: ${e}`, "warn");
     }
 
+    // Point the URL at the new discussion immediately so a refresh (or a
+    // deep link still holding the parent id) lands on the right one.
+    this.#syncUrlFromState();
     this.persist();
     this.#imageTranscriptions = {};
     this.#attachmentsByRound = opts.attachments?.length
@@ -483,6 +505,8 @@ class DiscussionStore {
       summaryFormatText?: string;
       summaryInstructions?: string;
       consensusEnabled?: boolean;
+      /** @mention routing: only these roster models answer this round. */
+      targetModels?: string[];
     },
   ): Promise<void> {
     if (!followUp.trim()) return;
@@ -583,18 +607,52 @@ class DiscussionStore {
       if (settings.summaryInstructions !== undefined) this.#data.summaryInstructions = settings.summaryInstructions;
       if (settings.consensusEnabled !== undefined) this.#data.consensusEnabled = settings.consensusEnabled;
     }
+    // @mention routing for this turn: validate against the adopted roster and
+    // store only when it's a genuine subset (roster-wide = no entry needed).
+    if (settings?.targetModels && settings.targetModels.length > 0) {
+      const roster = this.#data.models;
+      const subset = roster.filter((m) => settings.targetModels!.includes(m));
+      if (subset.length > 0 && subset.length < roster.length) {
+        this.#data.targetModelsByRound = {
+          ...(this.#data.targetModelsByRound ?? {}),
+          [roundNum]: subset,
+        };
+      }
+    }
     this.#data = { ...this.#data };
     this.persist();
     await this.runRound(roundNum);
   }
 
-  async runRound(roundNum: number): Promise<void> {
+  async runRound(roundNum: number, opts?: { resume?: boolean }): Promise<void> {
     if (!this.#running) return;
     this.#currentRound = roundNum;
     this.#phase = "drafting";
-    this.#data.rounds[roundNum] = {};
-    for (const model of this.#data.models) {
-      this.#data.rounds[roundNum][model] = { text: "", status: "waiting" };
+    // @mention routing: only the targeted roster models answer this round.
+    // If none of them survive the roster (e.g. removed mid-discussion),
+    // fall back to the full roster so the round never runs with 0 models.
+    const targets = this.#data.targetModelsByRound?.[roundNum];
+    let roundModels = this.#data.models;
+    if (targets?.length) {
+      const active = this.#data.models.filter((m) => targets.includes(m));
+      if (active.length > 0) roundModels = active;
+    }
+    if (opts?.resume) {
+      // Keep finished entries; only (re)run models without a complete answer
+      // (interrupted, errored or timed out) so a resume never redoes work.
+      const existing = { ...(this.#data.rounds[roundNum] ?? {}) };
+      roundModels = roundModels.filter(
+        (m) => !(existing[m]?.status === "complete" && existing[m]?.text),
+      );
+      for (const model of roundModels) {
+        existing[model] = { text: "", status: "waiting" };
+      }
+      this.#data.rounds[roundNum] = existing;
+    } else {
+      this.#data.rounds[roundNum] = {};
+      for (const model of roundModels) {
+        this.#data.rounds[roundNum][model] = { text: "", status: "waiting" };
+      }
     }
     this.#data = { ...this.#data };
 
@@ -602,7 +660,7 @@ class DiscussionStore {
     await this.#ensureImageTranscriptions(roundNum);
 
     // Bounded concurrency with stagger
-    const queue = [...this.#data.models];
+    const queue = [...roundModels];
     const workers: Promise<void>[] = [];
     let index = 0;
 
@@ -611,6 +669,9 @@ class DiscussionStore {
       if (!model) return;
       await new Promise((r) => setTimeout(r, STAGGER_MS * (index % MAX_CONCURRENT)));
       await this.queryModel(model, roundNum);
+      // Persist after every completion so an offline drop or reload never
+      // loses responses that already finished.
+      this.persist();
       if (index < queue.length && this.#running) await runNext();
     };
 
@@ -653,7 +714,9 @@ class DiscussionStore {
       }
     }
 
-    const modelCount = this.#data.models.length;
+    // Responding models this round (equals the roster unless @mention-routed):
+    // a single responding model never needs deliberation rounds.
+    const modelCount = Object.keys(this.#data.rounds[roundNum] ?? {}).length;
     // Capability 3: Dynamic Deliberation Gating
     // Rule 1: If just 1 model, obviously no rounds needed!
     if (modelCount <= 1) {
@@ -700,6 +763,22 @@ class DiscussionStore {
     } else {
       this.finish();
     }
+  }
+
+  /** Re-run only the models of `roundNum` that never produced a complete
+   *  answer (interrupted, errored or timed out). Completed entries are kept
+   *  and consensus/deliberation proceeds once the round is whole again. */
+  async resumeRound(roundNum: number): Promise<void> {
+    if (this.#running) return;
+    if (!this.#data.rounds[roundNum]) return;
+    this.#abort = new AbortController();
+    this.#running = true;
+    this.#data.status = "in_progress";
+    this.#phase = "queued";
+    this.#data = { ...this.#data };
+    this.persist();
+    debug.log(`Resuming round ${roundNum} for incomplete models`);
+    await this.runRound(roundNum, { resume: true });
   }
 
   async queryModel(compositeKey: string, roundNum: number): Promise<void> {
@@ -1103,8 +1182,75 @@ class DiscussionStore {
     this.persist();
   }
 
+  /** Create a new discussion from the current one with an edited question.
+   *  The parent is left untouched; the child records `branchOf` so the UI can
+   *  link back. Config (models, instructions, formats, RAG, attachments) is
+   *  carried over. */
+  async branch(opts: { question: string }): Promise<void> {
+    if (this.#running || !opts.question.trim()) return;
+    const src = this.#data;
+    await this.start({
+      question: opts.question.trim(),
+      models: [...src.models],
+      instructions: src.instructions,
+      consensusEnabled: src.consensusEnabled,
+      endpoint: src.endpoint,
+      consensusModel: src.consensusModel || src.models[0] || "",
+      totalRounds: src.totalRounds || 1,
+      timeout: src.timeout,
+      maxTokens: src.maxTokens,
+      ragMode: src.ragMode,
+      deepResearch: src.deep_research,
+      responseFormat: src.responseFormat,
+      responseFormatText: src.responseFormatText,
+      summaryFormat: src.summaryFormat,
+      summaryFormatText: src.summaryFormatText,
+      summaryInstructions: src.summaryInstructions,
+      attachments: src.attachments?.length
+        ? src.attachments.map((a) => ({
+            name: a.name,
+            type: a.type || "text/plain",
+            content: a.content || "",
+            size: a.size,
+          }))
+        : undefined,
+      branchOf: typeof src.id === "number" ? src.id : undefined,
+      branchFromTitle: src.title || src.question,
+    });
+  }
+
+  /** Fetch a discussion by id from the server (with wipe recovery) and open
+   *  it. Used by the "branched from" chip; returns whether it has rounds so
+   *  callers can decide on auto-start behaviour. */
+  async openDiscussion(id: number): Promise<void> {
+    try {
+      const res = await api.getDiscussion(id);
+      let parsed: DiscussionState = { ...emptyState() };
+      try {
+        parsed = JSON.parse(res.state_json || "{}") as DiscussionState;
+      } catch (e) {
+        debug.log(`openDiscussion(${id}): invalid state_json: ${e}`, "warn");
+      }
+      const state: DiscussionState = {
+        ...emptyState(),
+        ...recoverDiscussionState(parsed),
+        id: res.id,
+        title: res.title || parsed.title || "",
+        question: res.question || parsed.question || "",
+        status: (res.status as DiscussionState["status"]) || parsed.status,
+        retrieved_context: res.retrieved_context ?? parsed.retrieved_context ?? null,
+      };
+      this.load(state);
+    } catch (e) {
+      debug.log(`openDiscussion(${id}) failed: ${e}`, "warn");
+    }
+  }
+
   load(state: DiscussionState): void {
-    const loaded = { ...emptyState(), ...state };
+    // Unwrap states wiped by the legacy hash-load bug (original content is
+    // nested as a JSON string in `state_json`) before merging defaults, so
+    // the recovered rounds survive and persist() self-heals the server copy.
+    const loaded = { ...emptyState(), ...recoverDiscussionState(state) };
     // A loaded (e.g. history) discussion must never auto-resume. Coerce any
     // non-terminal status to a terminal one and freeze any models that were
     // mid-flight so the LLM is never prompted again when the discussion is
@@ -1168,36 +1314,25 @@ class DiscussionStore {
       prompt += `Global instructions: ${this.#data.instructions}\n\n`;
     }
 
-    // Build the full chat transcript up to (but not including) this turn.
+    // Build the full chat transcript up to (but not including) this turn,
+    // with tiered compaction so long discussions don't overflow the model's
+    // context window (displayed responses stay untouched).
     const turnCount = roundNum;
-    prompt += `The following is the full conversation so far (from the beginning). Use ALL of it as context — do not treat this as a fresh query:\n\n`;
-    for (let i = 1; i < turnCount; i++) {
-      const userMsg = this.#data.userMessages[i];
-      if (userMsg) {
-        prompt += `User (turn ${i}): ${userMsg}\n\n`;
-      }
-      const prevRound = this.#data.rounds[i] ?? {};
-
-      // Include this model's own response from turn i so it remembers what it previously proposed
-      const ownResp = prevRound[compositeKey];
-      if (ownResp && ownResp.status === "complete" && ownResp.text) {
-        const ownCapped = ownResp.text.length > 6000 ? ownResp.text.slice(0, 6000) + "\n[truncated]" : ownResp.text;
-        prompt += `### Your Response (turn ${i}):\n${ownCapped}\n\n`;
-      }
-
-      const parts = Object.entries(prevRound)
-        .filter(([m, r]) => m !== compositeKey && r.status === "complete" && r.text)
-        .map(([m, r]) => `### Peer Model: ${splitModelKey(m).model}\n${r.text.length > 6000 ? r.text.slice(0, 6000) + "\n[truncated]" : r.text}`)
-        .join("\n\n");
-      if (parts) {
-        prompt += `[PEER PERSPECTIVES - TURN ${i}]\nThe following are the complete analyses, reasoning steps, and conclusions from the other participating models in turn ${i}:\n\n${parts}\n[END PEER PERSPECTIVES]\n\n`;
-      }
-      const prevConsensus = this.#data.consensuses[i];
-      if (prevConsensus) {
-        const capped = prevConsensus.length > 2500 ? prevConsensus.slice(0, 2500) : prevConsensus;
-        prompt += `Consensus synthesis (turn ${i}):\n${capped}\n\n`;
-      }
+    const transcriptPrelude =
+      `The following is the full conversation so far (from the beginning). Use ALL of it as context — do not treat this as a fresh query:\n\n`;
+    const transcript = buildCompactedTranscript(
+      this.#data,
+      turnCount,
+      compositeKey,
+      prompt.length + transcriptPrelude.length,
+    );
+    if (transcript.tier > 0) {
+      debug.log(
+        `Context compaction tier ${transcript.tier} for turn ${turnCount}: ` +
+          `transcript ${transcript.originalChars} → ${transcript.text.length} chars`,
+      );
     }
+    prompt += transcriptPrelude + transcript.text;
 
     // Current user turn
     const currentMsg = this.#data.userMessages[roundNum] ?? this.#data.question;
@@ -1318,6 +1453,7 @@ class DiscussionStore {
       totalTokens: outTok,
       avgDurationMs: count ? Math.round(dur / count) : 0,
     };
+    this.#data.tokensUsed = outTok;
   }
 }
 

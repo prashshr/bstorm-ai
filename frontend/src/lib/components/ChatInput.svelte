@@ -2,7 +2,7 @@
   import { discussion } from "../stores/discussion.svelte";
   import { models } from "../stores/models.svelte";
   import { userSettings } from "../stores/settings.svelte";
-  import { splitModelKey, VISION_RE, TEXT_ONLY_RE } from "../utils/helpers";
+  import { splitModelKey, VISION_RE, TEXT_ONLY_RE, providerIconName, parseModelMentions } from "../utils/helpers";
   import DOMPurify from "dompurify";
   import { isSupportedDocument, extractDocumentText } from "../utils/extractDocument";
   import type { AttachedFile } from "../api/types";
@@ -160,6 +160,9 @@
   });
 
   const running = $derived(discussion.running);
+  // @mention routing parsed live from the draft (e.g. "@gpt-4o …" or "@all …").
+  const mention = $derived(parseModelMentions(text, models.selected));
+  const mentionRouted = $derived(mention.targets !== null && mention.targets.length > 0);
 
   function autoGrow() {
     if (!editorEl) return;
@@ -234,6 +237,9 @@
     if (models.selected.length === 0) return;
     const attach = attachments;
     const chatAttachments = attach.map((a) => ({ name: a.name, type: a.type, content: a.content }));
+    // Resolve @mention routing from the message BEFORE clearing the editor —
+    // `mention` is derived from `text` and recomputes to null once cleared.
+    const targetModels = parseModelMentions(question, models.selected).targets ?? undefined;
 
     if (editorEl) editorEl.innerHTML = "";
     text = "";
@@ -259,6 +265,7 @@
           summaryFormatText,
           summaryInstructions,
           attachments: chatAttachments,
+          targetModels,
         });
       } else {
         await discussion.nextTurn(question, models.selected, chatAttachments, {
@@ -275,6 +282,7 @@
           summaryFormatText,
           summaryInstructions,
           consensusEnabled,
+          targetModels,
         });
       }
     } finally {
@@ -423,7 +431,7 @@
               {#each models.selected as key (key)}
                 {@const { provider, model } = splitModelKey(key)}
                 <span class="chip model-chip" title={key}>
-                  <Icon name="bot" size="sm" />
+                  <Icon name={providerIconName(provider)} size="sm" />
                   {model}
                   <button
                     class="rm"
@@ -482,6 +490,17 @@
         onpaste={onPaste}
       ></div>
     </div>
+
+    {#if mentionRouted && text.trim()}
+      <div class="mention-hint" role="status" data-testid="mention-hint">
+        <Icon name="corner-down-right" size="sm" />
+        <span>
+          Routing this message to {mention.targets!.length} of {models.selected.length}
+          model{models.selected.length === 1 ? "" : "s"}:
+          {mention.targets!.map((k) => splitModelKey(k).model).join(", ")}
+        </span>
+      </div>
+    {/if}
 
     <!-- BOTTOM SECTION: Bottom Line Controls (Attach, Advanced, Consensus, RAG, Send) -->
     <div class="bottom-bar-line">
@@ -708,11 +727,66 @@
           <Icon name="chevron-down" size="sm" />
         </button>
       </div>
+
+      <div class="token-cost-bar">
+        <span class="token-label">tokens: {discussion.data?.tokensUsed ?? 0}</span>
+        <span class="cost-estimate">≈ ${(discussion.data?.tokensUsed ?? 0) * 0.002 / 1000}</span>
+      </div>
     </div>
   {/if}
 </div>
 
 <style>
+  .token-cost-bar {
+    padding: 4px 8px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 11px;
+    color: var(--text-tertiary);
+    margin-top: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .token-cost-bar .token-label {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+  .token-cost-bar .cost-estimate {
+    color: var(--text-tertiary);
+  /* OpenCode Web Style Single Bottom-Docked Composer Card */
+  .chat-input-bar {
+    border: 1px solid var(--input-border, #1f1f23);
+    border-radius: var(--radius-lg);
+    background: var(--input-bg, #16161a);
+    padding: 10px 14px 10px;
+    width: calc(100% - 32px);
+    max-width: 760px;
+    margin: 0 auto 8px;
+    position: relative;
+    bottom: 0;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    min-height: 150px;
+    max-height: min(420px, 48vh);
+    transition: border-color var(--transition), max-height var(--transition), padding var(--transition);
+  }
+
+  .chat-input-bar:focus-within {
+    border-color: var(--accent);
+  }
+
+  .chat-input-bar.dragover {
+    border-color: var(--accent);
+    border-style: dashed;
+    background: var(--accent-bg, rgba(255, 92, 0, 0.06));
+  }
+  }
+
   /* OpenCode Web Style Single Bottom-Docked Composer Card */
   .chat-input-bar {
     border: 1px solid var(--input-border, #1f1f23);
@@ -1239,6 +1313,24 @@
     border-radius: var(--radius);
     padding: 7px 10px;
     margin-bottom: 8px;
+  }
+  .mention-hint {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+    border-radius: var(--radius);
+    padding: 5px 10px;
+    margin-bottom: 8px;
+  }
+  .mention-hint span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .chip.model-chip {

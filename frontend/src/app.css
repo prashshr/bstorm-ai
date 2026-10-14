@@ -55,6 +55,32 @@
   --input-border: #e4e4e7;
 }
 
+[data-theme="high-contrast"] {
+  --bg-primary: #000000;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #252526;
+  --text-primary: #ffffff;
+  --text-secondary: #e0e0e0;
+  --text-tertiary: #b0b0b0;
+  --border: #ffffff;
+  --border-hover: #ffffff;
+  --input-bg: #000000;
+  --input-border: #ffffff;
+}
+
+[data-theme="ps-xai-orange"] {
+  --bg-primary: #1a1a2e;
+  --bg-secondary: #16213e;
+  --bg-tertiary: #0f3460;
+  --text-primary: #e9c46a;
+  --text-secondary: #a8d8ea;
+  --text-tertiary: #f47067;
+  --border: #e9c46a;
+  --border-hover: #a8d8ea;
+  --input-bg: #1a1a2e;
+  --input-border: #e9c46a;
+}
+
 * {
   box-sizing: border-box;
 }

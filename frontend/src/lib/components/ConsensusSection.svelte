@@ -38,6 +38,26 @@
       setTimeout(() => (copied = false), 1500);
     }
   }
+
+  function exportMarkdown(text: string) {
+    const dataStr = "data:text/markdown;charset=utf-8," + encodeURIComponent(text);
+    const downloadAnchor = document.createElement("a");
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `consensus_round${roundNum || ""}_${Date.now()}.md`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  }
+
+  function exportJson(text: string) {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(text);
+    const downloadAnchor = document.createElement("a");
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `consensus_round${roundNum || ""}_${Date.now()}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  }
 </script>
 
 <section class="consensus" aria-live="polite">
@@ -64,13 +84,29 @@
           >
         {/if}
         {#if consensus}
-          <button
-            class="btn btn-ghost btn-sm"
-            title="Copy consensus"
-            onclick={copy}
-          >
-            <Icon name={copied ? "check" : "copy"} size="sm" />
-          </button>
+          <div class="c-head-actions">
+            <button
+              class="btn btn-ghost btn-sm"
+              title="Copy consensus"
+              onclick={copy}
+            >
+              <Icon name={copied ? "check" : "copy"} size="sm" />
+            </button>
+            <button
+              class="btn btn-ghost btn-sm"
+              title="Export as Markdown"
+              onclick={() => exportMarkdown(consensus)}
+            >
+              <Icon name="download" size="sm" />
+            </button>
+            <button
+              class="btn btn-ghost btn-sm"
+              title="Export as JSON"
+              onclick={() => exportJson(consensus)}
+            >
+              <Icon name="file" size="sm" />
+            </button>
+          </div>
         {/if}
        </div>
     </div>
