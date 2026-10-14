@@ -1,5 +1,83 @@
 # Release Notes
 
+## v5.7.3 — RAG SSRF hardening, session revocation, frontend state repairs
+
+Backend and web images: `ghcr.io/prashshr/ai-ensemble:v5.7.3`,
+`ghcr.io/prashshr/ai-ensemble-web:v5.7.3`. API version `5.7.3`.
+Patch release — backward compatible, no schema change, no breaking API change.
+
+### Security
+
+- **RAG page fetching is now SSRF-safe.** The fetcher followed redirects and
+  read bodies in full, guarded only by a string hostname blocklist. A search
+  result could therefore make the server request loopback, RFC1918, or cloud
+  metadata endpoints (including AWS/GCP/Azure IMDS), and an oversized body was
+  buffered whole into memory. Now: scheme allow-list, DNS resolution checked so
+  private / loopback / link-local / reserved / IPv4-mapped addresses and
+  metadata hostnames are refused, every redirect hop revalidated, and the body
+  streamed under a documented 4 MB cap. Public web retrieval is unchanged —
+  verified against live pages from inside the deployed pod.
+- **Changing your password now signs out other sessions.** `change-password`
+  updated the password and re-encrypted the UEK but left every refresh token
+  and server-side session alive, so a stolen session survived the very action
+  intended to end it. All other refresh tokens are revoked and their
+  `session_store` rows dropped. The session making the request is preserved
+  when it supplies its refresh token (new optional request field), so the user
+  is not logged out of the dialog they just used. The response now reports how
+  many other sessions were signed out.
+  Limitation, stated plainly: a *stateless web access token* carries no session
+  id, so it stays valid until it expires (up to the access-token lifetime) even
+  after revocation. The attacker cannot renew it, which bounds the window.
+  Shortening that requires token versioning.
+- **Registration honours the client type.** `RegisterRequest` had no `client`
+  field, so registration always returned a UEK-bearing access token — a mobile
+  client registering therefore received the user encryption key on the device,
+  breaking the mobile security model. It now accepts the same optional `client`
+  field as login and honours `"mobile"`; omitting it keeps the legacy web
+  behaviour exactly.
+
+### Operations
+
+- **`backend/scripts/migrate.sh`** — a deliberate, backup-taking migration
+  helper. Verified fact: five of the twelve model tables (`agent_personas`,
+  `messages`, `search_history`, `session_store`, `user_settings`) have no
+  Alembic revision that creates them, and `init_db()` only patches five fixed
+  historical columns — it does not add new ones (confirmed experimentally: a
+  dropped column is not restored). So `alembic upgrade head` is **not** a
+  complete upgrade path and is deliberately not run at startup. The script
+  takes a consistent backup, applies revisions, verifies the expected tables,
+  and prints the rollback command.
+- Documented that `.env` resolves relative to the working directory, which is
+  why the quick start places it at `backend/.env`.
+
+### Frontend
+
+- **Retrying a single model no longer wedges the app.** `retryModel` set the
+  shared running flag and never cleared it, leaving the button stuck on "Stop"
+  and blocking new discussions until a page reload. State is now tracked with a
+  round flag plus a standalone-retry counter, so concurrent retries cannot race
+  each other or an in-flight round. Three regression tests were added and
+  verified to fail against the previous implementation.
+- **Reloading a shared discussion link no longer duplicates it.** Deep-link
+  recovery called `start()`, which resets state and creates a new discussion,
+  orphaning the original on every reload. It now resumes the existing
+  discussion id.
+- **Transcript compaction honours its budget at the final tier** instead of
+  silently overflowing the model context window when a large prompt leaves
+  little room.
+- **Password change reports the outcome**, e.g. "Signed out of 2 other
+  sessions."
+
+### Verification
+
+- Backend: 131 passed. Frontend: 104 passed (three new test files),
+  `svelte-check` 0 errors / 20 pre-existing warnings, production build clean.
+- Live Kubernetes deployment exercised: health, auth, mobile `sid` sessions,
+  registration-without-UEK, password-change revocation (own session retained,
+  other device's refresh token rejected), discussions, message decryption,
+  folders, personas, OAuth status, plus SSRF refusal of IMDS / RFC1918 /
+  loopback / metadata hostnames and successful public retrieval.
+
 ## v5.7.2 — Auth/session hardening, data integrity & header cleanup
 
 Backend and web images: `ghcr.io/prashshr/ai-ensemble:v5.7.2`,
