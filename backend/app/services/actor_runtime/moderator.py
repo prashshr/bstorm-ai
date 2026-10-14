@@ -30,7 +30,7 @@ class ModeratorFSM:
         self.consensus_version += 1
         return self.current_round
 
-    def should_terminate_early((self)) -> bool:
+    def should_terminate_early(self) -> bool:
         """Determines if debate can terminate early due to stable consensus or max rounds reached."""
         if self.current_round >= self.max_rounds:
             return True

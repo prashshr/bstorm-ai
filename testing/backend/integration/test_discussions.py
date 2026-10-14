@@ -1,4 +1,5 @@
 import pytest
+from unittest.mock import patch, AsyncMock
 
 
 class TestDiscussions:
@@ -137,18 +138,32 @@ class TestDiscussions:
         assert resp.status_code == 422
 
     def test_deliberation_topology_with_round_number(self, client, auth_headers):
-        resp = client.post(
-            "/api/discussions/deliberation-topology",
-            json={
-                "question": "Which architecture is better?",
-                "model_responses": {
-                    "m1": "Monolith is definitely better.",
-                    "m2": "I strongly disagree, microservices is better.",
+        dissent = {
+            "answers": {
+                "consensus_score": {"score": 1},
+                "primary_divergence": {"choice": "methodology_architecture"},
+                "has_meaningful_dissent": {"probability": 0.95},
+            }
+        }
+        with patch(
+            "app.services.typesafe_service.get_typesafe_api_key",
+            return_value="mock_key",
+        ), patch(
+            "app.services.typesafe_service.evaluate_system_one",
+            new=AsyncMock(return_value=dissent),
+        ):
+            resp = client.post(
+                "/api/discussions/deliberation-topology",
+                json={
+                    "question": "Which architecture is better?",
+                    "model_responses": {
+                        "m1": "Monolith is definitely better.",
+                        "m2": "I strongly disagree, microservices is better.",
+                    },
+                    "round_number": 3,
                 },
-                "round_number": 3,
-            },
-            headers=auth_headers,
-        )
+                headers=auth_headers,
+            )
         assert resp.status_code == 200
         data = resp.json()
         assert data["model_count"] == 2

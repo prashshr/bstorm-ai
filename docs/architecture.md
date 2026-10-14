@@ -64,8 +64,8 @@
 | **HTTP Client** | httpx (async) |
 | **Web Search (RAG)** | Tavily API (primary) → Self-hosted SearXNG (secondary) → DuckDuckGo HTML (fallback) |
 | **Content Extraction** | trafilatura |
-| **Frontend** | Vanilla HTML/CSS/JS, single-page app |
-| **Markdown Rendering** | marked.js (CDN) |
+| **Frontend** | Svelte 5 (runes) + Vite + TypeScript, single-page app |
+| **Markdown Rendering** | marked + DOMPurify sanitization (npm dependency) |
 | **Reverse Proxy** | Caddy 2 (Docker Compose) / Traefik (k3s) |
 | **Containerization** | Docker, k3s (Kubernetes) |
 | **Container Registry** | GHCR (ghcr.io/prashshr/ai-ensemble) |
@@ -365,11 +365,13 @@ When `ChatRequest.include_rag_context` is `true` and `discussion_id` is provided
 **In k3s deployment:** `frontend/index.html` is served by nginx from `/usr/share/nginx/html/`
 **In Docker Compose:** `frontend/` directory is served by Caddy from `/srv/`
 
-The frontend is a **single-page application** containing all CSS, HTML, and JavaScript in one file.
+The frontend is a **Svelte 5 single-page application** built with Vite. Source lives under `frontend/src/`; `frontend/index.html` is only the Vite entry shell (the `<div id="app">` mount point plus the module script tag).
 
 | File | Purpose |
 |------|---------|
-| `frontend/index.html` | Main SPA served in production (approx. 5000 lines) |
+| `frontend/index.html` | Vite entry shell — mounts the Svelte app, ~13 lines |
+| `frontend/src/main.ts` | Application entry, wires up stores and mounts `App.svelte` |
+| `frontend/src/lib/**` | Stores, API client, components, utilities (~13.8k lines) |
 
 #### Advanced Multi-Column Dashboard Layout
 The dashboard layout is designed to maximize screen real estate and mimic a high-performance IDE/control center:

@@ -18,6 +18,17 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
+# Migrate the database the application actually uses. alembic.ini carries a
+# static SQLite URL for local convenience; in a deployment (Kubernetes, Docker
+# Compose) the real target comes from DATABASE_URL via the app settings. Without
+# this, `alembic upgrade head` silently migrates the wrong database.
+# '%' is doubled so ConfigParser does not treat it as an interpolation escape.
+from app.core.config import settings as _settings
+
+config.set_main_option(
+    "sqlalchemy.url", _settings.database_url.replace("%", "%%")
+)
+
 # add your model's MetaData object here
 # for 'autogenerate' support
 from app.db.session import Base

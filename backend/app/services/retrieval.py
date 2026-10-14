@@ -95,7 +95,9 @@ async def _search_tavily(query: str) -> List[Dict]:
         logger.warning("[RAG] Tavily API key not configured, skipping")
         return []
 
-    logger.info(f"[RAG] Tavily search for: {query[:80]}...")
+    # Deliberately log only the length: the query is derived from the user's
+    # prompt and pod logs are aggregated outside the app's access controls.
+    logger.info("[RAG] Tavily search: query length %d chars", len(query))
     async with httpx.AsyncClient(timeout=20.0) as client:
         try:
             resp = await client.post(
@@ -451,7 +453,8 @@ async def get_retrieved_context(user_prompt: str, topic_context: Optional[str] =
         return cached
 
     queries = extract_search_queries(user_prompt, topic_context)
-    logger.info(f"[RAG] Extracted search queries: {queries}")
+    # Query text comes from the user's prompt; log the count only, never content.
+    logger.info("[RAG] Extracted %d search queries", len(queries))
 
     try:
         search_results = await asyncio.wait_for(search_web(queries), timeout=30.0)

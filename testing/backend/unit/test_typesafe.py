@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, AsyncMock, MagicMock
 from app.services.typesafe_service import (
     should_search_web,
     evaluate_system_one,
@@ -142,13 +142,29 @@ class TestTypeSafeService:
     @pytest.mark.asyncio
     async def test_analyze_deliberation_consensus_multi_model_unanimous(self):
         from app.services.typesafe_service import analyze_deliberation_consensus
-        res = await analyze_deliberation_consensus(
-            question="What is 2 + 2?",
-            model_responses={
-                "openai::gpt-4o": "2 + 2 equals 4.",
-                "anthropic::claude-3-5-sonnet": "The answer to 2 + 2 is 4.",
-            },
-        )
+        # Mock the TypeSafe boundary so this asserts the *parse/decision* logic,
+        # not the live model's judgement of the sample text.
+        unanimous = {
+            "answers": {
+                "consensus_score": {"score": 4},
+                "primary_divergence": {"choice": "unanimous"},
+                "has_meaningful_dissent": {"probability": 0.0},
+            }
+        }
+        with patch(
+            "app.services.typesafe_service.get_typesafe_api_key",
+            return_value="mock_key",
+        ), patch(
+            "app.services.typesafe_service.evaluate_system_one",
+            new=AsyncMock(return_value=unanimous),
+        ):
+            res = await analyze_deliberation_consensus(
+                question="What is 2 + 2?",
+                model_responses={
+                    "openai::gpt-4o": "2 + 2 equals 4.",
+                    "anthropic::claude-3-5-sonnet": "The answer to 2 + 2 is 4.",
+                },
+            )
         assert res["model_count"] == 2
         assert res["consensus_percent"] >= 70
         assert res["has_disagreement"] is False
@@ -157,13 +173,27 @@ class TestTypeSafeService:
     @pytest.mark.asyncio
     async def test_analyze_deliberation_consensus_multi_model_disagreement_triggers_round_2(self):
         from app.services.typesafe_service import analyze_deliberation_consensus
-        res = await analyze_deliberation_consensus(
-            question="Should we use Monolith or Microservices for this startup?",
-            model_responses={
-                "openai::gpt-4o": "I strongly disagree with microservices. Monolith is definitely best for velocity and simplicity.",
-                "anthropic::claude-3-5-sonnet": "I advocate for microservices immediately to enable independent scaling.",
-            },
-        )
+        dissent = {
+            "answers": {
+                "consensus_score": {"score": 1},
+                "primary_divergence": {"choice": "methodology_architecture"},
+                "has_meaningful_dissent": {"probability": 0.95},
+            }
+        }
+        with patch(
+            "app.services.typesafe_service.get_typesafe_api_key",
+            return_value="mock_key",
+        ), patch(
+            "app.services.typesafe_service.evaluate_system_one",
+            new=AsyncMock(return_value=dissent),
+        ):
+            res = await analyze_deliberation_consensus(
+                question="Should we use Monolith or Microservices for this startup?",
+                model_responses={
+                    "openai::gpt-4o": "I strongly disagree with microservices. Monolith is definitely best for velocity and simplicity.",
+                    "anthropic::claude-3-5-sonnet": "I advocate for microservices immediately to enable independent scaling.",
+                },
+            )
         assert res["model_count"] == 2
         assert res["has_disagreement"] is True
         assert res["should_deliberate_round_2"] is True
@@ -173,14 +203,30 @@ class TestTypeSafeService:
     @pytest.mark.asyncio
     async def test_analyze_deliberation_consensus_dynamic_round_numbers(self):
         from app.services.typesafe_service import analyze_deliberation_consensus
-        res = await analyze_deliberation_consensus(
-            question="Rank these companies",
-            model_responses={
-                "openai::gpt-4o": "I rank Company A first.",
-                "anthropic::claude-3-5-sonnet": "I strongly disagree, Company B is much better.",
-            },
-            round_number=4,
-        )
+        # Mock the TypeSafe boundary: this test covers the round-number
+        # arithmetic, which must not depend on a live model response.
+        dissent = {
+            "answers": {
+                "consensus_score": {"score": 1},
+                "primary_divergence": {"choice": "factual_dispute"},
+                "has_meaningful_dissent": {"probability": 0.9},
+            }
+        }
+        with patch(
+            "app.services.typesafe_service.get_typesafe_api_key",
+            return_value="mock_key",
+        ), patch(
+            "app.services.typesafe_service.evaluate_system_one",
+            new=AsyncMock(return_value=dissent),
+        ):
+            res = await analyze_deliberation_consensus(
+                question="Rank these companies",
+                model_responses={
+                    "openai::gpt-4o": "I rank Company A first.",
+                    "anthropic::claude-3-5-sonnet": "I strongly disagree, Company B is much better.",
+                },
+                round_number=4,
+            )
         assert res["should_deliberate_round_2"] is True
         assert "[COUNCIL DELIBERATION DIRECTIVE - TURN 5]" in res["deliberation_directive"]
         assert "In Round 4" in res["deliberation_directive"]

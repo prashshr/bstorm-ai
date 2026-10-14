@@ -11,6 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from unittest.mock import patch, AsyncMock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "backend"))
 
@@ -118,8 +119,56 @@ def provider_payload():
 @pytest.fixture(autouse=True)
 def isolate_env():
     settings.tavily_api_key = ""
+    # Unit tests must never reach the external TypeSafe service. Without this,
+    # a developer machine or CI runner that has TYPESAFE_API_KEY set turns
+    # nominally-offline unit tests into live HTTP calls, which makes them
+    # non-deterministic and dependent on a third-party response.
+    settings.typesafe_api_key = ""
     settings.searxng_url = "http://localhost:9999"
     yield
+
+
+@pytest.fixture(autouse=True)
+def deterministic_web_search():
+    """Keep RAG cheap and deterministic in the backend test suite.
+
+    The real pipeline fans out to Tavily / SearXNG / DuckDuckGo and then
+    page-fetches the top URLs. With TypeSafe unset (see ``isolate_env``)
+    ``should_search_web`` now returns True for every prompt, so the discussion
+    endpoints exercise the full retrieval path. Without this stub each such
+    request waits for the 30s search timeout, which made the suite ~15x slower
+    and made RAG-dependent tests depend on live internet conditions.
+
+    The stubs still run ``get_retrieved_context`` end to end — query
+    extraction, candidate ranking and context formatting are all real — only
+    the network boundary is replaced. Tests that need specific search payloads
+    (test_rag.py) patch these same functions themselves and override it.
+    """
+    from app.services import retrieval
+
+    results = [
+        {
+            "url": "https://example.com/ai-hardware",
+            "title": "AI hardware companies overview",
+            "content": "Deterministic offline test content about AI hardware.",
+            "_source": "Tavily",
+        }
+    ]
+    extraction = [
+        {
+            "url": "https://example.com/ai-hardware",
+            "content": "Deterministic offline test content about AI hardware.",
+        }
+    ]
+    retrieval.clear_rag_cache()
+    # Nested patches are used (rather than patch.object) so a test that patches
+    # the same functions overrides this stub, matching the existing
+    # `patch(..., AsyncMock(return_value=...))` style in test_rag.py.
+    with patch("app.services.retrieval.search_web", AsyncMock(return_value=results)), patch(
+        "app.services.retrieval.extract_content_from_urls", AsyncMock(return_value=extraction)
+    ):
+        yield
+    retrieval.clear_rag_cache()
 
 
 @pytest.fixture

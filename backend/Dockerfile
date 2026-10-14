@@ -9,6 +9,10 @@ COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY app /app/app
+# Alembic assets ship with the image so schema migrations can be run from a
+# Job / initContainer / exec session against the deployed database.
+COPY alembic.ini /app/alembic.ini
+COPY alembic /app/alembic
 
 RUN useradd -m -u 1000 appuser && \
     chown -R appuser:appuser /app

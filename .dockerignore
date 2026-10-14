@@ -1,0 +1,58 @@
+# Build-context exclusions for images built from the repository root
+# (e.g. `docker build -f frontend/Dockerfile .`).
+
+# Version control / tooling
+.git/
+.gitignore
+.github/
+.agents/
+.opencode/
+
+# Virtualenvs and Python caches
+.venv/
+backend/.venv/
+**/__pycache__/
+**/*.pyc
+.pytest_cache/
+
+# Node
+**/node_modules/
+frontend/.svelte-kit/
+
+# Runtime data — never bake into an image
+data/
+backend/data/
+*.db
+*.sqlite
+*.db-*
+*.log
+nohup.out
+
+# Local secrets and scratch
+.env
+.env.*
+!.env.example
+.output/
+output/
+.playwright-mcp/
+.quarantine/
+testing/reports/
+roundtable-*.png
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Android build outputs
+frontend/android/app/build/
+frontend/android/.gradle/
+frontend/android/build/
+frontend/android/capacitor-cordova-android-plugins/build/
+local.properties
+
+# Generated frontend output (rebuilt inside the image)
+frontend/dist/
+
+# Review artifacts
+docs/review/

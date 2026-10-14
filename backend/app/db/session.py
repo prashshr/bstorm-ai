@@ -1,16 +1,33 @@
 from collections.abc import Generator
 import logging
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 from app.core.config import settings
 
 logger = logging.getLogger("ai_ensemble.db")
 
-engine = create_engine(settings.database_url, connect_args={"check_same_thread": False} if settings.database_url.startswith("sqlite") else {})
+_IS_SQLITE = settings.database_url.startswith("sqlite")
+
+engine = create_engine(settings.database_url, connect_args={"check_same_thread": False} if _IS_SQLITE else {})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
+
+if _IS_SQLITE:
+
+    @event.listens_for(engine, "connect")
+    def _enable_sqlite_foreign_keys(dbapi_connection, connection_record) -> None:
+        """SQLite ignores foreign keys unless they are enabled per connection.
+
+        The models declare ``ondelete="CASCADE"`` on their foreign keys, so
+        without this pragma deleting a user or discussion leaves orphaned
+        child rows (messages, credentials, refresh tokens, sessions).
+        """
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
 
 
 def get_db() -> Generator[Session, None, None]:
