@@ -45,7 +45,17 @@ if [ -z "${DATABASE_URL:-}" ]; then
   exit 1
 fi
 
-echo "Target database: ${DATABASE_URL%%\?*}"   # strip any query string
+# Redact credentials before the URL is ever echoed: terminal scrollback and CI
+# logs are outside the app's access controls. Handles user:pass@host in
+# postgres://, mysql://, mssql:// and similar DSNs.
+redact_dsn() {
+  printf '%s' "$1" | sed -E \
+    -e 's#(://)[^/@:]+:[^/@]+@#\1***:***@#' \
+    -e 's#(://):[^/@]+@#\1:***@#' \
+    -e 's#(://)[^/@:]+@#\1***@#'
+}
+
+echo "Target database: $(redact_dsn "${DATABASE_URL%%\?*}")"   # strip any query string
 
 case "$DATABASE_URL" in
   sqlite*)
@@ -56,6 +66,8 @@ case "$DATABASE_URL" in
     ;;
   *)
     echo "Non-SQLite target: rely on your platform's managed backup before continuing."
+    echo "NOTE: this script only verifies SQLite. You must take and verify an"
+    echo "      external backup yourself for a non-SQLite target."
     ;;
 esac
 

@@ -337,6 +337,34 @@ async def _host_is_fetchable(hostname: str) -> bool:
     return all(_is_public_ip(info[4][0]) for info in infos)
 
 
+def _verified_peer_is_public(resp: httpx.Response) -> bool:
+    """Check the address actually connected to, not just the pre-flight lookup.
+
+    `_host_is_fetchable` resolves the hostname before the request, but the
+    client performs its own DNS lookup when connecting. A host that answers
+    publicly during validation and privately at connect time (DNS rebinding)
+    would slip through that gap, so verify the real peer once the connection
+    exists. Checked before any body bytes are consumed.
+    """
+    stream = resp.extensions.get("network_stream")
+    if stream is None:
+        # Cannot verify the peer; refuse rather than assume it was safe.
+        return False
+    addr = None
+    for key in ("server_addr", "peername"):
+        try:
+            addr = stream.get_extra_info(key)
+        except Exception:  # noqa: BLE001
+            addr = None
+        if addr:
+            break
+    if not addr:
+        return False
+    peer_ip = addr[0] if isinstance(addr, (tuple, list)) else str(addr)
+    # Strip an IPv6 scope id such as "fe80::1%eth0".
+    return _is_public_ip(str(peer_ip).split("%", 1)[0])
+
+
 async def _read_capped_text(resp: httpx.Response, limit: int) -> str:
     """Read a response body up to ``limit`` bytes.
 
@@ -409,6 +437,13 @@ async def extract_content_from_urls(
                         if resp.status_code != 200:
                             logger.warning(
                                 f"[RAG] No usable response from {current} ({resp.status_code})"
+                            )
+                            return {}
+                        # Close the validate-then-resolve gap: confirm the
+                        # address actually connected to is public too.
+                        if not _verified_peer_is_public(resp):
+                            logger.info(
+                                "[RAG] Refusing connection to a non-public peer address"
                             )
                             return {}
                         body = await _read_capped_text(resp, MAX_FETCH_BYTES)

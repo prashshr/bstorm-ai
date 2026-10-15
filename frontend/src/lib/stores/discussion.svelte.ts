@@ -1393,6 +1393,17 @@ class DiscussionStore {
           `transcript ${transcript.originalChars} → ${transcript.text.length} chars`,
       );
     }
+    // The floor keeps a minimum transcript when the rest of the prompt is huge,
+    // which means the combined prompt can exceed the nominal budget. Say so
+    // rather than letting it pass silently.
+    if (transcript.floorApplied) {
+      debug.log(
+        `Context compaction floor applied for turn ${turnCount}: remaining ` +
+          `budget was below the ${15_000}-char transcript floor, so the combined ` +
+          `prompt exceeds the nominal budget`,
+        "warn",
+      );
+    }
     prompt += transcriptPrelude + transcript.text;
 
     // Current user turn

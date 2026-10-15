@@ -19,6 +19,15 @@ import type { DiscussionState } from "../api/types";
 export const PROMPT_BUDGET_CHARS = 70_000;
 const FLOOR_BUDGET_CHARS = 15_000;
 
+/**
+ * Minimum transcript size. Deliberate trade-off: when the rest of the prompt
+ * (RAG context, instructions, attachments) is large enough that the remaining
+ * budget would fall below this, the transcript keeps this floor instead of
+ * being cut to nothing. The consequence is that the *combined* prompt can then
+ * exceed PROMPT_BUDGET_CHARS, which is why `buildCompactedTranscript` reports
+ * `floorApplied` — so callers and tests can see it rather than assume the
+ * nominal budget held.
+ */
 const TIER_CAPS = {
   0: { resp: 6000, consensus: 2500, user: 0 },
   1: { resp: 1500, consensus: 600, user: 1200 },
@@ -99,33 +108,42 @@ export function buildCompactedTranscript(
   turnCount: number,
   compositeKey: string,
   promptLength: number,
-): { text: string; tier: 0 | 1 | 2; originalChars: number } {
-  const budget = Math.max(
-    FLOOR_BUDGET_CHARS,
-    PROMPT_BUDGET_CHARS - promptLength,
-  );
+): {
+  text: string;
+  tier: 0 | 1 | 2;
+  originalChars: number;
+  /** True when the transcript floor forced the budget above the remaining space. */
+  floorApplied: boolean;
+  /** The budget actually used, i.e. max(floor, remaining). */
+  budgetUsed: number;
+} {
+  const remaining = PROMPT_BUDGET_CHARS - promptLength;
+  const budget = Math.max(FLOOR_BUDGET_CHARS, remaining);
+  const floorApplied = remaining < FLOOR_BUDGET_CHARS;
+  const meta = { floorApplied, budgetUsed: budget };
 
   const tier0 = buildPromptTranscript(data, turnCount, compositeKey, 0);
   if (tier0.length <= budget) {
-    return { text: tier0, tier: 0, originalChars: tier0.length };
+    return { text: tier0, tier: 0, originalChars: tier0.length, ...meta };
   }
   const tier1 = buildPromptTranscript(data, turnCount, compositeKey, 1);
   if (tier1.length <= budget) {
-    return { text: tier1, tier: 1, originalChars: tier0.length };
+    return { text: tier1, tier: 1, originalChars: tier0.length, ...meta };
   }
   const tier2 = buildPromptTranscript(data, turnCount, compositeKey, 2);
   if (tier2.length <= budget) {
-    return { text: tier2, tier: 2, originalChars: tier0.length };
+    return { text: tier2, tier: 2, originalChars: tier0.length, ...meta };
   }
   // Even the most aggressive compaction still exceeds the budget. Truncate so
-  // the combined prompt + transcript stays bounded rather than silently
-  // overflowing the model's context window. Reaching this branch means the
-  // discussion is far larger than the configured budget.
+  // the transcript stays bounded rather than silently overflowing the model's
+  // context window. Reaching this branch means the discussion is far larger
+  // than the configured budget.
   const marker = "\n\n[... transcript truncated to fit the context budget ...]";
   const keep = Math.max(0, budget - marker.length);
   return {
     text: tier2.slice(0, keep) + marker,
     tier: 2,
     originalChars: tier2.length,
+    ...meta,
   };
 }
