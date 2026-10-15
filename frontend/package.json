@@ -1,7 +1,7 @@
 {
   "name": "ai-ensemble-frontend",
   "private": true,
-  "version": "5.7.3",
+  "version": "5.7.4",
   "type": "module",
   "description": "AI-Ensemble multi-provider discussion platform frontend (Svelte 5 + Vite)",
   "scripts": {

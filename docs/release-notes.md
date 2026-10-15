@@ -1,5 +1,51 @@
 # Release Notes
 
+## v5.7.4 — RAG DNS-rebinding fix, secret-safe migration helper
+
+Backend and web images: `ghcr.io/prashshr/ai-ensemble:v5.7.4`,
+`ghcr.io/prashshr/ai-ensemble-web:v5.7.4`. API version `5.7.4`.
+Patch release — backward compatible, no schema change, no breaking API change.
+
+### Security
+
+- **Closed the RAG DNS-rebinding (TOCTOU) gap.** The fetcher validated DNS
+  *before* the request, but the HTTP client resolved the hostname again when
+  connecting. A host that answered publicly during validation and privately at
+  connect time could therefore still reach internal addresses. After the
+  connection is established, the address actually connected to
+  (`server_addr` on the real socket) is now checked too, before any body is
+  read. TLS verification is untouched — no address pinning, no SNI rewriting —
+  so public HTTPS retrieval behaves exactly as before.
+  Verified in the deployed pod: with pre-validation forced to pass, a loopback
+  target is still refused; with the check disabled, the same test leaks
+  content.
+- **`migrate.sh` no longer prints credentials.** It echoed the raw DSN, which
+  would expose `user:password@host` in terminal scrollback and CI logs for a
+  non-SQLite target. Credentials are now redacted for `user:pass@host`,
+  `:password@host` and `user@host` forms, and a non-SQLite target states
+  explicitly that the operator must take and verify their own external backup.
+
+### Frontend
+
+- **The transcript floor is now visible.** The 15,000-character minimum is a
+  deliberate trade-off — a very large prompt must not starve the transcript to
+  nothing — but when it applies the combined prompt can exceed the nominal
+  70,000-character budget with nothing indicating it.
+  `buildCompactedTranscript` now returns `floorApplied` and `budgetUsed`, and
+  the prompt builder logs a warning when the floor applies. Tests assert both
+  the bounded and the floored contracts.
+
+### Verification
+
+- Backend: 131 passed; `compileall` clean over `app/` and `alembic/`.
+- Frontend: 105 passed, `svelte-check` 0 errors / 20 pre-existing warnings,
+  production build clean.
+- Live Kubernetes deployment: SSRF refusal of IMDS / RFC1918 / loopback /
+  metadata hostnames, successful public retrieval, and the rebinding defence
+  exercised with pre-validation forced to pass; plus the full 19-check smoke
+  suite (auth, mobile sessions, registration without UEK, password-change
+  revocation, discussions, message decryption, folders, personas, OAuth).
+
 ## v5.7.3 — RAG SSRF hardening, session revocation, frontend state repairs
 
 Backend and web images: `ghcr.io/prashshr/ai-ensemble:v5.7.3`,
