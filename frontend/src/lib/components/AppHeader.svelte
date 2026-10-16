@@ -74,9 +74,11 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    /* Offset by half the sidebar width so the top header title/logo aligns 100% in a straight vertical line with the center of main area (hero text & chatbox) */
-    transform: translateX(calc(var(--sidebar-w, 0px) / 2));
-    transition: transform var(--transition);
+    /* Deliberately centred on the viewport, NOT on the chat column. The left
+       and right slots are both a fixed 140px, so this stays at the page centre
+       no matter how wide the sidebar is. Shifting it by half the sidebar width
+       looked tidier above the chat column but made the header jump every time
+       the sidebar toggled — a header is chrome and should not move. */
     pointer-events: none;
   }
   .title {
