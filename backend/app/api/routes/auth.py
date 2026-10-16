@@ -92,9 +92,9 @@ def register(request: Request, payload: RegisterRequest, db: Session = Depends(g
     # Mobile: the access token carries a server session id so the UEK never
     # reaches the device. Web: legacy UEK-bearing token (unchanged default).
     if payload.client == "mobile":
-        access_token = create_access_token(str(user.id), extra_claims={"sid": sid})
+        access_token = create_access_token(str(user.id), user.token_version, extra_claims={"sid": sid})
     else:
-        access_token = create_access_token(str(user.id), extra_claims={"uek": uek})
+        access_token = create_access_token(str(user.id), user.token_version, extra_claims={"uek": uek})
 
     return TokenResponse(
         access_token=access_token,
@@ -208,9 +208,9 @@ def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)
     # Web: access token carries uek directly (for stateless API calls),
     # but we still issue a refresh token for silent renewal.
     if payload.client == "mobile":
-        access_token = create_access_token(str(user.id), extra_claims={"sid": sid})
+        access_token = create_access_token(str(user.id), user.token_version, extra_claims={"sid": sid})
     else:
-        access_token = create_access_token(str(user.id), extra_claims={"uek": uek})
+        access_token = create_access_token(str(user.id), user.token_version, extra_claims={"uek": uek})
 
     return TokenResponse(access_token=access_token, refresh_token=refresh_jwt)
 
@@ -229,6 +229,12 @@ def refresh(request: Request, payload: RefreshRequest, db: Session = Depends(get
     row = db.query(RefreshToken).filter(RefreshToken.sid == sid).first()
     if not row or row.revoked or row.expires_at < datetime.utcnow():
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token revoked or expired")
+
+    # The refreshed access token must carry the user's *current* token version,
+    # otherwise it would be rejected immediately after a credential change.
+    token_user = db.query(User).filter(User.id == row.user_id).first()
+    if not token_user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired; please log in again")
 
     # Rotate: revoke the old refresh token, issue a new pair.
     row.revoked = True
@@ -249,7 +255,7 @@ def refresh(request: Request, payload: RefreshRequest, db: Session = Depends(get
         )
     )
     db.commit()
-    access_token = create_access_token(str(row.user_id), extra_claims={"sid": new_sid})
+    access_token = create_access_token(str(row.user_id), token_user.token_version, extra_claims={"sid": new_sid})
     return TokenResponse(access_token=access_token, refresh_token=new_refresh)
 
 

@@ -13,6 +13,13 @@ code is forked — the web bundle is rebuilt into a self-contained APK.
 - **Refresh tokens in Keystore.** The long-lived refresh token is stored in
   Android Keystore (via `@aparajita/capacitor-secure-storage`). It is used to
   silently obtain a new access token; on logout it is revoked server-side.
+- **Access-token versioning.** Every access token is bound to the user's
+  current token version (`token_ver` claim). Changing the password bumps that
+  version, which invalidates every previously issued access token at once —
+  including the `sid`-bearing one held by this device. The change-password
+  response carries the replacement, which the app adopts immediately; if it
+  ever did not, the next request would 401 and the user would be signed out of
+  the dialog they just used.
 - Backward compatible: web clients still get the legacy `uek`-bearing token and
   are completely unaffected.
 

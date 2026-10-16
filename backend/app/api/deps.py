@@ -37,6 +37,23 @@ def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise credentials_exception
+    # Token versioning: reject anything issued before the user's current
+    # credential version, which is what makes "sign out everywhere else" real
+    # for stateless web tokens (they carry no session id to revoke).
+    # A token issued before this claim existed carries no `token_ver` and is
+    # treated as version 1, so deploying this change does not sign anyone out.
+    claim = payload.get("token_ver")
+    if claim is None:
+        claim = 1
+    try:
+        claim_version = int(claim)
+    except (TypeError, ValueError):
+        raise credentials_exception
+    if claim_version != (user.token_version or 1):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session expired; please sign in again",
+        )
     # Web clients carry the UEK directly in the token (legacy flow).
     # Mobile clients carry a server session id (sid); resolve the UEK
     # server-side from the store so it never touches the device.

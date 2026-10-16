@@ -118,6 +118,19 @@ class AuthStore {
     }
   }
 
+  /**
+   * Swap in an access token the backend just issued to us, replacing the one
+   * it has simultaneously invalidated (a password change bumps the user's
+   * token version, so the token we were holding stops working). The refresh
+   * token is untouched — that session was preserved server-side.
+   */
+  async adoptAccessToken(token: string | null | undefined): Promise<void> {
+    if (!token) return;
+    this.#state.token = token;
+    await store.setItem(TOKEN_KEY, token);
+    this.#scheduleProactiveRefresh();
+  }
+
   async init(): Promise<void> {
     await resolveStore();
     configureApi({

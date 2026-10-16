@@ -17,9 +17,21 @@ def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
 
-def create_access_token(subject: str, extra_claims: dict = None) -> str:
+def create_access_token(subject: str, token_version: int, extra_claims: dict = None) -> str:
+    """Build an access token bound to the user's current token_version.
+
+    `token_version` is required rather than defaulted on purpose: a token that
+    omits the claim is treated as version 1 by ``get_current_user``, so a
+    forgotten call site would reject every token issued to a user who has
+    already bumped their version (for example after a password change) and
+    sign them out immediately after logging in.
+    """
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
-    payload = {"sub": subject, "exp": expire}
+    payload = {
+        "sub": subject,
+        "exp": expire,
+        "token_ver": int(token_version or 1),
+    }
     if extra_claims:
         payload.update(extra_claims)
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)

@@ -59,6 +59,12 @@
 
       const data = await res.json();
       if (res.ok) {
+        // The password change invalidates our own access token too (token
+        // versioning), and the response carries its replacement. Adopt it
+        // before touching anything else or the next request would 401.
+        if (typeof data?.access_token === "string") {
+          await auth.adoptAccessToken(data.access_token);
+        }
         const revoked = Number(data?.sessions_revoked ?? 0);
         passwordMsg =
           revoked > 0

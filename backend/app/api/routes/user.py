@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user
 from app.core.limiter import limiter
 from app.core.sessions import revoke_user_sessions
-from app.core.security import get_password_hash, verify_password
+from app.core.security import get_password_hash, verify_password, create_access_token
 from app.core.crypto import derive_pdk, encrypt_uek, decrypt_uek
 from app.db.session import get_db
 from app.models.models import RefreshToken, User, UserSetting
@@ -115,12 +115,18 @@ def change_password(
 
     current_user.password_hash = get_password_hash(payload.new_password)
 
+    # Bump the token version so every access token issued before this moment
+    # becomes invalid immediately. That closes the window for stateless web
+    # tokens (UEK claim, no session id), which nothing else can revoke: they
+    # are checked against users.token_version on every request instead of
+    # surviving for the rest of their lifetime.
+    current_user.token_version = (current_user.token_version or 1) + 1
+    new_token_version = current_user.token_version
+
     # Revoke every other session so a password change actually ends access from
     # a stolen device. The session that is making this request is preserved when
     # it can be identified, so the user is not logged out of the action they
-    # just performed. Stateless web access tokens (UEK claim, no sid) cannot be
-    # revoked this way and stay valid until they expire; shortening that needs
-    # token versioning.
+    # just performed.
     keep_sid: str | None = None
     if payload.refresh_token:
         token_hash = hashlib.sha256(payload.refresh_token.encode()).hexdigest()
@@ -157,10 +163,28 @@ def change_password(
     dropped_sessions = revoke_user_sessions(current_user.id, keep_sid=keep_sid)
 
     db.commit()
+
+    # The bump above invalidated this session's own access token too, so hand
+    # back a replacement: the user keeps looking at the dialog they just used
+    # instead of being signed out of it. Refresh tokens are untouched — the
+    # caller's session is the one that was preserved above.
+    session_claims: dict = {}
+    if current_user.sid:
+        session_claims["sid"] = current_user.sid
+    elif current_user.uek:
+        session_claims["uek"] = current_user.uek
+    access_token = create_access_token(
+        str(current_user.id), new_token_version, extra_claims=session_claims or None
+    )
+
     return {
         "ok": True,
         "message": "Password updated successfully.",
         "sessions_revoked": revoked,
         "server_sessions_dropped": dropped_sessions,
         "current_session_kept": keep_sid is not None,
+        # Stateless clients must adopt this immediately: their previous token
+        # no longer passes the token-version check.
+        "access_token": access_token,
+        "token_version": new_token_version,
     }

@@ -81,6 +81,29 @@ def init_db() -> None:
         finally:
             db.close()
 
+    # Access-token revocation: every access token now carries a `token_ver`
+    # claim that must equal users.token_version. create_all() only creates
+    # missing tables, so existing databases need this column added by hand
+    # (Alembic carries the same change for fresh installs). This runs for every
+    # backend, because a missing column would break every SELECT against users.
+    db = SessionLocal()
+    try:
+        db.execute(text("ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 1"))
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    # Nothing may be NULL: deps.py treats a missing claim as version 1, so a
+    # NULL row would make every already-issued token look stale and log users
+    # out on the next request.
+    try:
+        db.execute(text("UPDATE users SET token_version = 1 WHERE token_version IS NULL"))
+        db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
+
     # Migrate legacy admin: set is_admin=True for the hardcoded admin account
     # if it exists, then log instructions for creating a new admin.
     db = SessionLocal()

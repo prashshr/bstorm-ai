@@ -16,6 +16,11 @@ class User(Base):
     encryption_salt: Mapped[str | None] = mapped_column(String(100), nullable=True)
     master_key_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_admin: Mapped[bool] = mapped_column(default=False)
+    # Bumped on credential changes so already-issued access tokens become
+    # invalid immediately instead of surviving for the rest of their lifetime.
+    # 1 is the baseline; tokens issued before this column existed simply carry
+    # no `token_ver` claim and are treated as version 1.
+    token_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
