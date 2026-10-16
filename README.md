@@ -189,6 +189,7 @@ Full history in [Release Notes](docs/release-notes.md).
 
 | Version | Changes |
 |---------|---------|
+| **v5.8.0** | Password change now invalidates every previously issued access token immediately (new `users.token_version` column, applied automatically; the browser adopts the replacement token it is handed); header title centred on the page instead of jumping 102px when the sidebar opens |
 | **v5.7.4** | Closed the RAG DNS-rebinding gap (peer address verified after connect, TLS untouched); `migrate.sh` redacts DSN credentials and requires a verified external backup for non-SQLite; transcript compaction floor is now reported instead of silent |
 | **v5.7.3** | RAG fetching hardened against SSRF (private/loopback/metadata refused, redirects revalidated, bodies size-capped); password change signs out other sessions; mobile registration no longer leaks the encryption key; retrying a model no longer wedges the app; shared-link reload no longer duplicates discussions; transcript compaction honours its budget; safe `migrate.sh` helper |
 | **v5.7.2** | Refresh tokens rejected as bearer tokens; unresolvable sessions fail closed with 401; prompt text removed from logs; SQLite foreign-key cascades enforced (deleting a user no longer orphans data); Alembic migrates the real `DATABASE_URL`; theme toggle and settings gear removed from the header's top-left (both remain reachable); hermetic unit tests |

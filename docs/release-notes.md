@@ -1,5 +1,74 @@
 # Release Notes
 
+## v5.8.0 — Access-token versioning, header centred on the page
+
+Backend and web images: `ghcr.io/prashshr/ai-ensemble:v5.8.0`,
+`ghcr.io/prashshr/ai-ensemble-web:v5.8.0`. API version `5.8.0`.
+Minor release — one new column, added automatically, backward compatible: no
+manual migration and nobody is signed out by deploying.
+
+### Security
+
+- **A password change now invalidates access tokens that were already issued.**
+  Access tokens are stateless JWTs, so v5.7.3 could revoke *refresh* tokens and
+  server sessions but a stolen web access token kept working until it expired
+  — up to the full access-token lifetime after the victim changed their
+  password. That window is now closed:
+
+  - Every access token carries a `token_ver` claim matching
+    `users.token_version`; `get_current_user` rejects a mismatch with 401, so
+    revocation is enforced on the next request rather than at expiry.
+  - `change-password` bumps the version and returns a replacement
+    `access_token` (and `token_version`) for the session that performed the
+    change, so the user is not signed out of the dialog they just used. The
+    frontend adopts it before making another call.
+  - Login and refresh stamp the version that is current at the moment of
+    issue. `create_access_token` takes the version as a **required** argument
+    precisely because a forgotten stamp would sign a user out immediately
+    after signing them in.
+  - A mobile session's replacement token keeps its `sid`, so the device can
+    still resolve its encryption key server-side.
+  - Deploying signs nobody out: a token with no `token_ver` claim (every token
+    minted before this release) is treated as version 1, which is where every
+    existing user starts. Proven against a pre-deploy-shaped token in the live
+    pod.
+  - Unchanged, stated plainly: an ordinary **logout** still relies on refresh
+    revocation — a plain access token from that session lives until it expires.
+    Versioning is tied to credential changes, not to logout.
+
+### Database
+
+- New column `users.token_version INTEGER NOT NULL DEFAULT 1`. It is applied
+  automatically at startup by `init_db()` for every backend (not just SQLite),
+  and carried by Alembic revision `c3d4e5f6a7b8` for fresh installs. The
+  ALTER was rehearsed against a copy of the live database first — 134 users,
+  no NULLs, and a second run fails softly without breaking startup.
+
+### Frontend
+
+- **The header title is centred on the page.** It used to be offset by half
+  the sidebar width to line up with the chat column, which slid the title
+  102px to the right every time the sidebar opened. It is now pinned to the
+  page centre (measured on production: exactly `viewport / 2` in every state,
+  0px movement on expand and collapse). The trade-off is that with the sidebar
+  open the title no longer sits above the chat column's centre — for a global
+  app label that is the right call, and it is what ChatGPT and Claude do.
+
+### Verification
+
+- Backend **142** passed (11 new token-versioning tests), frontend **108**
+  passed (3 new), `svelte-check` 0 errors / 20 pre-existing warnings,
+  `compileall` clean, production build clean.
+- Live deployment: schema verified in-pod (column present for all 134 users,
+  zero NULLs, idempotent restart); a 28-check smoke suite covering both
+  pre-change access tokens rejected immediately, the replacement accepted, and
+  refresh/login stamped at version 2; 6 backward-compat checks including a
+  pre-deploy token with no claim still authorising API calls; a 12-check
+  browser run of the settings dialog (success message, session kept, stored
+  token replaced, old token refused from the page's own origin, no console
+  errors); and the header measured at page centre before and after expanding
+  the sidebar.
+
 ## v5.7.4 — RAG DNS-rebinding fix, secret-safe migration helper
 
 Backend and web images: `ghcr.io/prashshr/ai-ensemble:v5.7.4`,
